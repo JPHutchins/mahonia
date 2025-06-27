@@ -86,7 +86,7 @@ class BinaryOperationOverloads(Expr[T, S]):
     @overload  # type: ignore[override]
     def __eq__(self, other: bool) -> "Eq[bool, S]": ...
 
-    def __eq__(self, other: Expr[T, S] | bool) -> "Eq[T, S]":
+    def __eq__(self, other: Expr[T, S] | bool) -> "Eq[T, S]":  # type: ignore[misc]
         if isinstance(other, Expr):
             return Eq(self, other)
         else:
@@ -302,7 +302,7 @@ class Eq(
     BooleanBinaryOperationOverloads[S],
     Generic[T, S],
 ):
-    op: ClassVar[str] = " = "
+    op: ClassVar[str] = " == "
 
     def eval(self, ctx: S) -> "Const[bool, S]":
         return Const(self.left.eval(ctx).value == self.right.eval(ctx).value)
@@ -439,3 +439,13 @@ p6 = Const[int, Ctx](10) == Const[int, Ctx](10)
 print(p6(ctx))
 print(p6.to_string())
 print(p6.to_string(ctx))
+
+p7 = (x * Const[int, Ctx](2)) + (y / Const[int, Ctx](2)) == Const[int, Ctx](20)
+print(p7(ctx))
+print(p7.to_string())
+print(p7.to_string(ctx))
+
+p8 = Const[int, Ctx](10) / Const[int, Ctx](5)
+print(p8(ctx))
+print(p8.to_string())
+print(p8.to_string(ctx))
