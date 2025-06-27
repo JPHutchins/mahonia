@@ -3,7 +3,7 @@ from typing import Final, assert_type
 
 import pytest
 
-from cate import Const, Not, Var
+from cate import Const, Eq, Not, Var, between, within
 
 
 @dataclass(frozen=True)
@@ -89,6 +89,21 @@ def test_var_generic_type() -> None:
     v_custom = Var[CustomType, Ctx]("custom")
     assert_type(v_custom, Var[CustomType, Ctx])
     assert_type(v_custom.eval(ctx).value, CustomType)
+
+
+@pytest.mark.mypy_testing
+def test_eq_generic_type() -> None:
+    v_int = Var[int, Ctx]("x")
+    c_int = Const("Five", 5)
+    eq_expr = v_int == c_int
+    assert_type(eq_expr, Eq[int, Ctx])
+    assert_type(eq_expr.eval(ctx).value, bool)
+
+    v_str = Var[str, Ctx]("name")
+    c_str = Const("Example", "example")
+    eq_expr_str = v_str == c_str
+    assert_type(eq_expr_str, Eq[str, Ctx])
+    assert_type(eq_expr_str.eval(ctx).value, bool)
 
 
 def test_var_eval_and_str() -> None:
@@ -432,3 +447,35 @@ def test_deeply_nested_all_operations() -> None:
         assert expr.to_string() == s
         assert expr.to_string(ctx) == s_ctx
         assert expr.to_string(ctx) == s_ctx
+
+
+def test_between() -> None:
+    x = Var[int, Ctx]("x")
+
+    expr = between(x, 5, 10)
+    assert expr.eval(ctx).value is False
+    assert expr.to_string() == "((Low:5 < x) and (x < High:10))"
+    assert expr.to_string(ctx) == "((Low:5 < x:5 -> False) and (x:5 < High:10 -> True) -> False)"
+
+    expr = between(x, 0, 10)
+    assert expr.eval(ctx).value is True
+    assert expr.to_string() == "((Low:0 < x) and (x < High:10))"
+    assert expr.to_string(ctx) == "((Low:0 < x:5 -> True) and (x:5 < High:10 -> True) -> True)"
+
+
+def test_within() -> None:
+    f = Var[float, Ctx]("f")
+
+    expr = within(f, 1.5, 0.01)
+    print()
+    print(expr.to_string())
+    print()
+    print(expr.to_string(ctx))
+    assert expr.eval(ctx).value is True
+
+    expr = within(f, 1.6, 0.01)
+    print()
+    print(expr.to_string())
+    print()
+    print(expr.to_string(ctx))
+    assert expr.eval(ctx).value is False

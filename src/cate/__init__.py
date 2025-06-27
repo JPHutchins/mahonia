@@ -14,6 +14,43 @@ S_contra = TypeVar("S_contra", contravariant=True)
 """The contravariant type of the expression's context."""
 
 
+class _SupportsArithmetic(Protocol):
+    def __add__(self, other: Any) -> Any: ...
+    def __sub__(self, other: Any) -> Any: ...
+    def __mul__(self, other: Any) -> Any: ...
+    def __truediv__(self, other: Any) -> Any: ...
+
+
+TSupportsArithmetic = TypeVar("TSupportsArithmetic", bound=_SupportsArithmetic)
+
+
+class _SupportsEquality(Protocol):
+    def __eq__(self, other: Any) -> bool: ...
+    def __ne__(self, other: Any) -> bool: ...
+
+
+TSupportsEquality = TypeVar("TSupportsEquality", bound=_SupportsEquality)
+
+
+class _SupportsComparison(Protocol):
+    def __lt__(self, other: Any) -> bool: ...
+    def __le__(self, other: Any) -> bool: ...
+    def __gt__(self, other: Any) -> bool: ...
+    def __ge__(self, other: Any) -> bool: ...
+
+
+TSupportsComparison = TypeVar("TSupportsComparison", bound=_SupportsComparison)
+
+
+class _SupportsLogic(Protocol):
+    def __and__(self, other: Any) -> Any: ...
+    def __or__(self, other: Any) -> Any: ...
+    def __invert__(self) -> Any: ...
+
+
+TSupportsLogic = TypeVar("TSupportsLogic", bound=_SupportsLogic)
+
+
 @runtime_checkable
 class Eval(Protocol[T, S_contra]):
     def eval(self, ctx: S_contra) -> "Const[T]": ...
@@ -35,14 +72,14 @@ class Expr(Generic[T, S]):
         return self.eval(ctx)
 
 
-class BoolExpr(Expr[bool, S]):
-    def eval(self, ctx: S) -> "Const[bool]":
+class BoolExpr(Expr[TSupportsLogic, S]):
+    def eval(self, ctx: S) -> "Const[TSupportsLogic]":
         raise NotImplementedError()
 
     def to_string(self, ctx: S | None = None) -> str:
         return super().to_string(ctx)
 
-    def __call__(self, ctx: S) -> "Const[bool]":
+    def __call__(self, ctx: S) -> "Const[TSupportsLogic]":
         return self.eval(ctx)
 
 
@@ -51,11 +88,11 @@ class UnaryOperationOverloads(Expr[bool, S]):
         return Not(self)
 
 
-class BooleanBinaryOperationOverloads(BoolExpr[S]):
-    def __and__(self, other: BoolExpr[S]) -> "And[S]":
+class BooleanBinaryOperationOverloads(BoolExpr[TSupportsLogic, S]):
+    def __and__(self, other: BoolExpr[TSupportsLogic, S]) -> "And[TSupportsLogic, S]":
         return And(self, other)
 
-    def __or__(self, other: BoolExpr[S]) -> "Or[S]":
+    def __or__(self, other: BoolExpr[TSupportsLogic, S]) -> "Or[TSupportsLogic, S]":
         return Or(self, other)
 
     def __invert__(self) -> "Not[S]":
@@ -64,12 +101,14 @@ class BooleanBinaryOperationOverloads(BoolExpr[S]):
 
 class BinaryOperationOverloads(Expr[T, S]):
     @overload  # type: ignore[override]
-    def __eq__(self, other: Expr[T, S]) -> "Eq[T, S]": ...
+    def __eq__(self, other: Expr[TSupportsEquality, S]) -> "Eq[TSupportsEquality, S]": ...
 
     @overload  # type: ignore[override]
-    def __eq__(self, other: T) -> "Eq[T, S]": ...
+    def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
-    def __eq__(self, other: Expr[T, S] | T) -> "Eq[T, S]":  # type: ignore[misc]
+    def __eq__(  # type: ignore[misc]
+        self, other: Expr[TSupportsEquality, S] | TSupportsEquality
+    ) -> "Eq[TSupportsEquality, S]":
         if isinstance(other, Expr):
             return Eq(self, other)
         else:
@@ -88,88 +127,102 @@ class BinaryOperationOverloads(Expr[T, S]):
             return Ne(self, Const[T](None, other))
 
     @overload
-    def __lt__(self, other: T) -> "Lt[T, S]": ...
+    def __lt__(self, other: TSupportsComparison) -> "Lt[TSupportsComparison, S]": ...
 
     @overload
-    def __lt__(self, other: Expr[T, S]) -> "Lt[T, S]": ...
+    def __lt__(self, other: Expr[TSupportsComparison, S]) -> "Lt[TSupportsComparison, S]": ...
 
-    def __lt__(self, other: Expr[T, S] | T) -> "Lt[T, S]":
+    def __lt__(
+        self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+    ) -> "Lt[TSupportsComparison, S]":
         if isinstance(other, Expr):
             return Lt(self, other)
         else:
-            return Lt(self, Const[T](None, other))
+            return Lt(self, Const(None, other))
 
     @overload
-    def __le__(self, other: T) -> "Le[T, S]": ...
+    def __le__(self, other: TSupportsComparison) -> "Le[S]": ...
 
     @overload
-    def __le__(self, other: Expr[T, S]) -> "Le[T, S]": ...
+    def __le__(self, other: Expr[TSupportsComparison, S]) -> "Le[TSupportsComparison, S]": ...
 
-    def __le__(self, other: Expr[T, S] | T) -> "Le[T, S]":
+    def __le__(
+        self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+    ) -> "Le[TSupportsComparison, S]":
         if isinstance(other, Expr):
             return Le(self, other)
         else:
-            return Le(self, Const[T](None, other))
+            return Le(self, Const(None, other))
 
     @overload
-    def __gt__(self, other: T) -> "Gt[T, S]": ...
+    def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison,S]": ...
 
     @overload
-    def __gt__(self, other: Expr[T, S]) -> "Gt[T, S]": ...
+    def __gt__(self, other: Expr[TSupportsComparison, S]) -> "Gt[TSupportsComparison, S]": ...
 
-    def __gt__(self, other: Expr[T, S] | T) -> "Gt[T, S]":
+    def __gt__(
+        self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+    ) -> "Gt[TSupportsComparison, S]":
         if isinstance(other, Expr):
             return Gt(self, other)
         else:
-            return Gt(self, Const[T](None, other))
+            return Gt(self, Const(None, other))
 
     @overload
-    def __ge__(self, other: T) -> "Ge[T, S]": ...
+    def __ge__(self, other: TSupportsComparison) -> "Ge[TSupportsComparison, S]": ...
 
     @overload
-    def __ge__(self, other: Expr[T, S]) -> "Ge[T, S]": ...
+    def __ge__(self, other: Expr[TSupportsComparison, S]) -> "Ge[TSupportsComparison, S]": ...
 
-    def __ge__(self, other: Expr[T, S] | T) -> "Ge[T, S]":
+    def __ge__(
+        self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+    ) -> "Ge[TSupportsComparison, S]":
         if isinstance(other, Expr):
             return Ge(self, other)
         else:
-            return Ge(self, Const[T](None, other))
+            return Ge(self, Const(None, other))
 
     @overload
-    def __add__(self, other: T) -> "Add[T, S]": ...
+    def __add__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
 
     @overload
-    def __add__(self, other: Expr[T, S]) -> "Add[T, S]": ...
+    def __add__(self, other: Expr[TSupportsArithmetic, S]) -> "Add[TSupportsArithmetic, S]": ...
 
-    def __add__(self, other: Expr[T, S] | T) -> "Add[T, S]":
+    def __add__(
+        self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+    ) -> "Add[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
             return Add(self, other)
         else:
-            return Add(self, Const[T](None, other))
+            return Add(self, Const(None, other))
 
     @overload
-    def __sub__(self, other: T) -> "Sub[T, S]": ...
+    def __sub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
     @overload
-    def __sub__(self, other: Expr[T, S]) -> "Sub[T, S]": ...
+    def __sub__(self, other: Expr[TSupportsArithmetic, S]) -> "Sub[TSupportsArithmetic, S]": ...
 
-    def __sub__(self, other: Expr[T, S] | T) -> "Sub[T, S]":
+    def __sub__(
+        self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+    ) -> "Sub[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
             return Sub(self, other)
         else:
-            return Sub(self, Const[T](None, other))
+            return Sub(self, Const(None, other))
 
     @overload
-    def __mul__(self, other: T) -> "Mul[T, S]": ...
+    def __mul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
 
     @overload
-    def __mul__(self, other: Expr[T, S]) -> "Mul[T, S]": ...
+    def __mul__(self, other: Expr[TSupportsArithmetic, S]) -> "Mul[TSupportsArithmetic, S]": ...
 
-    def __mul__(self, other: Expr[T, S] | T) -> "Mul[T, S]":
+    def __mul__(
+        self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+    ) -> "Mul[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
             return Mul(self, other)
         else:
-            return Mul(self, Const[T](None, other))
+            return Mul(self, Const(None, other))
 
     @overload
     def __truediv__(self, other: float) -> "Div[float, S]": ...
@@ -185,7 +238,7 @@ class BinaryOperationOverloads(Expr[T, S]):
 
 
 @dataclass(frozen=True, eq=False)
-class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[Any]):
+class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):
     name: str | None
     value: T
 
@@ -197,7 +250,7 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[An
 
 
 @dataclass(frozen=True, eq=False)
-class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[S]):
+class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):
     name: str
 
     def eval(self, ctx: S) -> Const[T]:
@@ -257,24 +310,24 @@ class BinaryOpToString(ToString[S], BinaryOpEval[T, S], Generic[T, S]):
             )
 
 
-class And(BinaryOpToString[bool, S], BooleanBinaryOperationOverloads[S], Generic[S]):
+class And(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
     op: ClassVar[str] = " and "
 
-    def eval(self, ctx: S) -> Const[bool]:
+    def eval(self, ctx: S) -> Const[TSupportsLogic]:
         return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
 
 
-class Or(BinaryOpToString[bool, S], BooleanBinaryOperationOverloads[S], Generic[S]):
+class Or(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
     op: ClassVar[str] = " or "
 
-    def eval(self, ctx: S) -> Const[bool]:
+    def eval(self, ctx: S) -> Const[TSupportsLogic]:
         return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
 
 
 class Eq(
-    BinaryOpToString[T, S],
-    BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[S],
+    BinaryOpToString[TSupportsEquality, S],
+    BinaryOperationOverloads[TSupportsEquality, S],
+    BooleanBinaryOperationOverloads[TSupportsEquality, S],
 ):
     op: ClassVar[str] = " == "
 
@@ -285,7 +338,7 @@ class Eq(
 class Ne(
     BinaryOpToString[T, S],
     BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[S],
+    BooleanBinaryOperationOverloads[T, S],
 ):
     op: ClassVar[str] = " != "
 
@@ -293,13 +346,10 @@ class Ne(
         return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
 
 
-type SupportsLessThan = int | float
-
-
 class Lt(
-    BinaryOpToString[SupportsLessThan, S],
-    BinaryOperationOverloads[SupportsLessThan, S],
-    BooleanBinaryOperationOverloads[S],
+    BinaryOpToString[TSupportsComparison, S],
+    BinaryOperationOverloads[TSupportsComparison, S],
+    BooleanBinaryOperationOverloads[T, S],
 ):
     op: ClassVar[str] = " < "
 
@@ -308,9 +358,9 @@ class Lt(
 
 
 class Le(
-    BinaryOpToString[T, S],
-    BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[S],
+    BinaryOpToString[TSupportsComparison, S],
+    BinaryOperationOverloads[TSupportsComparison, S],
+    BooleanBinaryOperationOverloads[T, S],
 ):
     op: ClassVar[str] = " <= "
 
@@ -319,9 +369,9 @@ class Le(
 
 
 class Gt(
-    BinaryOpToString[T, S],
-    BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[S],
+    BinaryOpToString[TSupportsComparison, S],
+    BinaryOperationOverloads[TSupportsComparison, S],
+    BooleanBinaryOperationOverloads[T, S],
 ):
     op: ClassVar[str] = " > "
 
@@ -330,9 +380,9 @@ class Gt(
 
 
 class Ge(
-    BinaryOpToString[T, S],
-    BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[S],
+    BinaryOpToString[TSupportsComparison, S],
+    BinaryOperationOverloads[TSupportsComparison, S],
+    BooleanBinaryOperationOverloads[T, S],
 ):
     op: ClassVar[str] = " >= "
 
@@ -340,29 +390,75 @@ class Ge(
         return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
 
 
-class Add(BinaryOpToString[T, S], BinaryOperationOverloads[T, S]):
+class Add(
+    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
     op: ClassVar[str] = " + "
 
-    def eval(self, ctx: S) -> Const[T]:
+    def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
         return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
 
 
-class Sub(BinaryOpToString[T, S], BinaryOperationOverloads[T, S]):
+class Sub(
+    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
     op: ClassVar[str] = " - "
 
-    def eval(self, ctx: S) -> Const[T]:
+    def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
         return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
 
 
-class Mul(BinaryOpToString[T, S], BinaryOperationOverloads[T, S]):
+class Mul(
+    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
     op: ClassVar[str] = " * "
 
-    def eval(self, ctx: S) -> Const[T]:
+    def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
         return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
 
 
-class Div(BinaryOpToString[T, S], BinaryOperationOverloads[T, S]):
+class Div(
+    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
     op: ClassVar[str] = " / "
 
-    def eval(self, ctx: S) -> Const[T]:
+    def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
         return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
+
+
+def between(
+    expr: Expr[TSupportsComparison, S], low: _SupportsComparison, high: _SupportsComparison
+) -> "And[bool, S]":
+    return And(
+        Lt(Const("Low", low), expr),
+        Lt(expr, Const("High", high)),
+    )
+
+
+class Within(BooleanBinaryOperationOverloads[TSupportsComparison, S]):
+    def __init__(
+        self,
+        expr: Expr[TSupportsComparison, S],
+        target: _SupportsComparison,
+        plus_minus: _SupportsComparison,
+    ):
+        self.expr = expr
+        self.target = target
+        self.plus_minus = plus_minus
+
+    def eval(self, ctx: S) -> Const[TSupportsComparison]:
+        return Const(
+            None,
+            self.target - self.plus_minus
+            <= self.expr.eval(ctx).value
+            <= self.target + self.plus_minus,
+        )
+
+    def to_string(self, ctx: S | None = None) -> str:
+        return f"({self.expr.to_string(ctx)} within {self.target} ± {self.plus_minus})"
+
+
+def within(
+    expr: Expr[TSupportsComparison, S], target: _SupportsComparison, plus_minus: _SupportsComparison
+) -> Within[TSupportsComparison, S]:
+    return Within(expr, target, plus_minus)
