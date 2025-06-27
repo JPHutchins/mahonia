@@ -67,9 +67,9 @@ class BinaryOperationOverloads(Expr[T, S]):
     def __eq__(self, other: Expr[T, S]) -> "Eq[T, S]": ...
 
     @overload  # type: ignore[override]
-    def __eq__(self, other: bool) -> "Eq[bool, S]": ...
+    def __eq__(self, other: T) -> "Eq[T, S]": ...
 
-    def __eq__(self, other: Expr[T, S] | bool) -> "Eq[T, S]":  # type: ignore[misc]
+    def __eq__(self, other: Expr[T, S] | T) -> "Eq[T, S]":  # type: ignore[misc]
         if isinstance(other, Expr):
             return Eq(self, other)
         else:
@@ -86,9 +86,6 @@ class BinaryOperationOverloads(Expr[T, S]):
             return Ne(self, other)
         else:
             return Ne(self, Const[T](None, other))
-
-    def __invert__(self) -> "Not[S]":
-        return Not(self)
 
     @overload
     def __lt__(self, other: T) -> "Lt[T, S]": ...

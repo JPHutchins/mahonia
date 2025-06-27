@@ -183,8 +183,7 @@ def test_constants_only() -> None:
     assert (c10 / c5).eval(None).value == 2
     assert (c10 == c10).eval(None).value is True
     assert (c10 == c5).eval(None).value is False
-    # Fixme
-    # assert (c10 == 10.0).eval(None).value is True
+    assert (c10 == 10.0).eval(None).value is True
     assert (c10 != 5.0).eval(None).value is True
     assert (c10 > c5).eval(None).value is True
     assert (c10 + c5 * 50).eval(None).value == 260.0
@@ -216,10 +215,8 @@ def test_bool_logic() -> None:
 
 def test_const_vs_python_literal() -> None:
     c10 = Const("name", 10.0)
-    # Fixme
-    # expr = Eq(c10, 10.0)
-    # expr = c10 == 10.0
-    # assert expr.eval(None).value is True
+    expr = c10 == 10.0
+    assert expr.eval(None).value is True
     assert (c10 != 5.0).eval(None).value is True
     assert (c10 > 5.0).eval(None).value is True
     assert (c10 < 20.0).eval(None).value is True
