@@ -82,6 +82,9 @@ class Expr(Generic[T, S]):
     def __call__(self, ctx: S) -> "Const[T]":
         return self.eval(ctx)
 
+    def unwrap(self, ctx: S) -> T:
+        return self.eval(ctx).value
+
 
 class BoolExpr(Expr[TSupportsLogic, S]):
     def eval(self, ctx: S) -> "Const[TSupportsLogic]":
@@ -515,3 +518,20 @@ class Approximately(
         return Const(
             None, abs(self.left.eval(ctx).value - self.right.value) <= self.right.max_abs_error
         )
+
+
+@dataclass(frozen=True, eq=False)
+class Predicate(BooleanBinaryOperationOverloads[bool, S]):
+    name: str | None
+    expr: BoolExpr[bool, S]
+
+    def eval(self, ctx: S) -> Const[bool]:
+        return Const(self.name, self.expr.eval(ctx).value)
+
+    def to_string(self, ctx: S | None = None) -> str:
+        result: Final = (
+            self.expr.to_string(ctx)
+            if ctx is None
+            else f"{self.unwrap(ctx)} {self.expr.to_string(ctx)}"
+        )
+        return f"{self.name}: {result}" if self.name else result

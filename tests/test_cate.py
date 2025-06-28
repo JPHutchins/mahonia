@@ -3,7 +3,7 @@ from typing import Final, assert_type
 
 import pytest
 
-from cate import Add, Approximately, Const, Eq, Not, Percent, PlusMinus, Var, between
+from cate import Add, Approximately, Const, Eq, Not, Percent, PlusMinus, Predicate, Var, between
 
 
 @dataclass(frozen=True)
@@ -776,3 +776,21 @@ def test_composition_string_representation() -> None:
     expr2 = sum_expr_x2 > diff_expr_plus_10
     assert expr2.to_string() == expr.to_string()
     assert expr2.to_string(ctx) == expr.to_string(ctx)
+
+
+def test_predicate() -> None:
+    """Test Predicate class."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Create a predicate
+    pred = Predicate("x is greater than y", x > y)
+
+    assert pred.eval(ctx).value is False  # 5 is not greater than 10
+    assert pred.to_string() == "x is greater than y: (x > y)"
+    assert pred.to_string(ctx) == "x is greater than y: False (x:5 > y:10 -> False)"
+
+    pred2 = Predicate("x is less than y", x < y)
+    assert pred2.eval(ctx).value is True  # 5 is less than 10
+    assert pred2.to_string() == "x is less than y: (x < y)"
+    assert pred2.to_string(ctx) == "x is less than y: True (x:5 < y:10 -> True)"
