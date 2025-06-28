@@ -348,6 +348,9 @@ class Eq(
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
 
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
+
 
 class Ne(
     BinaryOpToString[TSupportsEquality, S],
@@ -358,6 +361,9 @@ class Ne(
 
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
+
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
 
 
 class Lt(
@@ -370,6 +376,9 @@ class Lt(
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
 
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
+
 
 class Le(
     BinaryOpToString[TSupportsComparison, S],
@@ -380,6 +389,9 @@ class Le(
 
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
+
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
 
 
 class Gt(
@@ -392,6 +404,9 @@ class Gt(
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
 
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
+
 
 class Ge(
     BinaryOpToString[TSupportsComparison, S],
@@ -402,6 +417,9 @@ class Ge(
 
     def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
+
+    def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
+        return self.eval(ctx).value
 
 
 class Add(
