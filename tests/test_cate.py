@@ -517,7 +517,7 @@ def test_approximately() -> None:
     print(expr.to_string(ctx))
 
 
-def test_composition() -> None:
+def test_approximately_composition() -> None:
     x = Var[int, Ctx]("x")
     y = Var[int, Ctx]("y")
 
@@ -531,9 +531,248 @@ def test_composition() -> None:
     print(expr.to_string())
     print(expr.to_string(ctx))
 
-    expr = Approximately(x * y, Percent("Product", 50.0, 5.0))
+    expr = Approximately(x * y, Percent("Product", 48.0, 5.0))
     assert_type(expr, Approximately[int, Ctx])
 
     print()
     print(expr.to_string())
     print(expr.to_string(ctx))
+
+
+def test_composition_nested_arithmetic() -> None:
+    """Test composition of arithmetic expressions at multiple levels."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Build nested arithmetic expressions
+    inner = (x + y) * 2
+    outer = inner - 5
+    final = outer / 3
+
+    assert final.eval(ctx).value == ((5 + 10) * 2 - 5) / 3
+    assert final.to_string() == "((((x + y) * 2) - 5) / 3)"
+
+    # Test with constants mixed in
+    c2 = Const("Two", 2)
+    c5 = Const("Five", 5)
+    composed = (x + c2) * (y - c5)
+    assert composed.eval(ctx).value == (5 + 2) * (10 - 5)
+    assert composed.to_string() == "((x + Two:2) * (y - Five:5))"
+
+
+def test_composition_comparison_chains() -> None:
+    """Test composition of comparison expressions."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Chain comparisons with logical operators
+    range_check = (0 < x) & (x < 10) & (y > x)
+    assert range_check.eval(ctx).value is True
+
+    complex_comparison = ((x + y) > 10) & ((x * y) < 100)
+    assert complex_comparison.eval(ctx).value is True
+    assert complex_comparison.to_string() == "(((x + y) > 10) and ((x * y) < 100))"
+
+
+def test_composition_mixed_operations() -> None:
+    """Test composition mixing arithmetic, comparison, and logical operations."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Arithmetic inside comparisons inside logical operations
+    expr = ((x + 3) == (y - 2)) | ((x * 2) > y)
+    assert expr.eval(ctx).value is True  # (5+3) == (10-2) is True
+
+    # Nested logical with arithmetic
+    complex_expr = ~(((x + y) < 20) & ((x - y) > -10))
+    assert complex_expr.eval(ctx).value is False
+
+
+def test_composition_with_constants() -> None:
+    """Test composition where constants are used throughout the expression tree."""
+    x = Var[int, Ctx]("x")
+    base = Const("Base", 10)
+    multiplier = Const("Mult", 3)
+    threshold = Const("Threshold", 25)
+
+    # Build expression using constants at different levels
+    scaled = (x + base) * multiplier
+    comparison = scaled > threshold
+
+    assert scaled.eval(ctx).value == (5 + 10) * 3  # 45
+    assert comparison.eval(ctx).value is True  # 45 > 25
+    assert comparison.to_string() == "(((x + Base:10) * Mult:3) > Threshold:25)"
+
+
+def test_composition_deeply_nested_logical() -> None:
+    """Test deeply nested logical expressions."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Build deeply nested logical expression
+    a = x > 0
+    b = y > 0
+    c = x < 10
+    d = y < 20
+
+    nested = (a & b) | ~(c & d)
+    assert nested.eval(ctx).value is True
+
+    # Even deeper nesting
+    deep = ((a & b) | (c & d)) & ~((a | b) & (c | d))
+    assert isinstance(deep.eval(ctx).value, bool)
+
+
+def test_composition_with_function_calls() -> None:
+    """Test composition with special functions like between and approximately."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Use between in larger expressions
+    x_in_range = between(x, 0, 10)
+    y_in_range = between(y, 5, 15)
+    both_in_range = x_in_range & y_in_range
+
+    assert both_in_range.eval(ctx).value is True
+
+    # Compose with arithmetic
+    sum_expr = x + y
+    sum_in_range = between(sum_expr, 10, 20)
+    assert sum_in_range.eval(ctx).value is True
+
+
+def test_composition_with_approximation() -> None:
+    """Test composition with approximation operations."""
+    x = Var[float, Ctx]("x")
+    y = Var[float, Ctx]("y")
+
+    # Build expressions that use approximation
+    product = x * y
+    target = PlusMinus("Target", 50.0, 5.0)
+    approx_check = Approximately(product, target)
+
+    # Compose with other conditions
+    range_check = (x > 0) & (y > 0)
+    full_check = range_check & approx_check
+
+    assert full_check.eval(ctx).value is True
+    assert "~" in full_check.to_string()
+    assert (
+        full_check.to_string(ctx)
+        == "(((x:5 > 0 -> True) and (y:10 > 0 -> True) -> True) and ((x:5 * y:10 -> 50) ~ Target:50.0 ± 5.0 -> True) -> True)"
+    )  # noqa: E501
+
+
+def test_composition_reuse_subexpressions() -> None:
+    """Test reusing the same subexpression in multiple places."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Create a subexpression and reuse it
+    sum_expr = x + y
+    diff_expr = x - y
+
+    # Use both in different contexts
+    sum_condition = sum_expr > 10
+    diff_condition = diff_expr < 10
+    product_expr = sum_expr * diff_expr
+    product_condition = product_expr > 0
+
+    combined = sum_condition & diff_condition & product_condition
+    assert combined.eval(ctx).value is False
+
+    # Verify the subexpressions maintain their identity
+    assert sum_expr.eval(ctx).value == 15
+    assert diff_expr.eval(ctx).value == -5
+    assert product_expr.eval(ctx).value == -75
+
+
+def test_composition_with_negation() -> None:
+    """Test composition with negation at different levels."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Negation of simple comparison
+    not_equal = ~(x == y)
+    assert not_equal.eval(ctx).value is True
+
+    # Negation of complex expression
+    complex_expr = (x > 0) & (y > 0) & (x < y)
+    negated_complex = ~complex_expr
+    assert negated_complex.eval(ctx).value is False
+
+    # Double negation
+    double_neg = ~~(x == 5)
+    assert double_neg.eval(ctx).value is True
+
+
+def test_composition_type_consistency() -> None:
+    """Test that type consistency is maintained through composition."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+    f = Var[float, Ctx]("f")
+
+    # Mix int and float operations
+    mixed_expr = (x + f) > (y * 2.0)
+    assert isinstance(mixed_expr.eval(ctx).value, bool)
+
+    # Ensure arithmetic results maintain proper types
+    int_result = x + y
+    float_result = f * 2.0
+
+    assert isinstance(int_result.eval(ctx).value, int)
+    assert isinstance(float_result.eval(ctx).value, float)
+
+
+def test_composition_immutability() -> None:
+    """Test that composed expressions are immutable."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Create base expressions
+    base_expr = x + y
+
+    # Create composed expressions
+    expr1 = base_expr > 10
+    expr2 = base_expr < 20
+
+    # Verify that using base_expr in multiple places doesn't affect results
+    result1 = expr1.eval(ctx).value
+    result2 = expr2.eval(ctx).value
+
+    # Re-evaluate to ensure immutability
+    assert expr1.eval(ctx).value == result1
+    assert expr2.eval(ctx).value == result2
+    assert base_expr.eval(ctx).value == 15  # Original value unchanged
+
+
+def test_composition_string_representation() -> None:
+    """Test that string representations work correctly for composed expressions."""
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    # Build a complex composed expression
+    expr = ((x + y) * 2) > ((x - y) + 10)
+
+    # Test symbolic representation
+    symbolic = expr.to_string()
+    assert "((x + y) * 2)" in symbolic
+    assert "((x - y) + 10)" in symbolic
+    assert ">" in symbolic
+
+    # Test evaluated representation
+    evaluated = expr.to_string(ctx)
+    assert "15" in evaluated  # x + y = 15
+    assert "30" in evaluated  # (x + y) * 2 = 30
+    assert "-5" in evaluated  # x - y = -5
+    assert "5" in evaluated  # (x - y) + 10 = 5
+    assert "True" in evaluated or "False" in evaluated
+
+    # Repeat using sub expressions
+    sum_expr = x + y
+    diff_expr = x - y
+    sum_expr_x2 = sum_expr * 2
+    diff_expr_plus_10 = diff_expr + 10
+    expr2 = sum_expr_x2 > diff_expr_plus_10
+    assert expr2.to_string() == expr.to_string()
+    assert expr2.to_string(ctx) == expr.to_string(ctx)

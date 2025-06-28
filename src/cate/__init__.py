@@ -276,7 +276,7 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 
 @dataclass(frozen=True, eq=False)
 class UnaryOpEval(Eval[bool, S]):
-    left: Expr[bool, S]
+    left: Expr[Any, S]
 
 
 class UnaryOpToString(ToString[S], UnaryOpEval[S]):
@@ -292,7 +292,7 @@ class UnaryOpToString(ToString[S], UnaryOpEval[S]):
             return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
 
-class Not(UnaryOpToString[S], UnaryOperationOverloads[S]):
+class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperationOverloads[bool, S]):
     op: ClassVar[str] = "not "
 
     def eval(self, ctx: S) -> Const[bool]:
@@ -502,7 +502,9 @@ class Percent(ConstTolerence, Generic[TSupportsArithmetic]):
 
 @dataclass(frozen=True, eq=False)
 class Approximately(
-    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+    BinaryOpToString[TSupportsArithmetic, S],
+    BinaryOperationOverloads[TSupportsArithmetic, S],
+    BooleanBinaryOperationOverloads[bool, S],
 ):
     op: ClassVar[str] = " ~ "
 
