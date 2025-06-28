@@ -1,5 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, ClassVar, Final, Generic, Protocol, TypeVar, overload, runtime_checkable
+from typing import (
+    Any,
+    ClassVar,
+    Final,
+    Generic,
+    Protocol,
+    Self,
+    TypeVar,
+    overload,
+    runtime_checkable,
+)
 
 T = TypeVar("T")
 """The type of the expression's value."""
@@ -15,37 +25,38 @@ S_contra = TypeVar("S_contra", contravariant=True)
 
 
 class _SupportsArithmetic(Protocol):
-    def __add__(self, other: Any) -> Any: ...
-    def __sub__(self, other: Any) -> Any: ...
-    def __mul__(self, other: Any) -> Any: ...
-    def __truediv__(self, other: Any) -> Any: ...
+    def __add__(self, other: Any, /) -> Any: ...
+    def __sub__(self, other: Any, /) -> Any: ...
+    def __mul__(self, other: Any, /) -> Any: ...
+    def __truediv__(self, other: Any, /) -> Any: ...
+    def __abs__(self, /) -> Any: ...
 
 
 TSupportsArithmetic = TypeVar("TSupportsArithmetic", bound=_SupportsArithmetic)
 
 
 class _SupportsEquality(Protocol):
-    def __eq__(self, other: Any) -> bool: ...
-    def __ne__(self, other: Any) -> bool: ...
+    def __eq__(self, other: Any, /) -> bool: ...
+    def __ne__(self, other: Any, /) -> bool: ...
 
 
 TSupportsEquality = TypeVar("TSupportsEquality", bound=_SupportsEquality)
 
 
 class _SupportsComparison(Protocol):
-    def __lt__(self, other: Any) -> bool: ...
-    def __le__(self, other: Any) -> bool: ...
-    def __gt__(self, other: Any) -> bool: ...
-    def __ge__(self, other: Any) -> bool: ...
+    def __lt__(self, other: Any, /) -> bool: ...
+    def __le__(self, other: Any, /) -> bool: ...
+    def __gt__(self, other: Any, /) -> bool: ...
+    def __ge__(self, other: Any, /) -> bool: ...
 
 
 TSupportsComparison = TypeVar("TSupportsComparison", bound=_SupportsComparison)
 
 
 class _SupportsLogic(Protocol):
-    def __and__(self, other: Any) -> Any: ...
-    def __or__(self, other: Any) -> Any: ...
-    def __invert__(self) -> Any: ...
+    def __and__(self, other: Any, /) -> Any: ...
+    def __or__(self, other: Any, /) -> Any: ...
+    def __invert__(self, /) -> Any: ...
 
 
 TSupportsLogic = TypeVar("TSupportsLogic", bound=_SupportsLogic)
@@ -141,7 +152,7 @@ class BinaryOperationOverloads(Expr[T, S]):
             return Lt(self, Const(None, other))
 
     @overload
-    def __le__(self, other: TSupportsComparison) -> "Le[S]": ...
+    def __le__(self, other: TSupportsComparison) -> "Le[TSupportsComparison, S]": ...
 
     @overload
     def __le__(self, other: Expr[TSupportsComparison, S]) -> "Le[TSupportsComparison, S]": ...
@@ -327,7 +338,7 @@ class Or(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TS
 class Eq(
     BinaryOpToString[TSupportsEquality, S],
     BinaryOperationOverloads[TSupportsEquality, S],
-    BooleanBinaryOperationOverloads[TSupportsEquality, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " == "
 
@@ -336,9 +347,9 @@ class Eq(
 
 
 class Ne(
-    BinaryOpToString[T, S],
-    BinaryOperationOverloads[T, S],
-    BooleanBinaryOperationOverloads[T, S],
+    BinaryOpToString[TSupportsEquality, S],
+    BinaryOperationOverloads[TSupportsEquality, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " != "
 
@@ -349,7 +360,7 @@ class Ne(
 class Lt(
     BinaryOpToString[TSupportsComparison, S],
     BinaryOperationOverloads[TSupportsComparison, S],
-    BooleanBinaryOperationOverloads[T, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " < "
 
@@ -360,7 +371,7 @@ class Lt(
 class Le(
     BinaryOpToString[TSupportsComparison, S],
     BinaryOperationOverloads[TSupportsComparison, S],
-    BooleanBinaryOperationOverloads[T, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " <= "
 
@@ -371,7 +382,7 @@ class Le(
 class Gt(
     BinaryOpToString[TSupportsComparison, S],
     BinaryOperationOverloads[TSupportsComparison, S],
-    BooleanBinaryOperationOverloads[T, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " > "
 
@@ -382,7 +393,7 @@ class Gt(
 class Ge(
     BinaryOpToString[TSupportsComparison, S],
     BinaryOperationOverloads[TSupportsComparison, S],
-    BooleanBinaryOperationOverloads[T, S],
+    BooleanBinaryOperationOverloads[Any, S],
 ):
     op: ClassVar[str] = " >= "
 
@@ -428,37 +439,77 @@ class Div(
 
 def between(
     expr: Expr[TSupportsComparison, S], low: _SupportsComparison, high: _SupportsComparison
-) -> "And[bool, S]":
+) -> "And[_SupportsLogic, S]":
     return And(
         Lt(Const("Low", low), expr),
         Lt(expr, Const("High", high)),
     )
 
 
-class Within(BooleanBinaryOperationOverloads[TSupportsComparison, S]):
-    def __init__(
-        self,
-        expr: Expr[TSupportsComparison, S],
-        target: _SupportsComparison,
-        plus_minus: _SupportsComparison,
-    ):
-        self.expr = expr
-        self.target = target
-        self.plus_minus = plus_minus
+class ConstToleranceProtocol(Protocol):
+    @property
+    def max_abs_error(self) -> _SupportsArithmetic: ...
 
-    def eval(self, ctx: S) -> Const[TSupportsComparison]:
+    @property
+    def tolerance_string(self) -> str:
+        return f" ± {self.max_abs_error}"
+
+
+class ConstTolerence(Const[_SupportsArithmetic], ConstToleranceProtocol):
+    def eval(self, ctx: Any) -> Self:
+        return self
+
+    def to_string(self, ctx: Any | None = None) -> str:
+        if ctx is None:
+            return (
+                f"{self.name}:{self.value}{self.tolerance_string}"
+                if self.name
+                else f"{self.value}{self.tolerance_string}"
+            )
+        else:
+            return (
+                f"{self.name}:{self.eval(ctx).value}{self.tolerance_string}"
+                if self.name
+                else f"{self.eval(ctx).value}{self.tolerance_string}"
+            )
+
+
+@dataclass(frozen=True, eq=False)
+class PlusMinus(ConstTolerence, Generic[TSupportsArithmetic]):
+    name: str | None
+    value: TSupportsArithmetic
+    plus_minus: TSupportsArithmetic
+
+    @property
+    def max_abs_error(self) -> TSupportsArithmetic:
+        return self.plus_minus
+
+
+@dataclass(frozen=True, eq=False)
+class Percent(ConstTolerence, Generic[TSupportsArithmetic]):
+    name: str | None
+    value: TSupportsArithmetic
+    percent: float
+
+    @property
+    def max_abs_error(self) -> TSupportsArithmetic:
+        return self.value * self.percent / 100.0
+
+    @property
+    def tolerance_string(self) -> str:
+        return f" ± {self.percent}%"
+
+
+@dataclass(frozen=True, eq=False)
+class Approximately(
+    BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
+    op: ClassVar[str] = " ~ "
+
+    left: Expr[TSupportsArithmetic, S]
+    right: ConstTolerence  # type: ignore[assignment]
+
+    def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
         return Const(
-            None,
-            self.target - self.plus_minus
-            <= self.expr.eval(ctx).value
-            <= self.target + self.plus_minus,
+            None, abs(self.left.eval(ctx).value - self.right.value) <= self.right.max_abs_error
         )
-
-    def to_string(self, ctx: S | None = None) -> str:
-        return f"({self.expr.to_string(ctx)} within {self.target} ± {self.plus_minus})"
-
-
-def within(
-    expr: Expr[TSupportsComparison, S], target: _SupportsComparison, plus_minus: _SupportsComparison
-) -> Within[TSupportsComparison, S]:
-    return Within(expr, target, plus_minus)

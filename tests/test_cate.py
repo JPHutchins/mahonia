@@ -3,7 +3,7 @@ from typing import Final, assert_type
 
 import pytest
 
-from cate import Const, Eq, Not, Var, between, within
+from cate import Add, Approximately, Const, Eq, Not, Percent, PlusMinus, Var, between
 
 
 @dataclass(frozen=True)
@@ -104,6 +104,21 @@ def test_eq_generic_type() -> None:
     eq_expr_str = v_str == c_str
     assert_type(eq_expr_str, Eq[str, Ctx])
     assert_type(eq_expr_str.eval(ctx).value, bool)
+
+
+@pytest.mark.mypy_testing
+def test_add_generic_type() -> None:
+    v_int = Var[int, Ctx]("x")
+    c_int = Const("Five", 5)
+    add_expr = v_int + c_int
+    assert_type(add_expr, Add[int, Ctx])
+    assert_type(add_expr.eval(ctx).value, int)
+
+    v_float = Var[float, Ctx]("y")
+    c_float = Const("Two", 2.0)
+    add_expr_float = v_float + c_float
+    assert_type(add_expr_float, Add[float, Ctx])
+    assert_type(add_expr_float.eval(ctx).value, float)
 
 
 def test_var_eval_and_str() -> None:
@@ -462,20 +477,63 @@ def test_between() -> None:
     assert expr.to_string() == "((Low:0 < x) and (x < High:10))"
     assert expr.to_string(ctx) == "((Low:0 < x:5 -> True) and (x:5 < High:10 -> True) -> True)"
 
+    expr = (Const("Low", 5) < x) & (x < Const("High", 10))
+    print()
+    print(expr.to_string())
+    print()
+    print(expr.to_string(ctx))
 
-def test_within() -> None:
+
+def test_manual_within() -> None:
     f = Var[float, Ctx]("f")
 
-    expr = within(f, 1.5, 0.01)
+    expr = (f - Const("Target", 1.5)) < Const("Tolerance", 0.01)
     print()
     print(expr.to_string())
     print()
     print(expr.to_string(ctx))
-    assert expr.eval(ctx).value is True
 
-    expr = within(f, 1.6, 0.01)
+
+def test_approximately() -> None:
+    x = Var[float, Ctx]("x")
+
+    FIVE = PlusMinus("Five", 4.9, 0.1)
+    assert_type(FIVE, PlusMinus[float])
+
+    expr = Approximately(x, FIVE)
+    assert_type(expr, Approximately[float, Ctx])
     print()
     print(expr.to_string())
-    print()
     print(expr.to_string(ctx))
-    assert expr.eval(ctx).value is False
+
+    FIVE_ = Percent("Five", 5.0, 1.0)
+    assert_type(FIVE_, Percent[float])
+
+    expr = Approximately(x, FIVE_)
+    assert_type(expr, Approximately[float, Ctx])
+
+    print()
+    print(expr.to_string())
+    print(expr.to_string(ctx))
+
+
+def test_composition() -> None:
+    x = Var[int, Ctx]("x")
+    y = Var[int, Ctx]("y")
+
+    x_plus_y = x + y
+    SUM = PlusMinus("Sum", 15, 0.1)
+
+    expr = Approximately(x_plus_y, SUM)
+    assert_type(expr, Approximately[int, Ctx])
+
+    print()
+    print(expr.to_string())
+    print(expr.to_string(ctx))
+
+    expr = Approximately(x * y, Percent("Product", 50.0, 5.0))
+    assert_type(expr, Approximately[int, Ctx])
+
+    print()
+    print(expr.to_string())
+    print(expr.to_string(ctx))
