@@ -438,8 +438,8 @@ class Div(
 
 
 def between(
-    expr: Expr[TSupportsComparison, S], low: _SupportsComparison, high: _SupportsComparison
-) -> "And[_SupportsLogic, S]":
+    expr: Expr[TSupportsComparison, S], low: TSupportsComparison, high: TSupportsComparison
+) -> "And[bool, S]":
     return And(
         Lt(Const("Low", low), expr),
         Lt(expr, Const("High", high)),
