@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Final, assert_type
+from typing import Final, NamedTuple, assert_type
 
 import pytest
 
@@ -794,3 +794,24 @@ def test_predicate() -> None:
     assert pred2.unwrap(ctx) is True  # 5 is less than 10
     assert pred2.to_string() == "x is less than y: (x < y)"
     assert pred2.to_string(ctx) == "x is less than y: True (x:5 < y:10 -> True)"
+
+    class Measurement(NamedTuple):
+        voltage: float
+
+    voltage = Var[float, Measurement]("voltage")
+
+    voltage_pred = Predicate(
+        "Voltage is within range", Approximately(voltage, PlusMinus("Target", 5.0, 0.1))
+    )
+
+    assert voltage_pred.unwrap(Measurement(voltage=5.05)) is True
+    assert voltage_pred.to_string() == "Voltage is within range: (voltage ~ Target:5.0 ± 0.1)"
+    assert (
+        voltage_pred.to_string(Measurement(voltage=5.05))
+        == "Voltage is within range: True (voltage:5.05 ~ Target:5.0 ± 0.1 -> True)"
+    )
+    assert voltage_pred.unwrap(Measurement(voltage=5.15)) is False
+    assert (
+        voltage_pred.to_string(Measurement(voltage=5.15))
+        == "Voltage is within range: False (voltage:5.15 ~ Target:5.0 ± 0.1 -> False)"
+    )
