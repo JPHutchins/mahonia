@@ -17,7 +17,7 @@ wheels = [
 ]
 
 [[package]]
-name = "bix"
+name = "binexpr"
 source = { editable = "." }
 
 [package.dev-dependencies]
