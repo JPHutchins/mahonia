@@ -901,6 +901,7 @@ def test_bind_predicate() -> None:
 	assert predicate.unwrap() is True
 	assert predicate.expr is expr
 	assert predicate.ctx is m
+	print(predicate.ctx)
 	print(predicate)
 	assert (
 		str(predicate) == "Voltage is within range: True (voltage:5.05 ≈ Target:5.0 ± 0.1 -> True)"
