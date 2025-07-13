@@ -3,16 +3,16 @@
 
 [project]
 name = "bix"
-version = "0.1.0"
 description = "Bix is a domain specific language (DSL) for defining, evaluating, saving, and serializing (Bi)nary E(x)pressions."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "JP Hutchins", email = "jphutchins@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = []
+dynamic = ["version"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
@@ -42,3 +42,9 @@ all = [
     "lint",
     "test"
 ]
+
+[tool.hatch.version]
+source = "vcs"
+
+# [tool.hatch.version.raw-options]
+# version_scheme = "no-guess-dev"
