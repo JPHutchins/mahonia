@@ -476,15 +476,6 @@ class Div(
         return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
 
 
-def between(
-    expr: Expr[TSupportsComparison, S], low: TSupportsComparison, high: TSupportsComparison
-) -> "And[bool, S]":
-    return And(  # type: ignore[arg-type]
-        Lt(Const("Low", low), expr),  # type: ignore[arg-type]
-        Lt(expr, Const("High", high)),  # type: ignore[arg-type]
-    )
-
-
 class ConstToleranceProtocol(Protocol):
     @property
     def max_abs_error(self) -> _SupportsArithmetic: ...

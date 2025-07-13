@@ -8,16 +8,19 @@ import pytest
 
 from bix import (
     Add,
+    And,
     Approximately,
     BoundExpr,
     Const,
     Eq,
+    Expr,
+    Lt,
     Not,
     Percent,
     PlusMinus,
     Predicate,
+    TSupportsComparison,
     Var,
-    between,
 )
 
 
@@ -32,6 +35,16 @@ class Ctx:
 
 
 ctx: Final = Ctx(x=5, y=10, name="example")
+
+
+def between(
+    expr: Expr[TSupportsComparison, Ctx], low: TSupportsComparison, high: TSupportsComparison
+) -> "And[bool, Ctx]":
+    """Example of defining some convenience to compose an expression."""
+    return And(  # type: ignore[arg-type]
+        Lt(Const("Low", low), expr),  # type: ignore[arg-type]
+        Lt(expr, Const("High", high)),  # type: ignore[arg-type]
+    )
 
 
 def test_const_name_eval_and_str() -> None:
