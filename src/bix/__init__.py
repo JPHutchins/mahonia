@@ -536,7 +536,7 @@ class Approximately(
     BinaryOperationOverloads[TSupportsArithmetic, S],
     BooleanBinaryOperationOverloads[bool, S],
 ):
-    op: ClassVar[str] = " ~ "
+    op: ClassVar[str] = " ≈ "
 
     left: Expr[TSupportsArithmetic, S]
     right: ConstTolerence  # type: ignore[assignment]

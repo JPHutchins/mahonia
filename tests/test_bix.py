@@ -684,10 +684,10 @@ def test_composition_with_approximation() -> None:
     full_check = range_check & approx_check
 
     assert full_check.unwrap(ctx) is True
-    assert "~" in full_check.to_string()
+    assert "≈" in full_check.to_string()
     assert (
         full_check.to_string(ctx)
-        == "(((x:5 > 0 -> True) & (y:10 > 0 -> True) -> True) & ((x:5 * y:10 -> 50) ~ Target:50.0 ± 5.0 -> True) -> True)"
+        == "(((x:5 > 0 -> True) & (y:10 > 0 -> True) -> True) & ((x:5 * y:10 -> 50) ≈ Target:50.0 ± 5.0 -> True) -> True)"
     )  # noqa: E501
 
 
@@ -833,20 +833,20 @@ def test_predicate() -> None:
     )
 
     assert voltage_pred.unwrap(Measurement(voltage=5.05)) is True
-    assert voltage_pred.to_string() == "Voltage is within range: (voltage ~ Target:5.0 ± 0.1)"
+    assert voltage_pred.to_string() == "Voltage is within range: (voltage ≈ Target:5.0 ± 0.1)"
     assert (
         voltage_pred.to_string(Measurement(voltage=5.05))
-        == "Voltage is within range: True (voltage:5.05 ~ Target:5.0 ± 0.1 -> True)"
+        == "Voltage is within range: True (voltage:5.05 ≈ Target:5.0 ± 0.1 -> True)"
     )
     assert voltage_pred.unwrap(Measurement(voltage=5.15)) is False
     assert (
         voltage_pred.to_string(Measurement(voltage=5.15))
-        == "Voltage is within range: False (voltage:5.15 ~ Target:5.0 ± 0.1 -> False)"
+        == "Voltage is within range: False (voltage:5.15 ≈ Target:5.0 ± 0.1 -> False)"
     )
 
 
 @pytest.mark.mypy_testing
-def test_closure_type() -> None:
+def test_bound_expr_type() -> None:
     """Test Closure type with Predicate."""
 
     class Measurement(NamedTuple):
@@ -863,7 +863,7 @@ def test_closure_type() -> None:
     assert_type(closure, BoundExpr[bool, Measurement])
 
 
-def test_closure() -> None:
+def test_bind() -> None:
     class Measurement(NamedTuple):
         voltage: float
 
@@ -880,4 +880,28 @@ def test_closure() -> None:
     assert closure.expr is voltage_pred
     assert closure.ctx is m
     print(closure)
-    assert str(closure) == "Voltage is within range: True (voltage:5.05 ~ Target:5.0 ± 0.1 -> True)"
+    assert str(closure) == "Voltage is within range: True (voltage:5.05 ≈ Target:5.0 ± 0.1 -> True)"
+
+
+def test_bind_predicate() -> None:
+    """Test binding a Predicate to a context."""
+
+    class Measurement(NamedTuple):
+        voltage: float
+
+    voltage = Var[float, Measurement]("voltage")
+
+    m = Measurement(voltage=5.05)
+
+    expr = Predicate(
+        "Voltage is within range", Approximately(voltage, PlusMinus("Target", 5.0, 0.1))
+    )
+    predicate = expr.bind(m)
+
+    assert predicate.unwrap() is True
+    assert predicate.expr is expr
+    assert predicate.ctx is m
+    print(predicate)
+    assert (
+        str(predicate) == "Voltage is within range: True (voltage:5.05 ≈ Target:5.0 ± 0.1 -> True)"
+    )
