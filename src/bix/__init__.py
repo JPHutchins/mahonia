@@ -343,14 +343,14 @@ class BinaryOpToString(ToString[S], BinaryOpEval[T, S], Generic[T, S]):
 
 
 class And(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
-    op: ClassVar[str] = " and "
+    op: ClassVar[str] = " & "
 
     def eval(self, ctx: S) -> Const[TSupportsLogic]:
         return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
 
 
 class Or(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
-    op: ClassVar[str] = " or "
+    op: ClassVar[str] = " | "
 
     def eval(self, ctx: S) -> Const[TSupportsLogic]:
         return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)

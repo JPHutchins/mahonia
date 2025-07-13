@@ -195,11 +195,11 @@ def test_logical_ops() -> None:
     c10 = Const("Ten", 10)
     pred = ((x == c5) & (y == c10)) | (x != c5)
     assert pred.unwrap(ctx) is True
-    assert pred.to_string() == "(((x == Five:5) and (y == Ten:10)) or (x != Five:5))"  # noqa: E501
+    assert pred.to_string() == "(((x == Five:5) & (y == Ten:10)) | (x != Five:5))"  # noqa: E501
     # Evaluate with context
     assert (
         pred.to_string(ctx)
-        == "(((x:5 == Five:5 -> True) and (y:10 == Ten:10 -> True) -> True) or (x:5 != Five:5 -> False) -> True)"  # noqa: E501
+        == "(((x:5 == Five:5 -> True) & (y:10 == Ten:10 -> True) -> True) | (x:5 != Five:5 -> False) -> True)"  # noqa: E501
     )
 
 
@@ -412,23 +412,23 @@ def test_var_in_range() -> None:
 
     expr = (min <= x) & (x <= max)
     assert expr.unwrap(ctx) is True
-    assert expr.to_string() == "((min:0 <= x) and (x <= max:10))"
-    assert expr.to_string(ctx) == "((min:0 <= x:5 -> True) and (x:5 <= max:10 -> True) -> True)"
+    assert expr.to_string() == "((min:0 <= x) & (x <= max:10))"
+    assert expr.to_string(ctx) == "((min:0 <= x:5 -> True) & (x:5 <= max:10 -> True) -> True)"
 
     expr = (max >= x) & (x >= min)
     assert expr.unwrap(ctx) is True
-    assert expr.to_string() == "((max:10 >= x) and (x >= min:0))"
-    assert expr.to_string(ctx) == "((max:10 >= x:5 -> True) and (x:5 >= min:0 -> True) -> True)"
+    assert expr.to_string() == "((max:10 >= x) & (x >= min:0))"
+    assert expr.to_string(ctx) == "((max:10 >= x:5 -> True) & (x:5 >= min:0 -> True) -> True)"
 
     expr = (min < x) & (x < max)
     assert expr.unwrap(ctx) is True
-    assert expr.to_string() == "((min:0 < x) and (x < max:10))"
-    assert expr.to_string(ctx) == "((min:0 < x:5 -> True) and (x:5 < max:10 -> True) -> True)"
+    assert expr.to_string() == "((min:0 < x) & (x < max:10))"
+    assert expr.to_string(ctx) == "((min:0 < x:5 -> True) & (x:5 < max:10 -> True) -> True)"
 
     expr = (max > x) & (x > min)
     assert expr.unwrap(ctx) is True
-    assert expr.to_string() == "((max:10 > x) and (x > min:0))"
-    assert expr.to_string(ctx) == "((max:10 > x:5 -> True) and (x:5 > min:0 -> True) -> True)"
+    assert expr.to_string() == "((max:10 > x) & (x > min:0))"
+    assert expr.to_string(ctx) == "((max:10 > x:5 -> True) & (x:5 > min:0 -> True) -> True)"
 
 
 def test_deeply_nested_all_operations() -> None:
@@ -459,14 +459,14 @@ def test_deeply_nested_all_operations() -> None:
     print(s)
     assert (
         s
-        == "(not (((((((x + Five:5) * (y - Two:2)) == Three:3) and ((x >= Five:5) or (y < Ten:10))) and ((x != 7) and (y <= 20))) and ((x > 0) and (y > 0))) or (((f / Seven:7.0) + Seven:7.0) < Thirteen:13.0)))"
+        == "(not (((((((x + Five:5) * (y - Two:2)) == Three:3) & ((x >= Five:5) | (y < Ten:10))) & ((x != 7) & (y <= 20))) & ((x > 0) & (y > 0))) | (((f / Seven:7.0) + Seven:7.0) < Thirteen:13.0)))"
     )
 
     s_ctx = expr.to_string(ctx)
     print(s_ctx)
     assert (
         s_ctx
-        == "(not (((((((x:5 + Five:5 -> 10) * (y:10 - Two:2 -> 8) -> 80) == Three:3 -> False) and ((x:5 >= Five:5 -> True) or (y:10 < Ten:10 -> False) -> True) -> False) and ((x:5 != 7 -> True) and (y:10 <= 20 -> True) -> True) -> False) and ((x:5 > 0 -> True) and (y:10 > 0 -> True) -> True) -> False) or (((f:1.5 / Seven:7.0 -> 0.21428571428571427) + Seven:7.0 -> 7.214285714285714) < Thirteen:13.0 -> True) -> True) -> False)"  # noqa: E501
+        == "(not (((((((x:5 + Five:5 -> 10) * (y:10 - Two:2 -> 8) -> 80) == Three:3 -> False) & ((x:5 >= Five:5 -> True) | (y:10 < Ten:10 -> False) -> True) -> False) & ((x:5 != 7 -> True) & (y:10 <= 20 -> True) -> True) -> False) & ((x:5 > 0 -> True) & (y:10 > 0 -> True) -> True) -> False) | (((f:1.5 / Seven:7.0 -> 0.21428571428571427) + Seven:7.0 -> 7.214285714285714) < Thirteen:13.0 -> True) -> True) -> False)"  # noqa: E501
     )
 
     assert result is False
@@ -484,13 +484,13 @@ def test_between() -> None:
 
     expr = between(x, 5, 10)
     assert expr.unwrap(ctx) is False
-    assert expr.to_string() == "((Low:5 < x) and (x < High:10))"
-    assert expr.to_string(ctx) == "((Low:5 < x:5 -> False) and (x:5 < High:10 -> True) -> False)"
+    assert expr.to_string() == "((Low:5 < x) & (x < High:10))"
+    assert expr.to_string(ctx) == "((Low:5 < x:5 -> False) & (x:5 < High:10 -> True) -> False)"
 
     expr = between(x, 0, 10)
     assert expr.unwrap(ctx) is True
-    assert expr.to_string() == "((Low:0 < x) and (x < High:10))"
-    assert expr.to_string(ctx) == "((Low:0 < x:5 -> True) and (x:5 < High:10 -> True) -> True)"
+    assert expr.to_string() == "((Low:0 < x) & (x < High:10))"
+    assert expr.to_string(ctx) == "((Low:0 < x:5 -> True) & (x:5 < High:10 -> True) -> True)"
 
     expr = (Const("Low", 5) < x) & (x < Const("High", 10))
     print()
@@ -586,11 +586,11 @@ def test_composition_comparison_chains() -> None:
 
     complex_comparison = ((x + y) > 10) & ((x * y) < 100)
     assert complex_comparison.unwrap(ctx) is True
-    assert complex_comparison.to_string() == "(((x + y) > 10) and ((x * y) < 100))"
+    assert complex_comparison.to_string() == "(((x + y) > 10) & ((x * y) < 100))"
 
 
 def test_composition_mixed_operations() -> None:
-    """Test composition mixing arithmetic, comparison, and logical operations."""
+    """Test composition mixing arithmetic, comparison, & logical operations."""
     x = Var[int, Ctx]("x")
     y = Var[int, Ctx]("y")
 
@@ -639,7 +639,7 @@ def test_composition_deeply_nested_logical() -> None:
 
 
 def test_composition_with_function_calls() -> None:
-    """Test composition with special functions like between and approximately."""
+    """Test composition with special functions like between & approximately."""
     x = Var[int, Ctx]("x")
     y = Var[int, Ctx]("y")
 
@@ -674,7 +674,7 @@ def test_composition_with_approximation() -> None:
     assert "~" in full_check.to_string()
     assert (
         full_check.to_string(ctx)
-        == "(((x:5 > 0 -> True) and (y:10 > 0 -> True) -> True) and ((x:5 * y:10 -> 50) ~ Target:50.0 ± 5.0 -> True) -> True)"
+        == "(((x:5 > 0 -> True) & (y:10 > 0 -> True) -> True) & ((x:5 * y:10 -> 50) ~ Target:50.0 ± 5.0 -> True) -> True)"
     )  # noqa: E501
 
 
@@ -683,7 +683,7 @@ def test_composition_reuse_subexpressions() -> None:
     x = Var[int, Ctx]("x")
     y = Var[int, Ctx]("y")
 
-    # Create a subexpression and reuse it
+    # Create a subexpression & reuse it
     sum_expr = x + y
     diff_expr = x - y
 
@@ -727,7 +727,7 @@ def test_composition_type_consistency() -> None:
     y = Var[int, Ctx]("y")
     f = Var[float, Ctx]("f")
 
-    # Mix int and float operations
+    # Mix int & float operations
     mixed_expr = (x + f) > (y * 2.0)
     assert isinstance(mixed_expr.unwrap(ctx), bool)
 
