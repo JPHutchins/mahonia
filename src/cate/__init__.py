@@ -4,6 +4,7 @@ from typing import (
     ClassVar,
     Final,
     Generic,
+    NamedTuple,
     Protocol,
     Self,
     TypeVar,
@@ -72,6 +73,17 @@ class ToString(Protocol[S_contra]):
     def to_string(self, ctx: S_contra | None = None) -> str: ...
 
 
+class BoundExpr(NamedTuple, Generic[T, S]):
+    expr: "Expr[T, S]"
+    ctx: S
+
+    def unwrap(self) -> T:
+        return self.expr.unwrap(self.ctx)
+
+    def __str__(self) -> str:
+        return self.expr.to_string(self.ctx)
+
+
 class Expr(Generic[T, S]):
     def eval(self, ctx: S) -> "Const[T]":
         raise NotImplementedError()
@@ -84,6 +96,9 @@ class Expr(Generic[T, S]):
 
     def unwrap(self, ctx: S) -> T:
         return self.eval(ctx).value
+
+    def bind(self, ctx: S) -> BoundExpr[T, S]:
+        return BoundExpr(self, ctx)
 
 
 class BoolExpr(Expr[TSupportsLogic, S]):

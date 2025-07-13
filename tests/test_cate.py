@@ -3,7 +3,19 @@ from typing import Final, NamedTuple, assert_type
 
 import pytest
 
-from cate import Add, Approximately, Const, Eq, Not, Percent, PlusMinus, Predicate, Var, between
+from cate import (
+    Add,
+    Approximately,
+    BoundExpr,
+    Const,
+    Eq,
+    Not,
+    Percent,
+    PlusMinus,
+    Predicate,
+    Var,
+    between,
+)
 
 
 @dataclass(frozen=True)
@@ -815,3 +827,41 @@ def test_predicate() -> None:
         voltage_pred.to_string(Measurement(voltage=5.15))
         == "Voltage is within range: False (voltage:5.15 ~ Target:5.0 ± 0.1 -> False)"
     )
+
+
+@pytest.mark.mypy_testing
+def test_closure_type() -> None:
+    """Test Closure type with Predicate."""
+
+    class Measurement(NamedTuple):
+        voltage: float
+
+    voltage = Var[float, Measurement]("voltage")
+
+    m = Measurement(voltage=5.05)
+    voltage_pred = Predicate(
+        "Voltage is within range", Approximately(voltage, PlusMinus("Target", 5.0, 0.1))
+    )
+
+    closure = voltage_pred.bind(m)
+    assert_type(closure, BoundExpr[bool, Measurement])
+
+
+def test_closure() -> None:
+    class Measurement(NamedTuple):
+        voltage: float
+
+    voltage = Var[float, Measurement]("voltage")
+
+    m = Measurement(voltage=5.05)
+
+    voltage_pred = Predicate(
+        "Voltage is within range", Approximately(voltage, PlusMinus("Target", 5.0, 0.1))
+    )
+
+    closure = voltage_pred.bind(m)
+    assert closure.unwrap() is True
+    assert closure.expr is voltage_pred
+    assert closure.ctx is m
+    print(closure)
+    assert str(closure) == "Voltage is within range: True (voltage:5.05 ~ Target:5.0 ± 0.1 -> True)"
