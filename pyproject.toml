@@ -30,6 +30,9 @@ line-length = 100
 [tool.ruff.lint]
 extend-select = ["I"]
 
+[tool.ruff.format]
+indent-style = "tab"
+
 [tool.hatch.envs.default.scripts]
 format = "ruff format ."
 lint = [
