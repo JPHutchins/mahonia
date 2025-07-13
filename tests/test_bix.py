@@ -6,7 +6,7 @@ from typing import Final, NamedTuple, assert_type
 
 import pytest
 
-from bix import (
+from binexpr import (
 	Add,
 	And,
 	Approximately,

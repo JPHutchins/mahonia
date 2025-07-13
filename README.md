@@ -36,7 +36,7 @@ Gt(
 
 ```python
 from typing import NamedTuple, assert_type
-import bix
+import binexpr as bix
 
 class Ctx(NamedTuple):
 	x: int
@@ -123,7 +123,7 @@ First, we have to define what we are measuring - the "context".
 ```python
 from typing import NamedTuple
 
-import bix
+import binexpr as bix
 
 class MyContext(NamedTuple):
 	voltage: float
