@@ -1,9 +1,12 @@
+# Copyright (c) 2025 JP Hutchins
+# SPDX-License-Identifier: MIT
+
 from dataclasses import dataclass
 from typing import Final, NamedTuple, assert_type
 
 import pytest
 
-from cate import (
+from bix import (
     Add,
     Approximately,
     BoundExpr,

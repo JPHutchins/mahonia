@@ -1,8 +1,12 @@
+# Copyright (c) 2025 JP Hutchins
+# SPDX-License-Identifier: MIT
+
 [project]
-name = "cate"
+name = "bix"
 version = "0.1.0"
-description = "Add your description here"
+description = "Bix is a domain specific language (DSL) for defining, evaluating, saving, and serializing (Bi)nary E(x)pressions."
 readme = "README.md"
+license = { file = "LICENSE" }
 authors = [{ name = "JP Hutchins", email = "jphutchins@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = []
