@@ -139,9 +139,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsEquality, S] | TSupportsEquality
     ) -> "Eq[TSupportsEquality, S]":
         if isinstance(other, Expr):
-            return Eq(self, other)
+            return Eq(self, other)  # type: ignore[arg-type]
         else:
-            return Eq(self, Const(None, other))
+            return Eq(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload  # type: ignore[override]
     def __ne__(self, other: Expr[T, S]) -> "Ne[T, S]": ...
@@ -151,7 +151,7 @@ class BinaryOperationOverloads(Expr[T, S]):
 
     def __ne__(self, other: Expr[T, S] | T) -> "Ne[T, S]":  # type: ignore[override]
         if isinstance(other, Expr):
-            return Ne(self, other)
+            return Ne(self, other)  # type: ignore[arg-type]
         else:
             return Ne(self, Const[T](None, other))
 
@@ -165,9 +165,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsComparison, S] | TSupportsComparison
     ) -> "Lt[TSupportsComparison, S]":
         if isinstance(other, Expr):
-            return Lt(self, other)
+            return Lt(self, other)  # type: ignore[arg-type]
         else:
-            return Lt(self, Const(None, other))
+            return Lt(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __le__(self, other: TSupportsComparison) -> "Le[TSupportsComparison, S]": ...
@@ -179,9 +179,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsComparison, S] | TSupportsComparison
     ) -> "Le[TSupportsComparison, S]":
         if isinstance(other, Expr):
-            return Le(self, other)
+            return Le(self, other)  # type: ignore[arg-type]
         else:
-            return Le(self, Const(None, other))
+            return Le(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison,S]": ...
@@ -193,9 +193,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsComparison, S] | TSupportsComparison
     ) -> "Gt[TSupportsComparison, S]":
         if isinstance(other, Expr):
-            return Gt(self, other)
+            return Gt(self, other)  # type: ignore[arg-type]
         else:
-            return Gt(self, Const(None, other))
+            return Gt(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __ge__(self, other: TSupportsComparison) -> "Ge[TSupportsComparison, S]": ...
@@ -207,9 +207,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsComparison, S] | TSupportsComparison
     ) -> "Ge[TSupportsComparison, S]":
         if isinstance(other, Expr):
-            return Ge(self, other)
+            return Ge(self, other)  # type: ignore[arg-type]
         else:
-            return Ge(self, Const(None, other))
+            return Ge(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __add__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
@@ -221,9 +221,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
     ) -> "Add[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
-            return Add(self, other)
+            return Add(self, other)  # type: ignore[arg-type]
         else:
-            return Add(self, Const(None, other))
+            return Add(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __sub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
@@ -235,9 +235,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
     ) -> "Sub[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
-            return Sub(self, other)
+            return Sub(self, other)  # type: ignore[arg-type]
         else:
-            return Sub(self, Const(None, other))
+            return Sub(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __mul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
@@ -249,9 +249,9 @@ class BinaryOperationOverloads(Expr[T, S]):
         self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
     ) -> "Mul[TSupportsArithmetic, S]":
         if isinstance(other, Expr):
-            return Mul(self, other)
+            return Mul(self, other)  # type: ignore[arg-type]
         else:
-            return Mul(self, Const(None, other))
+            return Mul(self, Const(None, other))  # type: ignore[arg-type]
 
     @overload
     def __truediv__(self, other: float) -> "Div[float, S]": ...
@@ -261,13 +261,13 @@ class BinaryOperationOverloads(Expr[T, S]):
 
     def __truediv__(self, other: Expr[float, S] | float) -> "Div[float, S]":
         if isinstance(other, Expr):
-            return Div(self, other)
+            return Div(self, other)  # type: ignore[arg-type]
         else:
-            return Div(self, Const[float](None, other))
+            return Div(self, Const[float](None, other))  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True, eq=False)
-class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):
+class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):  # type: ignore[type-var]
     name: str | None
     value: T
 
@@ -279,7 +279,7 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 
 
 @dataclass(frozen=True, eq=False)
-class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):
+class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):  # type: ignore[type-var]
     name: str
 
     def eval(self, ctx: S) -> Const[T]:
@@ -476,9 +476,9 @@ class Div(
 def between(
     expr: Expr[TSupportsComparison, S], low: TSupportsComparison, high: TSupportsComparison
 ) -> "And[bool, S]":
-    return And(
-        Lt(Const("Low", low), expr),
-        Lt(expr, Const("High", high)),
+    return And(  # type: ignore[arg-type]
+        Lt(Const("Low", low), expr),  # type: ignore[arg-type]
+        Lt(expr, Const("High", high)),  # type: ignore[arg-type]
     )
 
 
