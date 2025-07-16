@@ -18,6 +18,7 @@ from binexpr import (
 	Not,
 	Percent,
 	PlusMinus,
+	Pow,
 	Predicate,
 	TSupportsComparison,
 	Var,
@@ -906,3 +907,28 @@ def test_bind_predicate() -> None:
 	assert (
 		str(predicate) == "Voltage is within range: True (voltage:5.05 ≈ Target:5.0 ± 0.1 -> True)"
 	)
+
+
+def test_pow() -> None:
+	"""Test power operation."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Create a power expression
+	pow_expr = x**2
+	assert_type(pow_expr, Pow[int, Ctx])
+
+	assert pow_expr.unwrap(ctx) == 25
+	assert pow_expr.to_string() == "(x^2)"
+	assert pow_expr.to_string(ctx) == "(x:5^2 -> 25)"
+
+	pow_expr = x**y
+	assert pow_expr.unwrap(ctx) == 5**10
+	assert pow_expr.to_string() == "(x^y)"
+	assert pow_expr.to_string(ctx) == "(x:5^y:10 -> 9765625)"
+	assert pow_expr.unwrap(ctx) == 9765625
+
+	pow_expr = Const(None, 2) ** x
+	assert_type(pow_expr, Pow[int, Ctx])
+	assert pow_expr.unwrap(ctx) == 2**5
+	assert pow_expr.to_string() == "(2^x)"

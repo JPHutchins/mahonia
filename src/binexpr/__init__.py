@@ -1,5 +1,8 @@
-# Copyright (c) 2025 JP Hutchins
-# SPDX-License-Identifier: MIT
+"""Binary expressions for arithmetic, logic, and comparison operations.
+
+Copyright (c) 2025 JP Hutchins
+SPDX-License-Identifier: MIT
+"""
 
 from dataclasses import dataclass
 from typing import (
@@ -34,6 +37,7 @@ class _SupportsArithmetic(Protocol):
 	def __mul__(self, other: Any, /) -> Any: ...
 	def __truediv__(self, other: Any, /) -> Any: ...
 	def __abs__(self, /) -> Any: ...
+	def __pow__(self, power: Any, /) -> Any: ...
 
 
 TSupportsArithmetic = TypeVar("TSupportsArithmetic", bound=_SupportsArithmetic)
@@ -268,9 +272,49 @@ class BinaryOperationOverloads(Expr[T, S]):
 		else:
 			return Div(self, Const[float](None, other))  # type: ignore[arg-type]
 
+	@overload
+	def __pow__(self, power: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __pow__(self, power: Expr[TSupportsArithmetic, S]) -> "Pow[TSupportsArithmetic, S]": ...
+
+	def __pow__(
+		self, power: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Pow[TSupportsArithmetic, S]":
+		if isinstance(power, Expr):
+			return Pow(self, power)  # type: ignore[arg-type]
+		else:
+			return Pow(self, Const(None, power))  # type: ignore[arg-type]
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):  # type: ignore[type-var]
+	"""A constant that evaluates to itself.
+
+	>>> MY_CONST = Const("My Const", 42)
+	>>> MY_CONST.eval(None)
+	Const(name='My Const', value=42)
+	>>> MY_CONST.to_string()
+	'My Const:42'
+	>>> MY_CONST.unwrap(None)
+	42
+
+	You can create an unnamed constant by passing `None` as the name, but in
+	this case, literals should be preferred.
+
+	>>> MY_UNNAMED_CONST = Const(None, 42)
+	>>> MY_UNNAMED_CONST.to_string()
+	'42'
+	>>> MY_LITERAL_CONST = 42
+	>>> str(MY_LITERAL_CONST)
+	'42'
+	>>> (MY_CONST == MY_UNNAMED_CONST).to_string({})
+	'(My Const:42 == 42 -> True)'
+	>>> (MY_CONST == 42).to_string({})
+	'(My Const:42 == 42 -> True)'
+
+	"""
+
 	name: str | None
 	value: T
 
@@ -283,6 +327,28 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):  # type: ignore[type-var]
+	"""A variable that evaluates to the named attribute of the context.
+
+	>>> from typing import NamedTuple
+	...
+	>>> class Context(NamedTuple):
+	... 	my_var: int
+	...
+	>>> my_var = Var[int, Context]("my_var")
+	...
+	>>> my_var.to_string()
+	'my_var'
+
+	>>> my_var.eval(Context(my_var=42))
+	Const(name='my_var', value=42)
+
+	>>> my_var.to_string(Context(my_var=43))
+	'my_var:43'
+
+	>>> my_var.unwrap(Context(my_var=44))
+	44
+	"""
+
 	name: str
 
 	def eval(self, ctx: S) -> Const[T]:
@@ -476,6 +542,19 @@ class Div(
 		return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
 
 
+@dataclass(frozen=True, eq=False, slots=True)
+class Pow(
+	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+):
+	op: ClassVar[str] = "^"
+
+	left: Expr[TSupportsArithmetic, S]
+	right: Expr[TSupportsArithmetic, S]
+
+	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
+		return Const(None, self.left.eval(ctx).value ** self.right.eval(ctx).value)
+
+
 class ConstToleranceProtocol(Protocol):
 	@property
 	def max_abs_error(self) -> _SupportsArithmetic: ...
@@ -549,6 +628,39 @@ class Approximately(
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Predicate(BooleanBinaryOperationOverloads[bool, S]):
+	"""A named predicate that evaluates to `True` or `False`.
+
+	>>> from typing import NamedTuple
+	...
+	>>> class Sides(NamedTuple):
+	... 	a: int
+	... 	b: int
+	...
+	>>> a = Var[int, Sides]("a")
+	>>> b = Var[int, Sides]("b")
+	>>> C = Const("c", 5)
+	>>> pythagorean_theorem = a**2 + b**2 == C**2
+	>>> pythagorean_theorem.to_string()
+	'(((a^2) + (b^2)) == (c:5^2))'
+	>>> pythagorean_theorem.to_string(Sides(a=3, b=4))
+	'(((a:3^2 -> 9) + (b:4^2 -> 16) -> 25) == (c:5^2 -> 25) -> True)'
+	>>> is_right = Predicate(
+	... 	"Pythagorean theorem holds",
+	... 	pythagorean_theorem
+	... )
+	...
+	>>> is_right.to_string()
+	'Pythagorean theorem holds: (((a^2) + (b^2)) == (c:5^2))'
+	>>> is_right.to_string(Sides(a=3, b=4))
+	'Pythagorean theorem holds: True (((a:3^2 -> 9) + (b:4^2 -> 16) -> 25) == (c:5^2 -> 25) -> True)'
+	>>> is_right.unwrap(Sides(a=3, b=4))
+	True
+	>>> is_right.to_string(Sides(a=1, b=2))
+	'Pythagorean theorem holds: False (((a:1^2 -> 1) + (b:2^2 -> 4) -> 5) == (c:5^2 -> 25) -> False)'
+	>>> is_right.unwrap(Sides(a=1, b=2))
+	False
+	"""
+
 	name: str | None
 	expr: BoolExpr[bool, S]
 
