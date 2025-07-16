@@ -269,7 +269,7 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Div(self, Const[float](None, other))  # type: ignore[arg-type]
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):  # type: ignore[type-var]
 	name: str | None
 	value: T
@@ -281,7 +281,7 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 		return f"{self.name}:{self.value}" if self.name else str(self.value)
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):  # type: ignore[type-var]
 	name: str
 
@@ -295,7 +295,7 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 			return f"{self.name}:{self.eval(ctx).value}"
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class UnaryOpEval(Eval[bool, S]):
 	left: Expr[Any, S]
 
@@ -320,7 +320,7 @@ class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperation
 		return Const(None, not self.left.eval(ctx).value)
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class BinaryOpEval(Expr[T, S], Generic[T, S]):
 	left: Expr[T, S]
 	right: Expr[T, S]
@@ -504,7 +504,7 @@ class ConstTolerence(Const[_SupportsArithmetic], ConstToleranceProtocol):
 			)
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class PlusMinus(ConstTolerence, Generic[TSupportsArithmetic]):
 	name: str | None
 	value: TSupportsArithmetic
@@ -515,7 +515,7 @@ class PlusMinus(ConstTolerence, Generic[TSupportsArithmetic]):
 		return self.plus_minus
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Percent(ConstTolerence, Generic[TSupportsArithmetic]):
 	name: str | None
 	value: TSupportsArithmetic
@@ -530,7 +530,7 @@ class Percent(ConstTolerence, Generic[TSupportsArithmetic]):
 		return f" ± {self.percent}%"
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Approximately(
 	BinaryOpToString[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
@@ -547,7 +547,7 @@ class Approximately(
 		)
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, eq=False, slots=True)
 class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 	name: str | None
 	expr: BoolExpr[bool, S]
