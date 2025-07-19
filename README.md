@@ -182,7 +182,7 @@ Contributions are welcome!
 > - Install [uv](https://github.com/astral-sh/uv)
 > - Initialize the environment:
 >   ```
->   uv sync
+>   uv sync --locked --all-extras --dev
 >   ```
 
 ### Formatting
