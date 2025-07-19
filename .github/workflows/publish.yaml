@@ -4,10 +4,9 @@ env:
   PACKAGE_NAME: mahonia
 
 on:
-  workflow_run:
-    workflows: ["Test"]
-    types:
-      - completed
+  push:
+    tags: ["*"]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,6 +25,7 @@ jobs:
         with:
           python-version-file: "pyproject.toml"
       - run: uv sync --locked --all-extras --dev
+      - run: uv run hatch run all
       - run: uv build
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
