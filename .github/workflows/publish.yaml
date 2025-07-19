@@ -13,6 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
+        fetch-depth: 0 # Ensures all history and tags are available
         persist-credentials: false
     - name: Install uv
       uses: astral-sh/setup-uv@v6
