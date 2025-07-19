@@ -26,6 +26,8 @@ jobs:
 
       - run: uv run hatch run test
 
+      - run: uv run hatch run doctest
+
       - run: uv build
 
       - name: Upload artifacts
