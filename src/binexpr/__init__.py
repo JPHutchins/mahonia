@@ -630,6 +630,10 @@ class Approximately(
 class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 	"""A named predicate that evaluates to `True` or `False`.
 
+	>>> my_predicate = Predicate("My Predicate", Const("two", 2) == 2)
+	>>> my_predicate.to_string({})
+	'My Predicate: True (two:2 == 2 -> True)'
+
 	>>> from typing import NamedTuple
 	...
 	>>> class Sides(NamedTuple):
