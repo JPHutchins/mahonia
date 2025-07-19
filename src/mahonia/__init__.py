@@ -1,7 +1,95 @@
+# Copyright (c) 2025 JP Hutchins
+# SPDX-License-Identifier: MIT
+
 """Binary expressions for arithmetic, logic, and comparison operations.
 
-Copyright (c) 2025 JP Hutchins
-SPDX-License-Identifier: MIT
+### Syntax Examples
+
+>>> from typing import NamedTuple, assert_type
+...
+>>> class Ctx(NamedTuple):
+... 	x: int
+... 	y: int
+...
+>>> x = Var[int, Ctx]("x")
+>>> y = Var[int, Ctx]("y")
+>>> MAX = Const("Max", 10)
+>>> x
+Var(name='x')
+>>> MAX
+Const(name='Max', value=10)
+>>> # Create an expression compares a Var and a Const
+>>> x < MAX
+Lt(left=Var(name='x'), right=Const(name='Max', value=10))
+>>> # Assign an expression to a variable
+>>> sum_expr = x + y
+>>> sum_expr
+Add(left=Var(name='x'), right=Var(name='y'))
+>>> # Serialize the expression to a string
+>>> sum_expr.to_string()
+'(x + y)'
+>>> # Evaluate the expression with concrete values
+>>> sum_result = sum_expr(Ctx(x=1, y=2))
+>>> sum_result
+Const(name=None, value=3)
+>>> # Serialize the evaluated expression to a string
+>>> sum_expr.to_string(Ctx(x=1, y=2))
+'(x:1 + y:2 -> 3)'
+>>> # Access the value of the result
+>>> sum_result.value
+3
+>>> # Shorthand for getting the value
+>>> sum_expr.unwrap(Ctx(x=1, y=2))
+3
+>>> # Bind an expression to a context
+>>> summed = sum_expr.bind(Ctx(x=1, y=2))
+>>> str(summed)
+'(x:1 + y:2 -> 3)'
+>>> summed.unwrap()
+3
+>>> # Combine expressions
+>>> zero = x + y - x - y
+>>> zero.to_string()
+'(((x + y) - x) - y)'
+>>> zero.to_string(Ctx(x=1, y=2))
+'(((x:1 + y:2 -> 3) - x:1 -> 2) - y:2 -> 0)'
+>>> zero.unwrap(Ctx(x=1, y=2))
+0
+>>> # Compose expressions
+>>> four = sum_expr + x
+>>> four.to_string()
+'((x + y) + x)'
+>>> four.to_string(Ctx(x=1, y=2))
+'((x:1 + y:2 -> 3) + x:1 -> 4)'
+>>> four.unwrap(Ctx(x=1, y=2))
+4
+>>> # Create a predicate
+>>> is_valid = (x > 0) & (y < MAX)
+>>> is_valid.to_string()
+'((x > 0) & (y < Max:10))'
+>>> is_valid.to_string(Ctx(x=1, y=2))
+'((x:1 > 0 -> True) & (y:2 < Max:10 -> True) -> True)'
+>>> is_valid.unwrap(Ctx(x=1, y=2))
+True
+>>> # Define the predicate
+>>> cate = Predicate("x is pos, y less than Max", is_valid)
+>>> cate.to_string()
+'x is pos, y less than Max: ((x > 0) & (y < Max:10))'
+>>> cate.to_string(Ctx(x=1, y=2))
+'x is pos, y less than Max: True ((x:1 > 0 -> True) & (y:2 < Max:10 -> True) -> True)'
+>>> cate.unwrap(Ctx(x=1, y=2))
+True
+>>> # Other abstractions similar to Predicate include
+>>> # Approximately and PlusMinus. PlusMinus is a kind
+>>> # of Const that implements the ConstToleranceProtocol.
+>>> # These can be use as reference for custom convenience
+>>> # abstractions.
+>>> class Ctx(NamedTuple):
+... 	voltage: float
+>>> voltage = Var[float, Ctx]("voltage")
+>>> voltage_check = Approximately(voltage, PlusMinus("V", 5.0, 0.1))
+>>> voltage_check.to_string(Ctx(voltage=5.05))
+'(voltage:5.05 ≈ V:5.0 ± 0.1 -> True)'
 """
 
 from dataclasses import dataclass

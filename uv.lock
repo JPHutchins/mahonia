@@ -17,7 +17,7 @@ wheels = [
 ]
 
 [[package]]
-name = "binexpr"
+name = "mahonia"
 source = { editable = "." }
 
 [package.dev-dependencies]

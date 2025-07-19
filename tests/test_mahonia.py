@@ -6,7 +6,7 @@ from typing import Final, NamedTuple, assert_type
 
 import pytest
 
-from binexpr import (
+from mahonia import (
 	Add,
 	And,
 	Approximately,

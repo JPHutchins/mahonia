@@ -1,7 +1,7 @@
 name: Publish Python 🐍 distribution 📦 to PyPI
 
 env:
-  PACKAGE_NAME: binexpr
+  PACKAGE_NAME: mahonia
 
 on:
   workflow_run:

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 [project]
-name = "binexpr"
-description = "Bix is a domain specific language (DSL) for defining, evaluating, saving, and serializing (Bi)nary E(x)pressions."
+name = "mahonia"
+description = "Mahonia is a domain specific language (DSL) for defining, evaluating, saving, and serializing binary expressions."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "JP Hutchins", email = "jphutchins@gmail.com" }]
