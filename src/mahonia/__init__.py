@@ -3,7 +3,37 @@
 
 """Binary expressions for arithmetic, logic, and comparison operations.
 
-### Syntax Examples
+## Syntax
+
+It's recommended to employ static type analysis tools like `mypy` to provide
+realtime feedback on the correctness of your expressions as you work.
+
+### Type Coercion
+
+The most important rule to remember is that the leftmost leaf of your expression
+must be a Mahonia `Expr`. This is usually a `Var` or `Const`, but can be any
+type that implements the `Expr` protocol, e.g., any Mahonia expression.
+
+For example, this will work, because the literal `1`
+is coerced to an unnamed `Const`:
+>>> X = Const("X", 41)
+>>> X + 1
+Add(left=Const(name='X', value=41), right=Const(name=None, value=1))
+
+But this will not:
+>>> 1 + X
+Traceback (most recent call last):
+    ...
+TypeError: unsupported operand type(s) for +: 'int' and 'Const'
+
+This is a result of Python's binary operator rules, which will use the type
+of the leftmost operand to determine the operation. In this case, `1` is an
+`int`, so Python will try to use the `int`'s `__add__` method, instead of
+Mahonia's `__add__` method. See `BinaryOperationOverloads` for more details.
+
+### Examples
+
+For more exhaustive examples, see the tests.
 
 >>> from typing import NamedTuple, assert_type
 ...

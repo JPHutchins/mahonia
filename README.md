@@ -10,21 +10,19 @@ at a manufacturing facility. While the primary requirement is to flag those
 units that do not meet expectations, a secondary requirement is to record _what,
 why, and how_ a test has failed.
 
-For this example, we will use Mahonia's `Predicate` type.
-
-First, we have to define what we are measuring - the "context".
+First, define what is being measured - the "context".
 ```python
 from typing import NamedTuple
 
 from mahonia import Approximately, PlusMinus, Predicate, Var
 
-class MyContext(NamedTuple):
+class Measurements(NamedTuple):
 	voltage: float
 ```
 
 Next, for each "variable" of the context, we declare a matching Mahonia `Var` type.
 ```python
-voltage = Var[float, MyContext]("voltage")
+voltage = Var[float, Measurements]("voltage")
 ```
 
 Now we can write an expression. This expression defines a named predicate that
@@ -54,7 +52,7 @@ voltage_check.unwrap() # True
 
 We can inspect the evaluation context:
 ```python
-print(voltage_check.ctx) # MyContext(voltage=5.03)
+print(voltage_check.ctx) # Measurements(voltage=5.03)
 ```
 
 As well as serialize it for the logs:
@@ -64,41 +62,4 @@ str(voltage_check) # or voltage_check.to_string()
 # Voltage OK: True (voltage:5.03 ≈ Nominal:5.0 ± 0.05 -> True)
 # Or a fail:
 # Voltage OK: False (voltage:4.90 ≈ Nominal:5.0 ± 0.05 -> False)
-```
-## Develop
-
-Contributions are welcome!
-
-> [!IMPORTANT]
-> ### First time setup
->
-> - Install [uv](https://github.com/astral-sh/uv)
-> - Initialize the environment:
->   ```
->   uv sync --locked --all-extras --dev
->   ```
-
-### Formatting
-```
-uv run hatch run format
-```
-> [!NOTE]
-> VSCode is setup to do this for you on save - feel free to add more editors.
-
-### Linting
-```
-uv run hatch run lint
-```
-> [!NOTE]
-> VSCode is setup to to run these LSPs in the background - feel free to add more
-> editors.
-
-### Tests
-```
-uv run hatch run tests
-```
-
-### All
-```
-uv run hatch run all
 ```
