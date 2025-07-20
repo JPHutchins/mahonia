@@ -76,9 +76,18 @@ For more exhaustive examples, see the tests.
 Var(name='x')
 >>> MAX
 Const(name='Max', value=10)
->>> # Create an expression compares a Var and a Const
+>>> # Create an expression that compares a Var and a Const
 >>> x < MAX
 Lt(left=Var(name='x'), right=Const(name='Max', value=10))
+>>> # Serialize
+>>> (x < MAX).to_string()
+'(x < Max:10)'
+>>> # Evaluate
+>>> (x < MAX).unwrap(Ctx(x=5, y=10))
+True
+>>> # Serialize the evaluation
+>>> (x < MAX).to_string(Ctx(x=5, y=10))
+'(x:5 < Max:10 -> True)'
 >>> # Assign an expression to a variable
 >>> sum_expr = x + y
 >>> sum_expr
