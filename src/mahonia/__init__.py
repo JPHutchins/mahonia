@@ -170,10 +170,15 @@ T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 """The covariant type of the expression's value."""
 
-S = TypeVar("S")
+
+class ContextProtocol(Protocol):
+	def __getattribute__(self, name: str, /) -> Any: ...
+
+
+S = TypeVar("S", bound=ContextProtocol)
 """The type of the expression's context."""
 
-S_contra = TypeVar("S_contra", contravariant=True)
+S_contra = TypeVar("S_contra", bound=ContextProtocol, contravariant=True)
 """The contravariant type of the expression's context."""
 
 
