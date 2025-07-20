@@ -8,6 +8,34 @@
 It's recommended to employ static type analysis tools like `mypy` to provide
 realtime feedback on the correctness of your expressions as you work.
 
+### Mapping Context Variables <-> `Var`s
+
+The rule is that the `str` name of the `Var`, it's `name` attribute, must match
+the corresponding field name in the context object. For example, this will work:
+>>> from typing import NamedTuple
+>>> class Context(NamedTuple):
+... 	my_name: str
+>>> any_name_works_here = Var[int, Context]("my_name")
+>>> any_name_works_here.to_string()
+'my_name'
+>>> any_name_works_here.to_string(Context(my_name='jp'))
+'my_name:jp'
+
+But this will not, when it's evaluated:
+>>> wrong_name = Var[int, Context]("wrong_name")
+>>> wrong_name.to_string()
+'wrong_name'
+>>> wrong_name.to_string(Context(my_name='jp'))
+Traceback (most recent call last):
+	...
+AttributeError: 'Context' object has no attribute 'wrong_name'
+
+This occurs because when `wrong_name` is evaluated, it looks for its' value at
+the `wrong_name` attribute of the `Context` object, which does not exist.
+
+Note that `Var`s are tied to their context type, so you cannot use a `Var` from
+one context in another context and will get a static type error if you try.
+
 ### Type Coercion
 
 The most important rule to remember is that the leftmost leaf of your expression
@@ -23,7 +51,7 @@ Add(left=Const(name='X', value=41), right=Const(name=None, value=1))
 But this will not:
 >>> 1 + X
 Traceback (most recent call last):
-    ...
+	...
 TypeError: unsupported operand type(s) for +: 'int' and 'Const'
 
 This is a result of Python's binary operator rules, which will use the type
