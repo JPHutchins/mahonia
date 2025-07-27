@@ -3,6 +3,9 @@
 Mahonia is a domain specific language (DSL) for defining, evaluating, saving, and
 serializing binary expressions within a Python interpreter.
 
+[![Test](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml)
+[![Publish Python 🐍 distribution 📦 to PyPI](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml)
+
 ## Motivation
 
 Say that you are writing an application that conducts some assembly line testing
