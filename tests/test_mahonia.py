@@ -932,3 +932,21 @@ def test_pow() -> None:
 	assert_type(pow_expr, Pow[int, Ctx])
 	assert pow_expr.unwrap(ctx) == 2**5
 	assert pow_expr.to_string() == "(2^x)"
+
+
+def test_approximately_coercion() -> None:
+	"""Test coercion of Approximately to BoundExpr."""
+	x = Var[float, Ctx]("x")
+	target = PlusMinus("Target", 5.0, 0.1)
+
+	expr = target == x
+	assert_type(expr, Approximately[float, Ctx])
+	print(expr.to_string())
+
+	expr = x == target
+	assert_type(expr, Approximately[float, Ctx])
+	print(expr.to_string())
+
+	expr = target == 5.0
+	assert_type(expr, Approximately[float, Ctx])
+	print(expr.to_string())

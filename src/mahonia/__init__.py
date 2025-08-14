@@ -302,10 +302,20 @@ class BinaryOperationOverloads(Expr[T, S]):
 	@overload  # type: ignore[override]
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
+	@overload  # type: ignore[override]
+	def __eq__(
+		self, other: "ConstTolerance[TSupportsArithmetic]"
+	) -> "Approximately[TSupportsArithmetic, S]": ...
+
 	def __eq__(  # type: ignore[misc]
-		self, other: Expr[TSupportsEquality, S] | TSupportsEquality
-	) -> "Eq[TSupportsEquality, S]":
-		if isinstance(other, Expr):
+		self,
+		other: Expr[TSupportsEquality, S]
+		| TSupportsEquality
+		| "ConstTolerance[TSupportsArithmetic]",
+	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S]":
+		if isinstance(other, ConstTolerance):
+			return Approximately(self, other)  # type: ignore[arg-type]
+		elif isinstance(other, Expr):
 			return Eq(self, other)  # type: ignore[arg-type]
 		else:
 			return Eq(self, Const(None, other))  # type: ignore[arg-type]
@@ -724,7 +734,9 @@ class ConstToleranceProtocol(Protocol):
 		return f" ± {self.max_abs_error}"
 
 
-class ConstTolerence(Const[_SupportsArithmetic], ConstToleranceProtocol):
+class ConstTolerance(
+	Const[_SupportsArithmetic], ConstToleranceProtocol, Generic[TSupportsArithmetic]
+):
 	def eval(self, ctx: Any) -> Self:
 		return self
 
@@ -742,9 +754,25 @@ class ConstTolerence(Const[_SupportsArithmetic], ConstToleranceProtocol):
 				else f"{self.eval(ctx).value}{self.tolerance_string}"
 			)
 
+	@overload  # type: ignore[override]
+	def __eq__(
+		self, other: Expr[TSupportsArithmetic, S]
+	) -> "Approximately[TSupportsArithmetic, S]": ...
+
+	@overload  # type: ignore[override]
+	def __eq__(self, other: TSupportsArithmetic) -> "Approximately[TSupportsArithmetic, Any]": ...
+
+	def __eq__(  # type: ignore[misc]
+		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Approximately[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Approximately(other, self)  # type: ignore
+		else:
+			return Approximately(Const(None, other), self)  # type: ignore
+
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PlusMinus(ConstTolerence, Generic[TSupportsArithmetic]):
+class PlusMinus(ConstTolerance[TSupportsArithmetic]):
 	name: str | None
 	value: TSupportsArithmetic
 	plus_minus: TSupportsArithmetic
@@ -755,7 +783,7 @@ class PlusMinus(ConstTolerence, Generic[TSupportsArithmetic]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Percent(ConstTolerence, Generic[TSupportsArithmetic]):
+class Percent(ConstTolerance[TSupportsArithmetic]):
 	name: str | None
 	value: TSupportsArithmetic
 	percent: float
@@ -778,7 +806,7 @@ class Approximately(
 	op: ClassVar[str] = " ≈ "
 
 	left: Expr[TSupportsArithmetic, S]
-	right: ConstTolerence  # type: ignore[assignment]
+	right: ConstTolerance  # type: ignore[assignment]
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(
