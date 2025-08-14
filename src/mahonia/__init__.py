@@ -28,7 +28,7 @@ But this will not, when it's evaluated:
 >>> wrong_name.to_string(Context(my_name='jp'))
 Traceback (most recent call last):
 	...
-AttributeError: 'Context' object has no attribute 'wrong_name'
+mahonia.EvalError: Variable 'wrong_name' not found in context
 
 This occurs because when `wrong_name` is evaluated, it looks for its' value at
 the `wrong_name` attribute of the `Context` object, which does not exist.
@@ -160,6 +160,7 @@ True
 """
 
 from dataclasses import dataclass
+from difflib import get_close_matches
 from typing import (
 	Any,
 	ClassVar,
@@ -228,6 +229,12 @@ class _SupportsLogic(Protocol):
 
 
 TSupportsLogic = TypeVar("TSupportsLogic", bound=_SupportsLogic)
+
+
+class EvalError(Exception):
+	"""Raised when variable evaluation fails due to missing context attributes."""
+
+	pass
 
 
 @runtime_checkable
@@ -604,7 +611,17 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 	name: str
 
 	def eval(self, ctx: S) -> Const[T]:
-		return Const(self.name, getattr(ctx, self.name))
+		try:
+			return Const(self.name, getattr(ctx, self.name))
+		except AttributeError as e:
+			available_attrs = (attr for attr in dir(ctx) if not attr.startswith("_"))
+			suggestions = get_close_matches(self.name, available_attrs, n=3, cutoff=0.6)
+
+			suggestion_text = ""
+			if suggestions:
+				suggestion_text = f" (did you mean {', '.join(repr(s) for s in suggestions)}?)"
+
+			raise EvalError(f"Variable '{self.name}' not found in context{suggestion_text}") from e
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
