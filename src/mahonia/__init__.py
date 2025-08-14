@@ -232,11 +232,44 @@ TSupportsLogic = TypeVar("TSupportsLogic", bound=_SupportsLogic)
 
 @runtime_checkable
 class Eval(Protocol[T, S_contra]):
+	"""Protocol for objects that can evaluate themselves with a context.
+
+	This protocol defines the interface for expression evaluation. All Mahonia
+	expressions implement this protocol.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> isinstance(x, Eval)
+	True
+	>>> result = x.eval(Ctx(x=42))
+	>>> result.value
+	42
+	"""
+
 	def eval(self, ctx: S_contra) -> "Const[T]": ...
 
 
 @runtime_checkable
 class ToString(Protocol[S_contra]):
+	"""Protocol for objects that can serialize themselves to strings.
+
+	This protocol defines the interface for string serialization, with optional
+	context for showing evaluated values.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> isinstance(x, ToString)
+	True
+	>>> x.to_string()
+	'x'
+	>>> x.to_string(Ctx(x=42))
+	'x:42'
+	"""
+
 	def to_string(self, ctx: S_contra | None = None) -> str: ...
 
 
@@ -265,6 +298,24 @@ class BoundExpr(NamedTuple, Generic[T, S]):
 
 
 class Expr(Generic[T, S]):
+	"""Base class for all Mahonia expressions.
+
+	Provides core evaluation, serialization, and binding functionality.
+	Users typically work with concrete expression types like Var, Const, Add, etc.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> isinstance(x, Expr)
+	True
+	>>> x.unwrap(Ctx(x=10))
+	10
+	>>> bound = x.bind(Ctx(x=10))
+	>>> bound.unwrap()
+	10
+	"""
+
 	def eval(self, ctx: S) -> "Const[T]":
 		raise NotImplementedError()
 
@@ -282,6 +333,24 @@ class Expr(Generic[T, S]):
 
 
 class BoolExpr(Expr[TSupportsLogic, S]):
+	"""Base class for boolean expressions that support logical operations.
+
+	Extends Expr with support for logical operators like & (and), | (or), and ~ (not).
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> bool_expr = x > 5
+	>>> isinstance(bool_expr, BoolExpr)
+	True
+	>>> bool_expr.unwrap(Ctx(x=10))
+	True
+	>>> combined = bool_expr & (x < 20)
+	>>> combined.unwrap(Ctx(x=10))
+	True
+	"""
+
 	def eval(self, ctx: S) -> "Const[TSupportsLogic]":
 		raise NotImplementedError()
 
@@ -750,6 +819,20 @@ class ConstToleranceProtocol(Protocol):
 class ConstTolerance(
 	Const[_SupportsArithmetic], ConstToleranceProtocol, Generic[TSupportsArithmetic]
 ):
+	"""Base class for constants with tolerance for approximate comparisons.
+
+	Tolerance constants automatically create Approximately expressions when
+	compared with == to other values or expressions.
+
+	>>> five_ish = PlusMinus("5ish", 5.0, plus_minus=0.1)
+	>>> check = five_ish == 5.05
+	>>> # Doctest assert_type: This creates an Approximately[float, Any]
+	>>> isinstance(check, Approximately)
+	True
+	>>> check.unwrap(None)
+	True
+	"""
+
 	def eval(self, ctx: Any) -> Self:
 		return self
 
