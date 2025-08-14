@@ -36,9 +36,8 @@ indent-style = "tab"
 [tool.hatch.envs.default.scripts]
 format = "ruff format ."
 lint = ["ruff check .", "mypy ."]
-test = "pytest"
-doctest = "pytest --doctest-modules"
-all = ["format", "lint", "test", "doctest"]
+test = "pytest --doctest-modules"
+all = ["format", "lint", "test"]
 
 [tool.hatch.version]
 source = "vcs"
