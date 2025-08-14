@@ -241,6 +241,19 @@ class ToString(Protocol[S_contra]):
 
 
 class BoundExpr(NamedTuple, Generic[T, S]):
+	"""An immutable expression bound to a specific context.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> bound = (x > 5).bind(Ctx(x=10))
+	>>> bound.unwrap()
+	True
+	>>> str(bound)
+	'(x:10 > 5 -> True)'
+	"""
+
 	expr: "Expr[T, S]"
 	ctx: S
 
@@ -773,6 +786,27 @@ class ConstTolerance(
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PlusMinus(ConstTolerance[TSupportsArithmetic]):
+	"""A constant with plus/minus tolerance for approximate comparisons.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	>>> x = Var[float, Ctx]("x")
+	>>> target = PlusMinus("Target", 5.0, 0.1)
+	>>> target.value
+	5.0
+	>>> target.max_abs_error
+	0.1
+	>>> target.to_string()
+	'Target:5.0 ± 0.1'
+	>>> # Comparison coerces an Approximately
+	>>> expr = x == target
+	>>> expr.to_string()
+	'(x ≈ Target:5.0 ± 0.1)'
+	>>> expr.unwrap(Ctx(x=5.05))
+	True
+	"""
+
 	name: str | None
 	value: TSupportsArithmetic
 	plus_minus: TSupportsArithmetic
@@ -784,6 +818,27 @@ class PlusMinus(ConstTolerance[TSupportsArithmetic]):
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Percent(ConstTolerance[TSupportsArithmetic]):
+	"""A constant with percentage tolerance for approximate comparisons.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	>>> x = Var[float, Ctx]("x")
+	>>> target = Percent("Target", 100.0, 5.0)
+	>>> target.value
+	100.0
+	>>> target.max_abs_error
+	5.0
+	>>> target.to_string()
+	'Target:100.0 ± 5.0%'
+	>>> # Comparison coerces an Approximately
+	>>> expr = x == target
+	>>> expr.to_string()
+	'(x ≈ Target:100.0 ± 5.0%)'
+	>>> expr.unwrap(Ctx(x=102.0))
+	True
+	"""
+
 	name: str | None
 	value: TSupportsArithmetic
 	percent: float
@@ -803,6 +858,28 @@ class Approximately(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
+	"""Approximate equality comparison with tolerance.
+
+	Created automatically when comparing values to a ConstTolerance using ==.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	value: float
+	>>> value = Var[float, Ctx]("value")
+	>>> tolerance = PlusMinus("Target", 10.0, 0.5)
+	>>> approx = Approximately(value, tolerance)
+	>>> approx.to_string()
+	'(value ≈ Target:10.0 ± 0.5)'
+	>>> approx.unwrap(Ctx(value=10.2))
+	True
+	>>> approx.unwrap(Ctx(value=10.6))
+	False
+	>>> # Comparison coerces an Approximately
+	>>> auto_approx = value == tolerance
+	>>> auto_approx.to_string()
+	'(value ≈ Target:10.0 ± 0.5)'
+	"""
+
 	op: ClassVar[str] = " ≈ "
 
 	left: Expr[TSupportsArithmetic, S]
