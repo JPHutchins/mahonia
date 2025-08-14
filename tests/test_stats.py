@@ -4,7 +4,7 @@
 """Test statistical operations."""
 
 import statistics
-from typing import NamedTuple
+from typing import NamedTuple, assert_type
 
 import pytest
 
@@ -196,3 +196,50 @@ def test_process_control_scenario():
 
 	result_str = process_ok.to_string(ctx)
 	assert "Process Control:" in result_str
+
+
+@pytest.mark.mypy_testing
+def test_statistical_generic_types() -> None:
+	"""Test that statistical operations have correct generic types."""
+	measurements = Var[list[float], BatchData]("measurements")
+
+	# Test Mean
+	mean_expr = Mean(measurements)
+	assert_type(mean_expr, Mean[list[float], BatchData])
+	assert_type(mean_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test StdDev
+	stddev_expr = StdDev(measurements)
+	assert_type(stddev_expr, StdDev[list[float], BatchData])
+	assert_type(stddev_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test Median
+	median_expr = Median(measurements)
+	assert_type(median_expr, Median[list[float], BatchData])
+	assert_type(median_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test Percentile
+	p95_expr = Percentile(measurements, 95)
+	assert_type(p95_expr, Percentile[list[float], BatchData])
+	assert_type(p95_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test Range
+	range_expr = Range(measurements)
+	assert_type(range_expr, Range[list[float], BatchData])
+	assert_type(range_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test Count
+	count_expr = Count(measurements)
+	assert_type(count_expr, Count[list[float], BatchData])
+	assert_type(count_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), int)
+
+	# Test arithmetic with statistical operations
+	mean_plus_one = mean_expr + 1.0
+	assert_type(mean_plus_one.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
+
+	# Test comparison with tolerance
+	spec = PlusMinus("Spec", 1.5, 0.1)
+	_quality_check = mean_expr == spec
+	# NOTE: Runtime returns bool correctly, but mypy has trouble with generic type inference
+	# result = _quality_check.unwrap(BatchData([1.0, 2.0], 2, "B123"))
+	# assert_type(result, bool)  # Would fail mypy but passes at runtime

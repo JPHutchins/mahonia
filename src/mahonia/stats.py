@@ -9,7 +9,7 @@ useful for manufacturing quality control and batch analysis.
 
 import statistics
 from dataclasses import dataclass
-from typing import ClassVar, Iterable, Protocol, TypeVar
+from typing import ClassVar, Generic, Iterator, Protocol, TypeVar
 
 from mahonia import BinaryOperationOverloads, Const, Expr, S
 
@@ -21,25 +21,36 @@ class _SizedIterable(Protocol):
 	def __len__(self) -> int: ...
 
 
+class _IterableFloat(Protocol):
+	"""Protocol for iterables containing floats."""
+
+	def __iter__(self) -> Iterator[float]: ...
+
+
 TSizedIterable = TypeVar("TSizedIterable", bound=_SizedIterable)
+TIterableFloat = TypeVar("TIterableFloat", bound=_IterableFloat)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class UnaryStatisticalOp(Expr[float, S]):
+class UnaryStatisticalOp(Expr[float, S], Generic[TIterableFloat, S]):
 	"""Base class for statistical operations on single expressions."""
 
-	expr: Expr[Iterable[float], S]
-	op_name: ClassVar[str] = "stat"
+	expr: Expr[TIterableFloat, S]
+	op: ClassVar[str] = "stat"
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
-			return f"{self.op_name}({self.expr.to_string()})"
+			return f"{self.op}({self.expr.to_string()})"
 		else:
 			result = self.eval(ctx).value
-			return f"{self.op_name}({self.expr.to_string(ctx)} -> {result})"
+			return f"{self.op}({self.expr.to_string(ctx)} -> {result})"
 
 
-class Mean(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
+class Mean(
+	UnaryStatisticalOp[TIterableFloat, S],
+	BinaryOperationOverloads[float, S],
+	Generic[TIterableFloat, S],
+):
 	"""Arithmetic mean of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -57,14 +68,18 @@ class Mean(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
 	'mean(values:[1.0, 2.0, 3.0, 4.0, 5.0] -> 3.0)'
 	"""
 
-	op_name: ClassVar[str] = "mean"
+	op: ClassVar[str] = "mean"
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.expr.eval(ctx).value
 		return Const(None, statistics.mean(iterable))
 
 
-class StdDev(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
+class StdDev(
+	UnaryStatisticalOp[TIterableFloat, S],
+	BinaryOperationOverloads[float, S],
+	Generic[TIterableFloat, S],
+):
 	"""Standard deviation of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -80,14 +95,18 @@ class StdDev(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
 	1.581
 	"""
 
-	op_name: ClassVar[str] = "stddev"
+	op: ClassVar[str] = "stddev"
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.expr.eval(ctx).value
 		return Const(None, statistics.stdev(iterable))
 
 
-class Median(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
+class Median(
+	UnaryStatisticalOp[TIterableFloat, S],
+	BinaryOperationOverloads[float, S],
+	Generic[TIterableFloat, S],
+):
 	"""Median of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -103,7 +122,7 @@ class Median(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
 	3.0
 	"""
 
-	op_name: ClassVar[str] = "median"
+	op: ClassVar[str] = "median"
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.expr.eval(ctx).value
@@ -111,7 +130,7 @@ class Median(UnaryStatisticalOp[S], BinaryOperationOverloads[float, S]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Percentile(BinaryOperationOverloads[float, S]):
+class Percentile(BinaryOperationOverloads[float, S], Generic[TIterableFloat, S]):
 	"""Percentile of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -127,7 +146,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 	4.8
 	"""
 
-	expr: Expr[Iterable[float], S]
+	expr: Expr[TIterableFloat, S]
 	percentile: float
 
 	def eval(self, ctx: S) -> Const[float]:
@@ -162,7 +181,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Range(BinaryOperationOverloads[float, S]):
+class Range(BinaryOperationOverloads[float, S], Generic[TIterableFloat, S]):
 	"""Range (max - min) of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -178,7 +197,7 @@ class Range(BinaryOperationOverloads[float, S]):
 	4.0
 	"""
 
-	expr: Expr[Iterable[float], S]
+	expr: Expr[TIterableFloat, S]
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.expr.eval(ctx).value
@@ -193,7 +212,7 @@ class Range(BinaryOperationOverloads[float, S]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Count(BinaryOperationOverloads[int, S]):
+class Count(BinaryOperationOverloads[int, S], Generic[TSizedIterable, S]):
 	"""Count of elements in an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -209,7 +228,7 @@ class Count(BinaryOperationOverloads[int, S]):
 	5
 	"""
 
-	expr: Expr[_SizedIterable, S]
+	expr: Expr[TSizedIterable, S]
 
 	def eval(self, ctx: S) -> Const[int]:
 		iterable = self.expr.eval(ctx).value
