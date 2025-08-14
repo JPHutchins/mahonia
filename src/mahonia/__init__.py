@@ -297,15 +297,15 @@ class BooleanBinaryOperationOverloads(BoolExpr[TSupportsLogic, S]):
 
 class BinaryOperationOverloads(Expr[T, S]):
 	@overload  # type: ignore[override]
+	def __eq__(
+		self, other: "ConstTolerance[TSupportsArithmetic]"
+	) -> "Approximately[TSupportsArithmetic, S]": ...
+
+	@overload  # type: ignore[override]
 	def __eq__(self, other: Expr[TSupportsEquality, S]) -> "Eq[TSupportsEquality, S]": ...
 
 	@overload  # type: ignore[override]
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
-
-	@overload  # type: ignore[override]
-	def __eq__(
-		self, other: "ConstTolerance[TSupportsArithmetic]"
-	) -> "Approximately[TSupportsArithmetic, S]": ...
 
 	def __eq__(  # type: ignore[misc]
 		self,
@@ -801,12 +801,12 @@ class Percent(ConstTolerance[TSupportsArithmetic]):
 class Approximately(
 	BinaryOpToString[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
-	BooleanBinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[Any, S],
 ):
 	op: ClassVar[str] = " ≈ "
 
 	left: Expr[TSupportsArithmetic, S]
-	right: ConstTolerance  # type: ignore[assignment]
+	right: ConstTolerance[TSupportsArithmetic]  # type: ignore[assignment]
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(

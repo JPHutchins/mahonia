@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 from dataclasses import dataclass
-from typing import Final, NamedTuple, assert_type
+from typing import Any, Final, NamedTuple, assert_type
 
 import pytest
 
@@ -33,6 +33,7 @@ class Ctx:
 	flag: bool = True
 	custom: object = object()
 	f: float = 1.5
+	e: float = 2.71828
 
 
 ctx: Final = Ctx(x=5, y=10, name="example")
@@ -547,21 +548,21 @@ def test_approximately() -> None:
 
 
 def test_approximately_composition() -> None:
-	x = Var[int, Ctx]("x")
-	y = Var[int, Ctx]("y")
+	f = Var[float, Ctx]("f")
+	e = Var[float, Ctx]("e")
 
-	x_plus_y = x + y
+	f_plus_e = f + e
 	SUM = PlusMinus("Sum", 15, 0.1)
 
-	expr = Approximately(x_plus_y, SUM)
-	assert_type(expr, Approximately[int, Ctx])
+	expr = Approximately(f_plus_e, SUM)
+	assert_type(expr, Approximately[float, Ctx])
 
 	print()
 	print(expr.to_string())
 	print(expr.to_string(ctx))
 
-	expr = Approximately(x * y, Percent("Product", 48.0, 5.0))
-	assert_type(expr, Approximately[int, Ctx])
+	expr = Approximately(f * e, Percent("Product", 48.0, 5.0))
+	assert_type(expr, Approximately[float, Ctx])
 
 	print()
 	print(expr.to_string())
@@ -928,10 +929,10 @@ def test_pow() -> None:
 	assert pow_expr.to_string(ctx) == "(x:5^y:10 -> 9765625)"
 	assert pow_expr.unwrap(ctx) == 9765625
 
-	pow_expr = Const(None, 2) ** x
-	assert_type(pow_expr, Pow[int, Ctx])
-	assert pow_expr.unwrap(ctx) == 2**5
-	assert pow_expr.to_string() == "(2^x)"
+	pow_expr1 = Const(None, 2) ** x
+	assert_type(pow_expr1, Pow[int, Any])
+	assert pow_expr1.unwrap(ctx) == 2**5
+	assert pow_expr1.to_string() == "(2^x)"
 
 
 def test_approximately_coercion() -> None:
@@ -947,6 +948,6 @@ def test_approximately_coercion() -> None:
 	assert_type(expr, Approximately[float, Ctx])
 	print(expr.to_string())
 
-	expr = target == 5.0
-	assert_type(expr, Approximately[float, Ctx])
-	print(expr.to_string())
+	expr1 = target == 5.0
+	assert_type(expr1, Approximately[float, Any])
+	print(expr1.to_string())
