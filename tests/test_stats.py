@@ -4,12 +4,12 @@
 """Test statistical operations."""
 
 import statistics
-from typing import Iterable, NamedTuple, assert_type
+from typing import NamedTuple, assert_type
 
 import pytest
 
 from mahonia import Approximately, Const, PlusMinus, Predicate, Var
-from mahonia.stats import Count, Mean, Median, Percentile, Range, StdDev
+from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
 
 
 class BatchData(NamedTuple):
@@ -21,7 +21,7 @@ class BatchData(NamedTuple):
 def test_mean() -> None:
 	"""Test mean calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	mean_expr = Mean(measurements)
 	mean = mean_expr.unwrap(ctx)
@@ -38,7 +38,7 @@ def test_mean() -> None:
 def test_stddev() -> None:
 	"""Test standard deviation calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	stddev_expr = StdDev(measurements)
 	result = stddev_expr.unwrap(ctx)
@@ -49,7 +49,7 @@ def test_stddev() -> None:
 def test_median() -> None:
 	"""Test median calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	median_expr = Median(measurements)
 	assert median_expr.unwrap(ctx) == 3.0
@@ -59,7 +59,7 @@ def test_median() -> None:
 def test_percentile() -> None:
 	"""Test percentile calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	p95_expr = Percentile(95, measurements)
 	result = p95_expr.unwrap(ctx)
@@ -70,7 +70,7 @@ def test_percentile() -> None:
 def test_range() -> None:
 	"""Test range calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	range_expr = Range(measurements)
 	assert range_expr.unwrap(ctx) == 4.0  # 5.0 - 1.0
@@ -80,7 +80,7 @@ def test_range() -> None:
 def test_count() -> None:
 	"""Test count calculation."""
 	ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="B123")
-	measurements_list = Var[list[float], BatchData]("measurements")
+	measurements_list = Var[SizedIterable[float], BatchData]("measurements")
 
 	count_expr = Count(measurements_list)
 	assert count_expr.unwrap(ctx) == 5
@@ -90,7 +90,7 @@ def test_count() -> None:
 def test_mean_with_tolerance() -> None:
 	"""Test using mean with tolerance checking."""
 	ctx = BatchData(measurements=[4.95, 5.05, 4.98, 5.02, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	# Calculate batch average
 	batch_avg = Mean(measurements)
@@ -110,7 +110,7 @@ def test_mean_with_tolerance() -> None:
 def test_combined_statistical_predicate() -> None:
 	"""Test combining multiple statistical measures in a predicate."""
 	ctx = BatchData(measurements=[4.95, 5.05, 4.98, 5.02, 5.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	# Statistical measures
 	batch_avg = Mean(measurements)
@@ -135,7 +135,7 @@ def test_combined_statistical_predicate() -> None:
 def test_statistical_arithmetic() -> None:
 	"""Test that statistical operations support arithmetic."""
 	ctx = BatchData(measurements=[2.0, 4.0, 6.0, 8.0, 10.0], part_count=5, batch_id="B123")
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	batch_avg = Mean(measurements)  # Should be 6.0
 	batch_range = Range(measurements)  # Should be 8.0
@@ -151,13 +151,13 @@ def test_statistical_arithmetic() -> None:
 def test_empty_iterable_handling() -> None:
 	"""Test handling of empty iterables."""
 	ctx = BatchData(measurements=[], part_count=0, batch_id="B123")
-	measurements_list = Var[list[float], BatchData]("measurements")
+	measurements_list = Var[SizedIterable[float], BatchData]("measurements")
 
 	count_expr = Count(measurements_list)
 	assert count_expr.unwrap(ctx) == 0
 
 	# Statistical functions should raise appropriate errors for empty data
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 	mean_expr = Mean(measurements)
 	with pytest.raises(statistics.StatisticsError):
 		mean_expr.unwrap(ctx)
@@ -172,12 +172,12 @@ def test_process_control_scenario() -> None:
 		batch_id="LOT456",
 	)
 
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	# Process control metrics
 	batch_avg = Mean(measurements)
 	process_variation = StdDev(measurements)
-	measurements_list = Var[list[float], BatchData]("measurements")
+	measurements_list = Var[SizedIterable[float], BatchData]("measurements")
 	part_count = Count(measurements_list)
 
 	# Specifications
@@ -205,7 +205,7 @@ def test_process_control_scenario() -> None:
 @pytest.mark.mypy_testing
 def test_statistical_generic_types() -> None:
 	"""Test that statistical operations have correct generic types."""
-	measurements = Var[Iterable[float], BatchData]("measurements")
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
 
 	# Test Mean
 	mean_expr = Mean(measurements)
@@ -233,9 +233,9 @@ def test_statistical_generic_types() -> None:
 	assert_type(range_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), float)
 
 	# Test Count
-	measurements_list = Var[list[float], BatchData]("measurements")
+	measurements_list = Var[SizedIterable[float], BatchData]("measurements")
 	count_expr = Count(measurements_list)
-	assert_type(count_expr, Count[list[float], BatchData])
+	assert_type(count_expr, Count[BatchData])
 	assert_type(count_expr.unwrap(BatchData([1.0, 2.0], 2, "B123")), int)
 
 	# Test arithmetic with statistical operations
@@ -247,5 +247,47 @@ def test_statistical_generic_types() -> None:
 	quality_check = mean_expr == spec
 	assert (
 		quality_check.to_string(BatchData([1.0, 2.0], 2, "B123"))
-		== "(mean(measurements:[1.0, 2.0] -> 1.5) ≈ Spec:1.5 ± 0.1 -> True)"
+		== "(mean(measurements:2[1.0,2.0] -> 1.5) ≈ Spec:1.5 ± 0.1 -> True)"
 	)
+
+
+def test_iterable_string_representation() -> None:
+	"""Test the new string representation format for iterables."""
+	measurements = Var[SizedIterable[float], BatchData]("measurements")
+
+	# Test single element
+	single_ctx = BatchData(measurements=[5.0], part_count=1, batch_id="SINGLE")
+	mean_expr = Mean(measurements)
+	assert mean_expr.to_string(single_ctx).startswith("mean(measurements:1[5.0]")
+
+	# Test two elements (should show all)
+	two_ctx = BatchData(measurements=[3.0, 7.0], part_count=2, batch_id="TWO")
+	assert mean_expr.to_string(two_ctx).startswith("mean(measurements:2[3.0,7.0]")
+
+	# Test more than two elements (should show first..last)
+	many_ctx = BatchData(measurements=[1.0, 2.0, 3.0, 4.0, 5.0], part_count=5, batch_id="MANY")
+	assert mean_expr.to_string(many_ctx).startswith("mean(measurements:5[1.0,..5.0]")
+
+	# Test with different statistical operations
+	stddev_expr = StdDev(measurements)
+	assert stddev_expr.to_string(many_ctx).startswith("stddev(measurements:5[1.0,..5.0]")
+
+	median_expr = Median(measurements)
+	assert median_expr.to_string(many_ctx).startswith("median(measurements:5[1.0,..5.0]")
+
+	range_expr = Range(measurements)
+	assert range_expr.to_string(many_ctx).startswith("range(measurements:5[1.0,..5.0]")
+
+	# Test with Percentile (different to_string implementation)
+	p95_expr = Percentile(95, measurements)
+	assert p95_expr.to_string(many_ctx).startswith("percentile:95(measurements:5[1.0,..5.0]")
+
+	# Test Count with empty list (doesn't fail like statistical operations)
+	measurements_list = Var[SizedIterable[float], BatchData]("measurements")
+	count_expr = Count(measurements_list)
+	empty_ctx = BatchData(measurements=[], part_count=0, batch_id="EMPTY")
+	assert count_expr.to_string(empty_ctx).startswith("count(measurements:0[]")
+
+	# Test without context (should use original format)
+	assert mean_expr.to_string() == "mean(measurements)"
+	assert p95_expr.to_string() == "percentile:95(measurements)"

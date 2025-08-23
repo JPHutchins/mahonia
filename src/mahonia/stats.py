@@ -12,21 +12,15 @@ from collections.abc import Iterable, Sized
 from dataclasses import dataclass
 from typing import (
 	TYPE_CHECKING,
+	Any,
 	ClassVar,
 	Final,
 	Generic,
+	Protocol,
 	TypeVar,
 )
 
-from mahonia import (
-	BinaryOperationOverloads,
-	Const,
-	Eval,
-	Expr,
-	S,
-	ToString,
-	UnaryOpToString,
-)
+from mahonia import BinaryOperationOverloads, Const, Eval, Expr, S, ToString, UnaryOpToString
 
 if TYPE_CHECKING:
 	from statistics import _NumberT
@@ -35,15 +29,18 @@ else:
 
 	_NumberT = TypeVar("_NumberT", bound=float | Decimal | Fraction)  # type: ignore[misc]
 
+T_co = TypeVar("T_co", covariant=True)
 
-TSizedIterable = TypeVar("TSizedIterable", bound=Sized)
+
+class SizedIterable(Sized, Iterable[T_co], Protocol[T_co]):
+	def __getitem__(self, index: int, /) -> T_co: ...
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class UnaryStatisticalOpEval(Eval["_NumberT", S], Generic[_NumberT, S]):
 	"""Base evaluation class for unary statistical operations."""
 
-	left: Expr[Iterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S]
 
 
 class UnaryStatisticalOpToString(
@@ -56,7 +53,7 @@ class UnaryStatisticalOpToString(
 	template_eval: ClassVar[str] = "{op}({left} -> {out})"
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = self.left.to_string(ctx)
+		left: Final = _format_iterable_var(self.left, ctx)
 		if ctx is None:
 			return self.template.format(op=self.op, left=left)
 		else:
@@ -93,11 +90,11 @@ class Mean(
 	>>> mean_expr.unwrap(ctx)
 	3.0
 	>>> mean_expr.to_string(ctx)
-	'mean(values:[1.0, 2.0, 3.0, 4.0, 5.0] -> 3.0)'
+	'mean(values:5[1.0,..5.0] -> 3.0)'
 	"""
 
 	op: ClassVar[str] = "mean"
-	left: Expr[Iterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.mean(self.left.unwrap(ctx)))
@@ -125,7 +122,7 @@ class StdDev(
 	"""
 
 	op: ClassVar[str] = "stddev"
-	left: Expr[Iterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.stdev(self.left.unwrap(ctx)))
@@ -153,7 +150,7 @@ class Median(
 	"""
 
 	op: ClassVar[str] = "median"
-	left: Expr[Iterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.median(self.left.unwrap(ctx)))
@@ -179,7 +176,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 	op: ClassVar[str] = "percentile"
 
 	percentile: float
-	left: Expr[Iterable[float], S]
+	left: Expr[SizedIterable[float], S]
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.left.unwrap(ctx)
@@ -206,10 +203,11 @@ class Percentile(BinaryOperationOverloads[float, S]):
 			)
 
 	def to_string(self, ctx: S | None = None) -> str:
+		left_str = _format_iterable_var(self.left, ctx)
 		if ctx is None:
-			return f"{self.op}:{self.percentile}({self.left.to_string()})"
+			return f"{self.op}:{self.percentile}({left_str})"
 		else:
-			return f"{self.op}:{self.percentile}({self.left.to_string(ctx)} -> {self.unwrap(ctx)})"
+			return f"{self.op}:{self.percentile}({left_str} -> {self.unwrap(ctx)})"
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -231,7 +229,7 @@ class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float
 
 	op: ClassVar[str] = "range"
 
-	left: Expr[Iterable[float], S]
+	left: Expr[SizedIterable[float], S]
 
 	def eval(self, ctx: S) -> Const[float]:
 		left = self.left.unwrap(ctx)
@@ -239,7 +237,7 @@ class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[TSizedIterable, S]):
+class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 	"""Count of elements in an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -259,7 +257,34 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[TSized
 	template: ClassVar[str] = "{op}({left})"
 	template_eval: ClassVar[str] = "{op}({left}) -> {out}"
 
-	left: Expr[TSizedIterable, S]
+	left: Expr[SizedIterable[Any], S]
 
 	def eval(self, ctx: S) -> Const[int]:  # type: ignore[override]
 		return Const(None, len(self.left.unwrap(ctx)))
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = _format_iterable_var(self.left, ctx)  # type: ignore[arg-type]
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		else:
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+def _format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
+	"""Format an iterable variable with custom container display logic."""
+	if ctx is None:
+		return expr.to_string(ctx)
+
+	value: Final = expr.unwrap(ctx)
+
+	if isinstance(value, (str, bytes)):
+		return expr.to_string(ctx)
+
+	length: Final = len(value)
+	name: Final = getattr(expr, "name", None)
+	prefix: Final = f"{name}:" if name else ""
+
+	if length <= 2:
+		return f"{prefix}{length}[{','.join(str(elem) for elem in value)}]"
+	else:
+		return f"{prefix}{length}[{value[0]},..{value[-1]}]"
