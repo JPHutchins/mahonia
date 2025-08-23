@@ -16,7 +16,7 @@ class ExampleContext(NamedTuple):
 	current: float
 
 
-def test_variable_typo_suggestions():
+def test_variable_typo_suggestions() -> None:
 	"""Test that typos in variable names provide helpful suggestions."""
 	ctx = ExampleContext(voltage=5.0, temperature=25.0, current=1.2)
 
@@ -35,7 +35,7 @@ def test_variable_typo_suggestions():
 		temp_typo.unwrap(ctx)
 
 
-def test_variable_no_close_matches():
+def test_variable_no_close_matches() -> None:
 	"""Test variable not found with no close matches."""
 	ctx = ExampleContext(voltage=5.0, temperature=25.0, current=1.2)
 
@@ -46,7 +46,7 @@ def test_variable_no_close_matches():
 		wrong_name.unwrap(ctx)
 
 
-def test_multiple_suggestions():
+def test_multiple_suggestions() -> None:
 	"""Test that multiple close matches are suggested."""
 
 	class MultiFieldContext(NamedTuple):

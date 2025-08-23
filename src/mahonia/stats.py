@@ -8,14 +8,44 @@ useful for manufacturing quality control and batch analysis.
 """
 
 import statistics
-from collections.abc import Iterable
+from collections.abc import Iterable, Sized
 from dataclasses import dataclass
-from typing import Any, ClassVar, Protocol, TypeAlias, TypeVar
+from typing import (
+	TYPE_CHECKING,
+	Any,
+	ClassVar,
+	Final,
+	Generic,
+	Iterator,
+	Protocol,
+	TypeAlias,
+	TypeVar,
+)
 
-from mahonia import BinaryOperationOverloads, Const, Expr, S, TSupportsArithmetic
+from mahonia import (
+	BinaryOperationOverloads,
+	Const,
+	Eval,
+	Expr,
+	S,
+	T,
+	ToString,
+	TSupportsArithmetic,
+	UnaryOpToString,
+)
+
+if TYPE_CHECKING:
+	from statistics import _Number, _NumberT
+else:
+	from statistics import Decimal, Fraction
+
+	_NumberT = TypeVar("_NumberT", bound=float | Decimal | Fraction)  # type: ignore[misc]
 
 _T_contra = TypeVar("_T_contra", contravariant=True)
 _T_co = TypeVar("_T_co", covariant=True)
+
+# Bounded TypeVar that accepts any iterable of float
+# TIterableFloat = TypeVar("TIterableFloat", bound=Iterable["_Number"])
 
 
 class SupportsDunderLT(Protocol[_T_contra]):
@@ -34,29 +64,56 @@ class SupportsSub(Protocol[_T_contra, _T_co]):
 	def __sub__(self, x: _T_contra, /) -> _T_co: ...
 
 
-class _Sized(Protocol):
+
+TSizedIterable = TypeVar("TSizedIterable", bound=Sized)
+
+
+class NumberContainer(Protocol[_T_co]):
+	"""Protocol for containers that hold numeric values with clear iteration and sizing."""
+
+	def __iter__(self) -> Iterator[_T_co]: ...
 	def __len__(self) -> int: ...
 
 
-TSized = TypeVar("TSized", bound=_Sized)
+@dataclass(frozen=True, eq=False, slots=True)
+class UnaryStatisticalOpEval(Eval["_NumberT", S], Generic[_NumberT, S]):
+	"""Base evaluation class for unary statistical operations."""
+
+	left: Expr[Iterable["_NumberT"], S]
+
+
+class UnaryStatisticalOpToString(
+	ToString[S], UnaryStatisticalOpEval["_NumberT", S], Generic[_NumberT, S]
+):
+	"""String formatting mixin for unary statistical operations."""
+
+	op: ClassVar[str] = "stat"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = self.left.to_string(ctx)
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		else:
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+class UnaryStatisticalOp(
+	UnaryStatisticalOpToString["_NumberT", S],
+	BinaryOperationOverloads["_NumberT", S],
+	Generic[_NumberT, S],
+):
+	"""Base class for unary statistical operations that take a tuple of numbers and return a single number."""
+
+	op: ClassVar[str] = "stat"
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class UnaryStatisticalOp(Expr[TSupportsArithmetic, S]):
-	"""Base class for statistical operations on single expressions."""
-
-	expr: Expr[Iterable[TSupportsArithmetic], S]
-	op: ClassVar[str] = "stat"
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			return f"{self.op}({self.expr.to_string()})"
-		else:
-			return f"{self.op}({self.expr.to_string(ctx)} -> {self.eval(ctx).value})"
-
-
 class Mean(
-	UnaryStatisticalOp[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	UnaryStatisticalOpToString["_NumberT", S],
+	BinaryOperationOverloads["_NumberT", S],
+	Generic[_NumberT, S],
 ):
 	"""Arithmetic mean of an iterable expression.
 
@@ -65,7 +122,7 @@ class Mean(
 	>>> class Data(NamedTuple):
 	... 	values: list[float]
 	>>> values = Var[list[float], Data]("values")
-	>>> mean_expr = Mean(values)
+	>>> mean_expr = Mean(values)  # User can provide any iterable
 	>>> mean_expr.to_string()
 	'mean(values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
@@ -76,14 +133,17 @@ class Mean(
 	"""
 
 	op: ClassVar[str] = "mean"
+	left: Expr[Iterable["_NumberT"], S]
 
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		iterable = self.expr.eval(ctx).value
-		return Const(None, statistics.mean(iterable))
+	def eval(self, ctx: S) -> Const["_NumberT"]:
+		return Const(None, statistics.mean(self.left.unwrap(ctx)))
 
 
+@dataclass(frozen=True, eq=False, slots=True)
 class StdDev(
-	UnaryStatisticalOp[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	UnaryStatisticalOpToString["_NumberT", S],
+	BinaryOperationOverloads["_NumberT", S],
+	Generic[_NumberT, S],
 ):
 	"""Standard deviation of an iterable expression.
 
@@ -101,14 +161,17 @@ class StdDev(
 	"""
 
 	op: ClassVar[str] = "stddev"
+	left: Expr[Iterable["_NumberT"], S]
 
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		iterable = self.expr.eval(ctx).value
-		return Const(None, statistics.stdev(iterable))
+	def eval(self, ctx: S) -> Const["_NumberT"]:
+		return Const(None, statistics.stdev(self.left.unwrap(ctx)))
 
 
+@dataclass(frozen=True, eq=False, slots=True)
 class Median(
-	UnaryStatisticalOp[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	UnaryStatisticalOpToString["_NumberT", S],
+	BinaryOperationOverloads["_NumberT", S],
+	Generic[_NumberT, S],
 ):
 	"""Median of an iterable expression.
 
@@ -126,14 +189,14 @@ class Median(
 	"""
 
 	op: ClassVar[str] = "median"
+	left: Expr[Iterable["_NumberT"], S]
 
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		iterable = self.expr.eval(ctx).value
-		return Const(None, statistics.median(iterable))
+	def eval(self, ctx: S) -> Const["_NumberT"]:
+		return Const(None, statistics.median(self.left.unwrap(ctx)))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Percentile(BinaryOperationOverloads[TSupportsArithmetic, S]):
+class Percentile(BinaryOperationOverloads[float, S]):
 	"""Percentile of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -152,10 +215,12 @@ class Percentile(BinaryOperationOverloads[TSupportsArithmetic, S]):
 	op: ClassVar[str] = "percentile"
 
 	percentile: float
-	expr: Expr[Iterable[TSupportsArithmetic], S]
+	left: Expr[Iterable[float], S]
 
-	def eval(self, ctx: S) -> Const[float]:  # type: ignore[override]
-		values = sorted(self.expr.unwrap(ctx))
+	def eval(self, ctx: S) -> Const[float]:
+		iterable = self.left.unwrap(ctx)
+		# Convert to tuple to make a copy and prevent mutation, then sort
+		values = sorted(tuple(iterable))
 		n = len(values)
 
 		if self.percentile == 100:
@@ -178,15 +243,13 @@ class Percentile(BinaryOperationOverloads[TSupportsArithmetic, S]):
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
-			return f"{self.op}:{self.percentile}({self.expr.to_string()})"
+			return f"{self.op}:{self.percentile}({self.left.to_string()})"
 		else:
-			return f"{self.op}:{self.percentile}({self.expr.to_string(ctx)} -> {self.unwrap(ctx)})"
+			return f"{self.op}:{self.percentile}({self.left.to_string(ctx)} -> {self.unwrap(ctx)})"
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Range(
-	BinaryOperationOverloads[SupportsSub[SupportsRichComparisonT, SupportsRichComparisonT], S],
-):
+class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float, S]):
 	"""Range (max - min) of an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -204,21 +267,15 @@ class Range(
 
 	op: ClassVar[str] = "range"
 
-	expr: Expr[Iterable[SupportsSub[SupportsRichComparisonT, SupportsRichComparisonT]], S]
+	left: Expr[Iterable[float], S]
 
-	def eval(self, ctx: S) -> Const[SupportsRichComparisonT]:
-		iterable = self.expr.unwrap(ctx)
-		return Const(None, max(iterable) - min(iterable))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			return f"{self.op}({self.expr.to_string()})"
-		else:
-			return f"{self.op}({self.expr.to_string(ctx)} -> {self.eval(ctx).value})"
+	def eval(self, ctx: S) -> Const[float]:
+		left = self.left.unwrap(ctx)
+		return Const(None, float(max(left) - min(left)))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Count(BinaryOperationOverloads[TSupportsArithmetic, S]):
+class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[TSizedIterable, S]):
 	"""Count of elements in an iterable expression.
 
 	>>> from typing import NamedTuple
@@ -234,13 +291,11 @@ class Count(BinaryOperationOverloads[TSupportsArithmetic, S]):
 	5
 	"""
 
-	expr: Expr[_Sized, S]
+	op: ClassVar[str] = "count"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left}) -> {out}"
+
+	left: Expr[TSizedIterable, S]
 
 	def eval(self, ctx: S) -> Const[int]:  # type: ignore[override]
-		return Const(None, len(self.expr.unwrap(ctx)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			return f"count({self.expr.to_string()})"
-		else:
-			return f"count({self.expr.to_string(ctx)} -> {self.unwrap(ctx)})"
+		return Const(None, len(self.left.unwrap(ctx)))

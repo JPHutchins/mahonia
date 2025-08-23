@@ -177,9 +177,6 @@ from typing import (
 T = TypeVar("T")
 """The type of the expression's value."""
 
-T_co = TypeVar("T_co", covariant=True)
-"""The covariant type of the expression's value."""
-
 
 class ContextProtocol(Protocol):
 	def __getattribute__(self, name: str, /) -> Any: ...
@@ -304,7 +301,8 @@ class BoundExpr(NamedTuple, Generic[T, S]):
 		return self.expr.to_string(self.ctx)
 
 
-class Expr(Generic[T, S]):
+@runtime_checkable
+class Expr(Protocol[T, S]):
 	"""Base class for all Mahonia expressions.
 
 	Provides core evaluation, serialization, and binding functionality.
@@ -323,11 +321,9 @@ class Expr(Generic[T, S]):
 	10
 	"""
 
-	def eval(self, ctx: S) -> "Const[T]":
-		raise NotImplementedError()
+	def eval(self, ctx: S) -> "Const[T]": ...
 
-	def to_string(self, ctx: S | None = None) -> str:
-		raise NotImplementedError()
+	def to_string(self, ctx: S | None = None) -> str: ...
 
 	def __call__(self, ctx: S) -> "Const[T]":
 		return self.eval(ctx)
@@ -339,7 +335,8 @@ class Expr(Generic[T, S]):
 		return BoundExpr(self, ctx)
 
 
-class BoolExpr(Expr[TSupportsLogic, S]):
+@runtime_checkable
+class BoolExpr(Expr[TSupportsLogic, S], Protocol[TSupportsLogic, S]):
 	"""Base class for boolean expressions that support logical operations.
 
 	Extends Expr with support for logical operators like & (and), | (or), and ~ (not).
@@ -358,11 +355,7 @@ class BoolExpr(Expr[TSupportsLogic, S]):
 	True
 	"""
 
-	def eval(self, ctx: S) -> "Const[TSupportsLogic]":
-		raise NotImplementedError()
-
-	def to_string(self, ctx: S | None = None) -> str:
-		return super().to_string(ctx)
+	def eval(self, ctx: S) -> "Const[TSupportsLogic]": ...  # type: ignore[override]
 
 	def __call__(self, ctx: S) -> "Const[TSupportsLogic]":
 		return self.eval(ctx)
