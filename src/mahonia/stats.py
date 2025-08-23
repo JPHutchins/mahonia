@@ -12,13 +12,9 @@ from collections.abc import Iterable, Sized
 from dataclasses import dataclass
 from typing import (
 	TYPE_CHECKING,
-	Any,
 	ClassVar,
 	Final,
 	Generic,
-	Iterator,
-	Protocol,
-	TypeAlias,
 	TypeVar,
 )
 
@@ -28,51 +24,19 @@ from mahonia import (
 	Eval,
 	Expr,
 	S,
-	T,
 	ToString,
-	TSupportsArithmetic,
 	UnaryOpToString,
 )
 
 if TYPE_CHECKING:
-	from statistics import _Number, _NumberT
+	from statistics import _NumberT
 else:
 	from statistics import Decimal, Fraction
 
 	_NumberT = TypeVar("_NumberT", bound=float | Decimal | Fraction)  # type: ignore[misc]
 
-_T_contra = TypeVar("_T_contra", contravariant=True)
-_T_co = TypeVar("_T_co", covariant=True)
-
-# Bounded TypeVar that accepts any iterable of float
-# TIterableFloat = TypeVar("TIterableFloat", bound=Iterable["_Number"])
-
-
-class SupportsDunderLT(Protocol[_T_contra]):
-	def __lt__(self, other: _T_contra, /) -> bool: ...
-
-
-class SupportsDunderGT(Protocol[_T_contra]):
-	def __gt__(self, other: _T_contra, /) -> bool: ...
-
-
-SupportsRichComparison: TypeAlias = SupportsDunderLT[Any] | SupportsDunderGT[Any]
-SupportsRichComparisonT = TypeVar("SupportsRichComparisonT", bound=SupportsRichComparison)  # noqa: Y001
-
-
-class SupportsSub(Protocol[_T_contra, _T_co]):
-	def __sub__(self, x: _T_contra, /) -> _T_co: ...
-
-
 
 TSizedIterable = TypeVar("TSizedIterable", bound=Sized)
-
-
-class NumberContainer(Protocol[_T_co]):
-	"""Protocol for containers that hold numeric values with clear iteration and sizing."""
-
-	def __iter__(self) -> Iterator[_T_co]: ...
-	def __len__(self) -> int: ...
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -104,7 +68,7 @@ class UnaryStatisticalOp(
 	BinaryOperationOverloads["_NumberT", S],
 	Generic[_NumberT, S],
 ):
-	"""Base class for unary statistical operations that take a tuple of numbers and return a single number."""
+	"""Base class for unary statistical operations that take a container of numbers and return a single number."""
 
 	op: ClassVar[str] = "stat"
 
