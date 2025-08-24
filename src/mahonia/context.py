@@ -21,7 +21,9 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple, get_type_hints
 
-from . import Var
+from mahonia import Var
+
+EmptyVars = NamedTuple("EmptyVars", [])
 
 
 class ContextMeta(type):
@@ -61,41 +63,61 @@ class ContextMeta(type):
 
 		if not field_hints:
 			# Create empty vars for classes with no fields
-			new_class.vars = NamedTuple("Vars", [])()
+			new_class.vars = EmptyVars()  # type: ignore
 			return new_class
 
 		# Create Var instances for each field
-		var_instances = {
-			field_name: Var[field_type, new_class](field_name)
-			for field_name, field_type in field_hints.items()
+		var_instances: dict[str, Any] = {  # type: ignore[var-annotated]
+			field_name: Var(field_name) for field_name, field_type in field_hints.items()
 		}
 
-		# Create a NamedTuple class for the vars
-		VarsClass = NamedTuple("Vars", list(var_instances.items()))
+		# Create a NamedTuple class for the vars with proper field types
+		var_fields = []
+		for field_name, field_type in field_hints.items():
+			var_fields.append((field_name, type(var_instances[field_name])))
+
+		# Create the NamedTuple class
+		Vars = NamedTuple(f"{new_class.__name__}Vars", var_fields)  # type: ignore[misc]
+
+		# Try to enhance the NamedTuple with better type annotations for IDEs
+		# This is the key insight: manually set __annotations__ to be more specific
+		enhanced_annotations = {}
+		for field_name, field_type in field_hints.items():
+			# Try to create the specific Var[field_type, new_class] type for annotations
+			try:
+				# This creates the actual Var[int, Context] type for the annotation
+				specific_var_type = Var[field_type, new_class]  # type: ignore[valid-type]
+				enhanced_annotations[field_name] = specific_var_type
+			except Exception:
+				# Fallback to generic Var if the specific type creation fails
+				# This could happen if field_type is not a proper type or other issues
+				# we can at least indicate that this field contains a Var
+				enhanced_annotations[field_name] = Var
+
+		# Set the enhanced annotations on the Vars
+		Vars.__annotations__ = enhanced_annotations
 
 		# Create the vars instance
-		vars_instance = VarsClass(**var_instances)
+		vars_instance = Vars(**var_instances)
 
 		# Set the vars attribute on the class
-		new_class.vars = vars_instance
+		new_class.Vars = Vars  # type: ignore[attr-defined]
+		new_class.vars = vars_instance  # type: ignore[attr-defined]
 
-		# IMPORTANT: Create proper type annotations for mypy
-		# The key insight: we need to set up the class so mypy sees the right types
-		# without needing complex plugin logic
-
-		# Add proper __annotations__ for the vars attribute
+		# IMPORTANT: Create proper type annotations for IDE support
+		# Add proper __annotations__ for the vars attribute that IDEs can understand
 		if not hasattr(new_class, "__annotations__"):
 			new_class.__annotations__ = {}
 
-		# Create a type annotation for vars that mypy can understand
-		# We'll construct the tuple type signature
+		# Try to create better type information for IDEs
+		# The key insight: Pylance might need the actual NamedTuple type, not generic annotations
 		if field_hints:
-			from typing import get_type_hints
-
-			# Try to create a proper type annotation
-			# This is a simplified approach - in a full implementation,
-			# we might need to construct the exact Tuple[Var[...], ...] type
-			new_class.__annotations__["vars"] = "NamedTuple"  # Simplified for now
+			# Since we created Vars above, use that for the annotation
+			# This gives IDEs the actual NamedTuple class type
+			new_class.__annotations__["vars"] = Vars
+		else:
+			# Empty tuple for classes with no fields
+			new_class.__annotations__["vars"] = type(EmptyVars())
 
 		return new_class
 
@@ -126,5 +148,6 @@ class Context(metaclass=ContextMeta):
 	"""
 
 	# This will be set by the metaclass for subclasses
-	vars: NamedTuple = NamedTuple("EmptyVars", [])()
+	# The type annotation here helps IDEs understand the general shape
+	vars: Any = EmptyVars()
 	__slots__ = ()
