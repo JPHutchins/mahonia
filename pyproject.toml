@@ -42,3 +42,6 @@ all = ["format", "lint", "test"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.mypy]
+plugins = ["mahonia.mypy"]
