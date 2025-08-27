@@ -28,7 +28,8 @@ uv run hatch run lint
 
 ### Tests
 ```
-uv run hatch run test
+uv run hatch run tests
+uv run hatch run doctest
 ```
 
 ### All

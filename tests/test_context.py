@@ -142,8 +142,8 @@ def test_empty_context():
 	assert isinstance(ctx, EmptyContext)
 
 
-def test_context_inheritance_works():
-	"""Test that Context inheritance merges fields correctly."""
+def test_context_simple_inheritance_not_supported():
+	"""Test that Context inheritance doesn't automatically merge fields."""
 
 	@dataclass
 	class BaseContext(Context):
@@ -157,10 +157,9 @@ def test_context_inheritance_works():
 	(base_field,) = BaseContext.vars
 	assert base_field.name == "base_field"
 
-	# Extended should have both inherited and own fields
-	assert len(ExtendedContext.vars) == 2
-	base_field_ext, extra_field = ExtendedContext.vars
-	assert base_field_ext.name == "base_field"
+	# Extended should only have its own field (no inheritance of vars)
+	assert len(ExtendedContext.vars) == 1
+	(extra_field,) = ExtendedContext.vars
 	assert extra_field.name == "extra_field"
 
 
@@ -204,8 +203,8 @@ def test_context_vs_namedtuple_compatibility():
 	assert new_y.unwrap(new_ctx) == "hello"
 
 	# Cross-usage with different field names should fail
-	old_z = Var[int, TraditionalCtx]("z")  # Field that doesn't exist in TraditionalCtx
+	old_z = Var[int, TraditionalCtx]("z")  # Field that doesn't exist in SimpleContext
 	from mahonia import EvalError
 
 	with pytest.raises(EvalError):
-		old_z.unwrap(old_ctx)  # Should fail since TraditionalCtx has no 'z' field
+		old_z.unwrap(new_ctx)  # Should fail since SimpleContext has no 'z' field
