@@ -25,6 +25,16 @@ jobs:
 
       - run: uv run hatch run test
 
+      - name: Check LaTeX examples are up to date
+        run: |
+          if ! git diff --exit-code tests/latex_examples.md; then
+            echo "❌ LaTeX examples are out of date!"
+            echo "Please run: uv run pytest"
+            echo "And commit the updated tests/latex_examples.md file."
+            exit 1
+          fi
+          echo "✅ LaTeX examples are up to date"
+
       - run: uv build
 
       - uses: actions/upload-artifact@v4

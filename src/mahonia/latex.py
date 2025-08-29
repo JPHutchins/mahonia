@@ -4,7 +4,7 @@
 """LaTeX serialization for mahonia expressions.
 
 This module provides functionality to convert mahonia expressions to LaTeX
-mathematical notation for use in documents, papers, or presentation materials.
+mathematical notation.
 
 >>> from typing import NamedTuple
 >>> class Ctx(NamedTuple):

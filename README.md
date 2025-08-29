@@ -66,3 +66,17 @@ str(voltage_check) # or voltage_check.to_string()
 # Or a fail:
 # Voltage OK: False (voltage:4.90 ≈ Nominal:5.0 ± 0.05 -> False)
 ```
+
+## LaTeX Support
+
+Mahonia expressions can be converted to LaTeX mathematical notation:
+
+```python
+from mahonia.latex import latex
+
+# Convert expressions to LaTeX
+latex(voltage)  # 'voltage'
+latex(expr.expr)  # 'voltage \\approx Nominal \\pm 0.05'
+```
+
+For comprehensive examples of LaTeX output for all supported expression types, see [tests/latex_examples.md](tests/latex_examples.md).
