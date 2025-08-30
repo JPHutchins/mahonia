@@ -21,7 +21,7 @@ mathematical notation.
 """
 
 from enum import Flag, auto
-from typing import Any, Final, Generic, NamedTuple
+from typing import Any, Final, Generic, NamedTuple, assert_never
 
 from mahonia import (
 	Add,
@@ -136,21 +136,31 @@ def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	>>> latex((x + y) / 2, LatexCtx(test_ctx, Show.VALUES))
 	'(\\\\frac{x:2.0 + y:3.0}{2} \\\\rightarrow 2.5)'
 	"""
-	if ctx is None:
-		return _latex_expr_structure(expr)
-
-	structure = _latex_expr_structure(expr, ctx)
-
-	show_work = bool(ctx.show & Show.WORK)
-	if show_work and "\\rightarrow" in structure:
-		return structure
-
-	result = expr.eval(ctx.ctx)
-	if isinstance(result, (PlusMinus, Percent)):
-		result_latex = _latex_expr_structure(result)
-	else:
-		result_latex = _latex_value(result.value)
-	return f"({structure} \\rightarrow {result_latex})"
+	match ctx:
+		case None:
+			return _latex_expr_structure(expr)
+		case LatexCtx(ctx_data, show) if show & Show.WORK:
+			structure = _latex_expr_structure(expr, ctx)
+			if "\\rightarrow" in structure:
+				return structure
+			result = expr.eval(ctx_data)
+			result_latex = (
+				_latex_expr_structure(result)
+				if isinstance(result, (PlusMinus, Percent))
+				else _latex_value(result.value)
+			)
+			return f"({structure} \\rightarrow {result_latex})"
+		case LatexCtx(ctx_data, _):
+			structure = _latex_expr_structure(expr, ctx)
+			result = expr.eval(ctx_data)
+			result_latex = (
+				_latex_expr_structure(result)
+				if isinstance(result, (PlusMinus, Percent))
+				else _latex_value(result.value)
+			)
+			return f"({structure} \\rightarrow {result_latex})"
+		case _:
+			assert_never(ctx)
 
 
 def _latex_value(value: Any) -> str:
