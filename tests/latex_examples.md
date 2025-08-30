@@ -181,6 +181,78 @@ latex(expr)  # 'x^3 + Two \cdot x^2 - x + One'
 - Negative constants `latex(x + (-5))`: $x + -5$
 - Identity operations `latex(x * 1)`: $x \cdot 1$
 
+## Statistical Operations
+
+Mahonia supports statistical operations on data collections with LaTeX mathematical notation:
+
+```python
+from mahonia.stats import Mean, StdDev, Median, Percentile, Range, Count
+
+# Define context with sample data
+class StatsCtx(NamedTuple):
+    measurements: list[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+    voltages: list[float] = [4.95, 5.05, 4.98, 5.02, 5.0]
+
+# Variables for statistical data
+measurements = Var[list[float], StatsCtx]('measurements')
+voltages = Var[list[float], StatsCtx]('voltages')
+```
+
+### Basic Statistical Operations
+
+- Mean (arithmetic average): `latex(Mean(measurements))` → $\bar{measurements}$
+- Standard deviation: `latex(StdDev(measurements))` → $\sigma_{measurements}$
+- Median: `latex(Median(measurements))` → $\text{median}(measurements)$
+- 95th percentile: `latex(Percentile(95, measurements))` → $P_{95}(measurements)$
+- Range (max - min): `latex(Range(measurements))` → $\text{range}(measurements)$
+- Count: `latex(Count(measurements))` → $|measurements|$
+
+### Statistical Operations with Context
+
+When evaluated with context, statistical operations show data values and results:
+
+- Mean with data: `latex(Mean(measurements), StatsCtx())` → $(\bar{measurements:5[1.0,..5.0]} \rightarrow 3.0)$
+- Standard deviation with data: `latex(StdDev(measurements), StatsCtx())` → $(\sigma_{measurements:5[1.0,..5.0]} \rightarrow 1.5811388300841898)$
+- Median with data: `latex(Median(measurements), StatsCtx())` → $(\text{median}(measurements:5[1.0,..5.0]) \rightarrow 3.0)$
+- 95th percentile with data: `latex(Percentile(95, measurements), StatsCtx())` → $(P_{95}(measurements:5[1.0,..5.0]) \rightarrow 4.8)$
+- Range with data: `latex(Range(measurements), StatsCtx())` → $(\text{range}(measurements:5[1.0,..5.0]) \rightarrow 4.0)$
+- Count with data: `latex(Count(measurements), StatsCtx())` → $(|measurements:5[1.0,..5.0]| \rightarrow 5)$
+
+### Complex Statistical Expressions
+
+Statistical operations can be combined in complex mathematical expressions:
+
+- Coefficient of variation: `σ/μ` → $\frac{\sigma_{voltages}}{\bar{voltages}}$
+- Process capability index: `Cp = (μ - LSL)/(3σ)` → $\frac{\bar{voltages} - 4.9}{3 \cdot \sigma_{voltages}}$
+
+With context evaluation:
+- CV with data: $(\frac{(\sigma_{voltages:5[4.95,..5.0]} \rightarrow 0.038078865529319314)}{(\bar{voltages:5[4.95,..5.0]} \rightarrow 5.0)} \rightarrow 0.007615773105863863)$
+- Cp with data: $(\frac{((\bar{voltages:5[4.95,..5.0]} \rightarrow 5.0) - 4.9 \rightarrow 0.09999999999999964)}{(3 \cdot (\sigma_{voltages:5[4.95,..5.0]} \rightarrow 0.038078865529319314) \rightarrow 0.11423659658795794)} \rightarrow 0.8753762190648192)$
+
+### Statistical Operations in Quality Control
+
+Statistical operations are commonly used in quality control and process monitoring:
+
+- Quality threshold: `latex(Mean(voltages) > 4.95)` → $\bar{voltages} > 4.95$
+- Batch acceptance: `latex((Mean(voltages) > 4.9) & (StdDev(voltages) < 0.1))` → $\bar{voltages} > 4.9 \land \sigma_{voltages} < 0.1$
+- Quality predicate: `latex(Predicate('Quality Check', condition))` → $\text{Quality Check}: \bar{voltages} > 4.9 \land \sigma_{voltages} < 0.1$
+
+With context evaluation:
+- Quality threshold result: $((\bar{voltages:5[4.95,..5.0]} \rightarrow 5.0) > 4.95 \rightarrow \text{True})$
+- Batch acceptance result: $(((\bar{voltages:5[4.95,..5.0]} \rightarrow 5.0) > 4.9 \rightarrow \text{True}) \land ((\sigma_{voltages:5[4.95,..5.0]} \rightarrow 0.038078865529319314) < 0.1 \rightarrow \text{True}) \rightarrow \text{True})$
+- Quality predicate result: $(\text{Quality Check}: (((\bar{voltages:5[4.95,..5.0]} \rightarrow 5.0) > 4.9 \rightarrow \text{True}) \land ((\sigma_{voltages:5[4.95,..5.0]} \rightarrow 0.038078865529319314) < 0.1 \rightarrow \text{True}) \rightarrow \text{True}) \rightarrow \text{True})$
+
+### Statistical Operations with Greek Variables
+
+Variable names are automatically converted to Greek letters in LaTeX output:
+
+- Mean of sigma data: `latex(Mean(Var('sigma')))` → $\bar{\sigma}$
+- Standard deviation of alpha: `latex(StdDev(Var('alpha')))` → $\sigma_{\alpha}$
+
+With context (using measurements data):
+- Mean sigma with data: $(\bar{\sigma:5[1.0,..5.0]} \rightarrow 3.0)$
+- StdDev alpha with data: $(\sigma_{\alpha:5[1.0,..5.0]} \rightarrow 1.5811388300841898)$
+
 ## Expressions with Context
 
 The `latex()` function supports an optional context parameter that evaluates variables and shows their values:

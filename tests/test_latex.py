@@ -12,6 +12,7 @@ from mahonia import (
 	Var,
 )
 from mahonia.latex import LatexCtx, Show, latex
+from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
 
 
 class Ctx(NamedTuple):
@@ -30,6 +31,14 @@ class Ctx(NamedTuple):
 
 
 ctx = Ctx(x=5, y=10)
+
+
+class StatsCtx(NamedTuple):
+	values: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+	measurements: SizedIterable[float] = [10.0, 15.0, 20.0, 25.0, 30.0]
+
+
+stats_ctx = StatsCtx()
 
 
 # Basic Expressions Tests
@@ -889,3 +898,182 @@ def test_show_flags_with_constants() -> None:
 
 	# Both show values and result
 	assert latex(expr, LatexCtx(ctx, Show.VALUES | Show.WORK)) == "(x:5 + Max:20 \\rightarrow 25)"
+
+
+# Statistical Operations Tests
+
+
+def test_mean_latex() -> None:
+	"""Test mean operation LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	mean_expr = Mean(values)
+
+	# Without context - shows mathematical notation
+	assert latex(mean_expr) == "\\bar{values}"
+
+	# With context - shows values and result
+	assert latex(mean_expr, LatexCtx(stats_ctx)) == "(\\bar{values:5[1.0,..5.0]} \\rightarrow 3.0)"
+
+
+def test_stddev_latex() -> None:
+	"""Test standard deviation LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	stddev_expr = StdDev(values)
+
+	# Without context - shows mathematical notation
+	assert latex(stddev_expr) == "\\sigma_{values}"
+
+	# With context - shows values and result
+	result_str = latex(stddev_expr, LatexCtx(stats_ctx))
+	assert result_str.startswith("(\\sigma_{values:5[1.0,..5.0]} \\rightarrow")
+	assert "1.58" in result_str  # Standard deviation of [1,2,3,4,5]
+
+
+def test_median_latex() -> None:
+	"""Test median LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	median_expr = Median(values)
+
+	# Without context - shows mathematical notation
+	assert latex(median_expr) == "\\text{median}(values)"
+
+	# With context - shows values and result
+	assert (
+		latex(median_expr, LatexCtx(stats_ctx))
+		== "(\\text{median}(values:5[1.0,..5.0]) \\rightarrow 3.0)"
+	)
+
+
+def test_percentile_latex() -> None:
+	"""Test percentile LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	p95_expr = Percentile(95, values)
+	p50_expr = Percentile(50.5, values)
+
+	# Without context - shows mathematical notation
+	assert latex(p95_expr) == "P_{95}(values)"
+	assert latex(p50_expr) == "P_{50.5}(values)"
+
+	# With context - shows values and result
+	assert latex(p95_expr, LatexCtx(stats_ctx)) == "(P_{95}(values:5[1.0,..5.0]) \\rightarrow 4.8)"
+
+
+def test_range_latex() -> None:
+	"""Test range LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	range_expr = Range(values)
+
+	# Without context - shows mathematical notation
+	assert latex(range_expr) == "\\text{range}(values)"
+
+	# With context - shows values and result
+	assert (
+		latex(range_expr, LatexCtx(stats_ctx))
+		== "(\\text{range}(values:5[1.0,..5.0]) \\rightarrow 4.0)"
+	)
+
+
+def test_count_latex() -> None:
+	"""Test count LaTeX formatting."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	count_expr = Count(values)
+
+	# Without context - shows mathematical notation
+	assert latex(count_expr) == "|values|"
+
+	# With context - shows values and result
+	assert latex(count_expr, LatexCtx(stats_ctx)) == "(|values:5[1.0,..5.0]| \\rightarrow 5)"
+
+
+def test_statistical_operations_with_show_flags() -> None:
+	"""Test statistical operations with different Show flags."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	mean_expr = Mean(values)
+
+	# No flags - shows structure with result
+	assert latex(mean_expr, LatexCtx(stats_ctx, Show(0))) == "(\\bar{values} \\rightarrow 3.0)"
+
+	# VALUES only - shows values with result
+	assert (
+		latex(mean_expr, LatexCtx(stats_ctx, Show.VALUES))
+		== "(\\bar{values:5[1.0,..5.0]} \\rightarrow 3.0)"
+	)
+
+	# WORK only - shows structure with result
+	assert latex(mean_expr, LatexCtx(stats_ctx, Show.WORK)) == "(\\bar{values} \\rightarrow 3.0)"
+
+	# Both flags - shows values with result
+	assert (
+		latex(mean_expr, LatexCtx(stats_ctx, Show.VALUES | Show.WORK))
+		== "(\\bar{values:5[1.0,..5.0]} \\rightarrow 3.0)"
+	)
+
+
+def test_statistical_operations_with_greek_variables() -> None:
+	"""Test statistical operations with Greek letter variable names."""
+
+	# Create a context with Greek variable names
+	class GreekCtx(NamedTuple):
+		sigma: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+		alpha: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+	greek_ctx = GreekCtx()
+	sigma_data = Var[SizedIterable[float], GreekCtx]("sigma")
+	mean_expr = Mean(sigma_data)
+
+	# Variable name should be converted to Greek letter
+	assert latex(mean_expr) == "\\bar{\\sigma}"
+	assert (
+		latex(mean_expr, LatexCtx(greek_ctx, Show.VALUES))
+		== "(\\bar{\\sigma:5[1.0,..5.0]} \\rightarrow 3.0)"
+	)
+
+
+def test_complex_statistical_expressions() -> None:
+	"""Test complex expressions involving statistical operations."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	mean_expr = Mean(values)
+	stddev_expr = StdDev(values)
+
+	# Statistical operations in arithmetic
+	range_normalized = (mean_expr - 1) / stddev_expr
+
+	# Without context
+	assert latex(range_normalized) == "\\frac{\\bar{values} - 1}{\\sigma_{values}}"
+
+	# With context (showing intermediate results)
+	result_str = latex(range_normalized, LatexCtx(stats_ctx, Show.VALUES | Show.WORK))
+	assert "\\bar{values:5[1.0,..5.0]}" in result_str
+	assert "\\sigma_{values:5[1.0,..5.0]}" in result_str
+
+
+def test_statistical_operations_in_comparisons() -> None:
+	"""Test statistical operations used in comparisons."""
+	values = Var[SizedIterable[float], StatsCtx]("values")
+	mean_expr = Mean(values)
+	target = 3.0
+
+	# Comparison with statistical operation
+	quality_check = mean_expr > target
+
+	assert latex(quality_check) == "\\bar{values} > 3.0"
+	assert (
+		latex(quality_check, LatexCtx(stats_ctx, Show.VALUES))
+		== "(\\bar{values:5[1.0,..5.0]} > 3.0 \\rightarrow \\text{False})"
+	)
+
+
+def test_statistical_operations_with_subscripts() -> None:
+	"""Test statistical operations with subscripted variable names."""
+	x_measurements = Var[SizedIterable[float], StatsCtx]("measurements")
+	mean_expr = Mean(x_measurements)
+
+	# Test with measurements variable
+	assert latex(mean_expr) == "\\bar{measurements}"
+
+	# With context using measurements data
+	measurements_ctx = StatsCtx(measurements=[10.0, 15.0, 20.0, 25.0, 30.0])
+	assert (
+		latex(mean_expr, LatexCtx(measurements_ctx, Show.VALUES))
+		== "(\\bar{measurements:5[10.0,..30.0]} \\rightarrow 20.0)"
+	)

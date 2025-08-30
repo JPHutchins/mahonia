@@ -22,6 +22,7 @@ from mahonia import (
 	Var,
 )
 from mahonia.latex import LatexCtx, Show, latex
+from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
 
 
 def test_generate_latex_examples() -> None:
@@ -37,6 +38,12 @@ def test_generate_latex_examples() -> None:
 		b: float
 		c: float
 		v: float
+
+	# Define statistical context for statistical operations
+	class StatsCtx(NamedTuple):
+		measurements: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+		voltages: SizedIterable[float] = [4.95, 5.05, 4.98, 5.02, 5.0]
+		batch_sizes: SizedIterable[int] = [10, 12, 8, 15, 11]
 
 	# Start building the markdown content
 	lines = [
@@ -409,6 +416,149 @@ def test_generate_latex_examples() -> None:
 			f"- Zero operations `latex(x + 0)`: ${latex(x + zero)}$",
 			f"- Negative constants `latex(x + (-5))`: ${latex(x + neg_five)}$",
 			f"- Identity operations `latex(x * 1)`: ${latex(x * one)}$",
+			"",
+		]
+	)
+
+	# Statistical Operations Examples - NEW SECTION
+	stats_ctx = StatsCtx()
+
+	lines.extend(
+		[
+			"## Statistical Operations",
+			"",
+			"Mahonia supports statistical operations on data collections with LaTeX mathematical notation:",
+			"",
+			"```python",
+			"from mahonia.stats import Mean, StdDev, Median, Percentile, Range, Count",
+			"",
+			"# Define context with sample data",
+			"class StatsCtx(NamedTuple):",
+			"    measurements: list[float] = [1.0, 2.0, 3.0, 4.0, 5.0]",
+			"    voltages: list[float] = [4.95, 5.05, 4.98, 5.02, 5.0]",
+			"",
+			"# Variables for statistical data",
+			"measurements = Var[list[float], StatsCtx]('measurements')",
+			"voltages = Var[list[float], StatsCtx]('voltages')",
+			"```",
+			"",
+		]
+	)
+
+	# Statistical operations examples
+	measurements = Var[SizedIterable[float], StatsCtx]("measurements")
+	voltages = Var[SizedIterable[float], StatsCtx]("voltages")
+
+	# Individual operations
+	mean_measurements = Mean(measurements)
+	stddev_measurements = StdDev(measurements)
+	median_measurements = Median(measurements)
+	p95_measurements = Percentile(95, measurements)
+	range_measurements = Range(measurements)
+	count_measurements = Count(measurements)
+
+	lines.extend(
+		[
+			"### Basic Statistical Operations",
+			"",
+			f"- Mean (arithmetic average): `latex(Mean(measurements))` → ${latex(mean_measurements)}$",
+			f"- Standard deviation: `latex(StdDev(measurements))` → ${latex(stddev_measurements)}$",
+			f"- Median: `latex(Median(measurements))` → ${latex(median_measurements)}$",
+			f"- 95th percentile: `latex(Percentile(95, measurements))` → ${latex(p95_measurements)}$",
+			f"- Range (max - min): `latex(Range(measurements))` → ${latex(range_measurements)}$",
+			f"- Count: `latex(Count(measurements))` → ${latex(count_measurements)}$",
+			"",
+		]
+	)
+
+	lines.extend(
+		[
+			"### Statistical Operations with Context",
+			"",
+			"When evaluated with context, statistical operations show data values and results:",
+			"",
+			f"- Mean with data: `latex(Mean(measurements), StatsCtx())` → ${latex(mean_measurements, LatexCtx(stats_ctx))}$",
+			f"- Standard deviation with data: `latex(StdDev(measurements), StatsCtx())` → ${latex(stddev_measurements, LatexCtx(stats_ctx))}$",
+			f"- Median with data: `latex(Median(measurements), StatsCtx())` → ${latex(median_measurements, LatexCtx(stats_ctx))}$",
+			f"- 95th percentile with data: `latex(Percentile(95, measurements), StatsCtx())` → ${latex(p95_measurements, LatexCtx(stats_ctx))}$",
+			f"- Range with data: `latex(Range(measurements), StatsCtx())` → ${latex(range_measurements, LatexCtx(stats_ctx))}$",
+			f"- Count with data: `latex(Count(measurements), StatsCtx())` → ${latex(count_measurements, LatexCtx(stats_ctx))}$",
+			"",
+		]
+	)
+
+	# Complex statistical expressions
+	mean_voltages = Mean(voltages)
+	stddev_voltages = StdDev(voltages)
+	coefficient_of_variation = stddev_voltages / mean_voltages
+	three = Const(None, 3)
+	four_nine = Const(None, 4.9)
+	process_capability = (mean_voltages - four_nine) / (three * stddev_voltages)
+
+	lines.extend(
+		[
+			"### Complex Statistical Expressions",
+			"",
+			"Statistical operations can be combined in complex mathematical expressions:",
+			"",
+			f"- Coefficient of variation: `σ/μ` → ${latex(coefficient_of_variation)}$",
+			f"- Process capability index: `Cp = (μ - LSL)/(3σ)` → ${latex(process_capability)}$",
+			"",
+			"With context evaluation:",
+			f"- CV with data: ${latex(coefficient_of_variation, LatexCtx(stats_ctx))}$",
+			f"- Cp with data: ${latex(process_capability, LatexCtx(stats_ctx))}$",
+			"",
+		]
+	)
+
+	# Statistical operations in comparisons and predicates
+	four_ninefive = Const(None, 4.95)
+	zero_one = Const(None, 0.1)
+	quality_check = mean_voltages > four_ninefive
+	batch_acceptable = (mean_voltages > four_nine) & (stddev_voltages < zero_one)
+	quality_predicate = Predicate("Quality Check", batch_acceptable)
+
+	lines.extend(
+		[
+			"### Statistical Operations in Quality Control",
+			"",
+			"Statistical operations are commonly used in quality control and process monitoring:",
+			"",
+			f"- Quality threshold: `latex(Mean(voltages) > 4.95)` → ${latex(quality_check)}$",
+			f"- Batch acceptance: `latex((Mean(voltages) > 4.9) & (StdDev(voltages) < 0.1))` → ${latex(batch_acceptable)}$",
+			f"- Quality predicate: `latex(Predicate('Quality Check', condition))` → ${latex(quality_predicate)}$",
+			"",
+			"With context evaluation:",
+			f"- Quality threshold result: ${latex(quality_check, LatexCtx(stats_ctx))}$",
+			f"- Batch acceptance result: ${latex(batch_acceptable, LatexCtx(stats_ctx))}$",
+			f"- Quality predicate result: ${latex(quality_predicate, LatexCtx(stats_ctx))}$",
+			"",
+		]
+	)
+
+	# Statistical operations with Greek variables - create a context with Greek names
+	class GreekStatsCtx(NamedTuple):
+		sigma: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+		alpha: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+	greek_stats_ctx = GreekStatsCtx()
+	sigma_data = Var[SizedIterable[float], GreekStatsCtx]("sigma")
+	alpha_data = Var[SizedIterable[float], GreekStatsCtx]("alpha")
+	mean_sigma = Mean(sigma_data)
+	stddev_alpha = StdDev(alpha_data)
+
+	lines.extend(
+		[
+			"### Statistical Operations with Greek Variables",
+			"",
+			"Variable names are automatically converted to Greek letters in LaTeX output:",
+			"",
+			f"- Mean of sigma data: `latex(Mean(Var('sigma')))` → ${latex(mean_sigma)}$",
+			f"- Standard deviation of alpha: `latex(StdDev(Var('alpha')))` → ${latex(stddev_alpha)}$",
+			"",
+			"With context (using measurements data):",
+			f"- Mean sigma with data: ${latex(mean_sigma, LatexCtx(greek_stats_ctx))}$",
+			f"- StdDev alpha with data: ${latex(stddev_alpha, LatexCtx(greek_stats_ctx))}$",
 			"",
 		]
 	)

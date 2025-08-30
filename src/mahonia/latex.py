@@ -47,6 +47,7 @@ from mahonia import (
 	Sub,
 	Var,
 )
+from mahonia.stats import Count, Mean, Median, Percentile, Range, StdDev
 
 type BinaryOpExpr = (
 	Eq[Any, Any]
@@ -283,6 +284,57 @@ def _latex_expr_structure(
 				return f"({pred_str} \\rightarrow {result_latex})"
 			else:
 				return pred_str
+		case Mean():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\bar{{{operand_formatted}}} \\rightarrow {result_latex})"
+			else:
+				return f"\\bar{{{operand_formatted}}}"
+		case StdDev():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\sigma_{{{operand_formatted}}} \\rightarrow {result_latex})"
+			else:
+				return f"\\sigma_{{{operand_formatted}}}"
+		case Median():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\text{{median}}({operand_formatted}) \\rightarrow {result_latex})"
+			else:
+				return f"\\text{{median}}({operand_formatted})"
+		case Percentile():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			percentile_str = (
+				f"P_{{{int(expr.percentile) if expr.percentile.is_integer() else expr.percentile}}}"
+			)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({percentile_str}({operand_formatted}) \\rightarrow {result_latex})"
+			else:
+				return f"{percentile_str}({operand_formatted})"
+		case Range():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\text{{range}}({operand_formatted}) \\rightarrow {result_latex})"
+			else:
+				return f"\\text{{range}}({operand_formatted})"
+		case Count():
+			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(|{operand_formatted}| \\rightarrow {result_latex})"
+			else:
+				return f"|{operand_formatted}|"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 
@@ -354,13 +406,21 @@ PRECEDENCE: Final[dict[type[Expr[Any, Any]], int]] = {
 	Mul: 6,
 	Div: 6,
 	Pow: 7,
+	Mean: 8,
+	StdDev: 8,
+	Median: 8,
+	Percentile: 8,
+	Range: 8,
+	Count: 8,
 }
 
 
 def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
 	"""Determine if an operand needs parentheses in the context of its parent operation."""
 
-	if isinstance(operand, (Var, Const, PlusMinus, Percent)):
+	if isinstance(
+		operand, (Var, Const, PlusMinus, Percent, Mean, StdDev, Median, Percentile, Range, Count)
+	):
 		return False
 
 	if PRECEDENCE[type(operand)] < PRECEDENCE[type(parent)]:
@@ -376,3 +436,53 @@ def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
 			return True
 
 	return False
+
+
+def _format_statistical_operand(stat_expr: Expr[Any, Any], ctx: Any, show_values: bool) -> str:
+	"""Format statistical operand for LaTeX, handling iterable display.
+
+	This leverages the existing to_string method from the statistical operations
+	to get proper iterable formatting, then converts to LaTeX-friendly format.
+	"""
+	if ctx is None or not show_values:
+		# Without context or values, just show the variable name
+		if hasattr(stat_expr, "left"):
+			left_expr = getattr(stat_expr, "left")
+			if hasattr(left_expr, "name"):
+				return _latex_var(getattr(left_expr, "name"))
+		return "data"
+
+	# Use the existing to_string formatting which handles iterable display nicely
+	string_repr = stat_expr.to_string(ctx)
+
+	# Extract the operand part from the string representation
+	# E.g., "mean(measurements:5[1.0,..5.0] -> 3.0)" -> "measurements:5[1.0,..5.0]"
+	if " -> " in string_repr:
+		operand_part = string_repr.split(" -> ")[0]
+	else:
+		operand_part = string_repr
+
+	# Remove the operation name and parentheses
+	# E.g., "mean(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
+	# For Percentile: "percentile:95(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
+
+	# Find the first opening parenthesis and extract what's inside
+	paren_start = operand_part.find("(")
+	if paren_start != -1:
+		# Find the matching closing parenthesis
+		paren_end = operand_part.rfind(")")
+		if paren_end != -1 and paren_end > paren_start:
+			variable_part = operand_part[paren_start + 1 : paren_end]
+		else:
+			variable_part = operand_part[paren_start + 1 :]
+	else:
+		variable_part = operand_part
+
+	# Convert variable names to LaTeX format
+	# E.g., "measurements:5[1.0,..5.0]" -> "measurements:5[1.0,..5.0]"
+	if ":" in variable_part:
+		var_name, rest = variable_part.split(":", 1)
+		latex_var_name = _latex_var(var_name)
+		return f"{latex_var_name}:{rest}"
+	else:
+		return _latex_var(variable_part)
