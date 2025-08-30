@@ -141,24 +141,13 @@ def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 			return _latex_expr_structure(expr)
 		case LatexCtx(ctx_data, show) if show & Show.WORK:
 			structure = _latex_expr_structure(expr, ctx)
-			if "\\rightarrow" in structure:
-				return structure
-			result = expr.eval(ctx_data)
-			result_latex = (
-				_latex_expr_structure(result)
-				if isinstance(result, (PlusMinus, Percent))
-				else _latex_value(result.value)
+			return (
+				structure
+				if "\\rightarrow" in structure
+				else _format_with_result(structure, expr.eval(ctx_data))
 			)
-			return f"({structure} \\rightarrow {result_latex})"
 		case LatexCtx(ctx_data, _):
-			structure = _latex_expr_structure(expr, ctx)
-			result = expr.eval(ctx_data)
-			result_latex = (
-				_latex_expr_structure(result)
-				if isinstance(result, (PlusMinus, Percent))
-				else _latex_value(result.value)
-			)
-			return f"({structure} \\rightarrow {result_latex})"
+			return _format_with_result(_latex_expr_structure(expr, ctx), expr.eval(ctx_data))
 		case _:
 			assert_never(ctx)
 
@@ -168,6 +157,16 @@ def _latex_value(value: Any) -> str:
 	if isinstance(value, bool):
 		return f"\\text{{{str(value)}}}"
 	return str(value)
+
+
+def _format_with_result(structure: str, result: Const[Any]) -> str:
+	"""Format structure with result arrow notation."""
+	result_latex = (
+		_latex_expr_structure(result)
+		if isinstance(result, (PlusMinus, Percent))
+		else _latex_value(result.value)
+	)
+	return f"({structure} \\rightarrow {result_latex})"
 
 
 def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
@@ -181,11 +180,9 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 				case _:
 					return _latex_var(name)
 		case PlusMinus(name=name, value=value, plus_minus=pm):
-			name_str = _latex_var(name) if name else str(value)
-			return f"{name_str} \\pm {pm}"
+			return f"{_latex_var(name) if name else str(value)} \\pm {pm}"
 		case Percent(name=name, value=value, percent=pct):
-			name_str = _latex_var(name) if name else str(value)
-			return f"{name_str} \\pm {pct}\\%"
+			return f"{_latex_var(name) if name else str(value)} \\pm {pct}\\%"
 		case Const(name=name, value=value) if name:
 			match latex_ctx:
 				case LatexCtx(_, show) if show & Show.VALUES:
@@ -199,9 +196,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			right = _latex_expr_structure(expr.right, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({left} + {right} \\rightarrow {result_latex})"
+					return f"({left} + {right} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"{left} + {right}"
 		case Sub():
@@ -210,9 +205,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({left} - {right_formatted} \\rightarrow {result_latex})"
+					return f"({left} - {right_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"{left} - {right_formatted}"
 		case Mul():
@@ -222,11 +215,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return (
-						f"({left_formatted} \\cdot {right_formatted} \\rightarrow {result_latex})"
-					)
+					return f"({left_formatted} \\cdot {right_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"{left_formatted} \\cdot {right_formatted}"
 		case Div():
@@ -234,9 +223,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			right = _latex_expr_structure(expr.right, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\frac{{{left}}}{{{right}}} \\rightarrow {result_latex})"
+					return f"(\\frac{{{left}}}{{{right}}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\frac{{{left}}}{{{right}}}"
 		case Pow():
@@ -250,9 +237,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({power_formatted} \\rightarrow {result_latex})"
+					return f"({power_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return power_formatted
 		case Eq() | Ne() | Lt() | Le() | Gt() | Ge() | And() | Or() as binary_op:
@@ -261,9 +246,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			expr_str = f"{left} {LATEX_OP[type(binary_op)]} {right}"
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = binary_op.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({expr_str} \\rightarrow {result_latex})"
+					return f"({expr_str} \\rightarrow {_latex_value(binary_op.eval(ctx).value)})"
 				case _:
 					return expr_str
 		case Not():
@@ -271,9 +254,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			operand_formatted = f"({operand})" if _needs_parentheses(expr.left, expr) else operand
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\neg {operand_formatted} \\rightarrow {result_latex})"
+					return f"(\\neg {operand_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\neg {operand_formatted}"
 		case Approximately():
@@ -282,9 +263,7 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			expr_str = f"{left} \\approx {right}"
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({expr_str} \\rightarrow {result_latex})"
+					return f"({expr_str} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return expr_str
 		case Predicate(name=name, expr=pred_expr):
@@ -292,36 +271,28 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			pred_str = f"\\text{{{name}}}: {expr_latex}" if name else expr_latex
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({pred_str} \\rightarrow {result_latex})"
+					return f"({pred_str} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return pred_str
 		case Mean():
 			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\bar{{{operand_formatted}}} \\rightarrow {result_latex})"
+					return f"(\\bar{{{operand_formatted}}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\bar{{{operand_formatted}}}"
 		case StdDev():
 			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\sigma_{{{operand_formatted}}} \\rightarrow {result_latex})"
+					return f"(\\sigma_{{{operand_formatted}}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\sigma_{{{operand_formatted}}}"
 		case Median():
 			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\text{{median}}({operand_formatted}) \\rightarrow {result_latex})"
+					return f"(\\text{{median}}({operand_formatted}) \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\text{{median}}({operand_formatted})"
 		case Percentile():
@@ -331,27 +302,23 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 			)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"({percentile_str}({operand_formatted}) \\rightarrow {result_latex})"
+					return f"({percentile_str}({operand_formatted}) \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"{percentile_str}({operand_formatted})"
 		case Range():
 			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(\\text{{range}}({operand_formatted}) \\rightarrow {result_latex})"
+					return f"(\\text{{range}}({operand_formatted}) \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\text{{range}}({operand_formatted})"
 		case Count():
 			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result = expr.eval(ctx)
-					result_latex = _latex_value(result.value)
-					return f"(|{operand_formatted}| \\rightarrow {result_latex})"
+					return (
+						f"(|{operand_formatted}| \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+					)
 				case _:
 					return f"|{operand_formatted}|"
 		case _:
