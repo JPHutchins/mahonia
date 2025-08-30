@@ -21,7 +21,7 @@ from mahonia import (
 	Predicate,
 	Var,
 )
-from mahonia.latex import latex
+from mahonia.latex import LatexCtx, Show, latex
 
 
 def test_generate_latex_examples() -> None:
@@ -409,6 +409,164 @@ def test_generate_latex_examples() -> None:
 			f"- Zero operations `latex(x + 0)`: ${latex(x + zero)}$",
 			f"- Negative constants `latex(x + (-5))`: ${latex(x + neg_five)}$",
 			f"- Identity operations `latex(x * 1)`: ${latex(x * one)}$",
+			"",
+		]
+	)
+
+	# Context Examples - NEW SECTION
+	# Define a concrete context for examples
+	ctx = Ctx(x=2.0, y=3.0, z=1.5, w=4.0, a=1.0, b=2.0, c=3.0, v=5.0)
+
+	lines.extend(
+		[
+			"## Expressions with Context",
+			"",
+			"The `latex()` function supports an optional context parameter that evaluates variables and shows their values:",
+			"",
+			"```python",
+			"# Define context with concrete values",
+			"ctx = Ctx(x=2.0, y=3.0, z=1.5, w=4.0)",
+			"",
+			"# Without context - shows expression structure",
+			"latex(expr)  # Shows symbolic form",
+			"",
+			"# With context - shows values",
+			"latex(expr, ctx)  # Shows evaluated values",
+			"```",
+			"",
+		]
+	)
+
+	# Context examples for variables
+	x_ctx = Var[float, Ctx]("x")
+	y_ctx = Var[float, Ctx]("y")
+	z_ctx = Var[float, Ctx]("z")
+
+	lines.extend(
+		[
+			"### Variables with Context",
+			"",
+			f"- Variable without context: `latex(x)` → ${latex(x_ctx)}$",
+			f"- Variable with context: `latex(x, LatexCtx(ctx))` → ${latex(x_ctx, LatexCtx(ctx))}$",
+			"",
+		]
+	)
+
+	# Context examples for arithmetic
+	lines.extend(
+		[
+			"### Arithmetic with Context",
+			"",
+		]
+	)
+
+	add_ctx = x_ctx + y_ctx
+	mul_ctx = x_ctx * y_ctx
+	div_ctx = x_ctx / y_ctx
+	pow_ctx = x_ctx**2
+
+	lines.extend(
+		[
+			f"- Addition: `latex(x + y)` → ${latex(add_ctx)}$",
+			f"- Addition with context: `latex(x + y, ctx)` → ${latex(add_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Multiplication: `latex(x * y)` → ${latex(mul_ctx)}$",
+			f"- Multiplication with context: `latex(x * y, ctx)` → ${latex(mul_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Division: `latex(x / y)` → ${latex(div_ctx)}$",
+			f"- Division with context: `latex(x / y, ctx)` → ${latex(div_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Power: `latex(x ** 2)` → ${latex(pow_ctx)}$",
+			f"- Power with context: `latex(x ** 2, ctx)` → ${latex(pow_ctx, LatexCtx(ctx))}$",
+			"",
+		]
+	)
+
+	# Context examples for comparisons and logic
+	lines.extend(
+		[
+			"### Comparisons with Context",
+			"",
+		]
+	)
+
+	lt_ctx = x_ctx < y_ctx
+	eq_ctx = x_ctx == 2.0
+	complex_logic = (x_ctx > 1.0) & (y_ctx < 5.0)
+
+	lines.extend(
+		[
+			f"- Less than: `latex(x < y)` → ${latex(lt_ctx)}$",
+			f"- Less than with context: `latex(x < y, ctx)` → ${latex(lt_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Equality: `latex(x == 2.0)` → ${latex(eq_ctx)}$",
+			f"- Equality with context: `latex(x == 2.0, ctx)` → ${latex(eq_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Complex logic: `latex((x > 1.0) & (y < 5.0))` → ${latex(complex_logic)}$",
+			f"- Complex logic with context: `latex((x > 1.0) & (y < 5.0), ctx)` → ${latex(complex_logic, LatexCtx(ctx))}$",
+			"",
+		]
+	)
+
+	# Context examples for special expressions
+	lines.extend(
+		[
+			"### Special Expressions with Context",
+			"",
+		]
+	)
+
+	approx_ctx = Approximately(x_ctx, PlusMinus("target", 2.0, 0.1))
+	pred_ctx = Predicate("condition", x_ctx > 1.5)
+
+	lines.extend(
+		[
+			f"- Approximately: `latex(x ≈ target ± 0.1)` → ${latex(approx_ctx)}$",
+			f"- Approximately with context: `latex(x ≈ target ± 0.1, ctx)` → ${latex(approx_ctx, LatexCtx(ctx))}$",
+			"",
+			f"- Predicate: `latex(condition: x > 1.5)` → ${latex(pred_ctx)}$",
+			f"- Predicate with context: `latex(condition: x > 1.5, ctx)` → ${latex(pred_ctx, LatexCtx(ctx))}$",
+			"",
+		]
+	)
+
+	# NEW SECTION: Show flags functionality
+	lines.extend(
+		[
+			"### Show Flags - Controlling Display Options",
+			"",
+			"The `latex()` function supports Show flags that control what information is displayed:",
+			"",
+			"- `Show.VALUES`: Shows variable values as `x:5`",
+			"- `Show.WORK`: Shows the evaluation result as `expr → result`",
+			"- `Show.VALUES | Show.WORK` (default): Shows both values and result",
+			"- `Show(0)`: Shows only structure (no values or work)",
+			"",
+		]
+	)
+
+	# Examples of show_values
+	add_show = x_ctx + y_ctx
+	comp_show = x_ctx < y_ctx
+	complex_show = (x_ctx + z_ctx) * y_ctx
+
+	lines.extend(
+		[
+			f"- Structure only: `latex(x + y, LatexCtx(ctx, Show(0)))` → ${latex(add_show, LatexCtx(ctx, Show(0)))}$",
+			f"- VALUES only: `latex(x + y, LatexCtx(ctx, Show.VALUES))` → ${latex(add_show, LatexCtx(ctx, Show.VALUES))}$",
+			f"- WORK only: `latex(x + y, LatexCtx(ctx, Show.WORK))` → ${latex(add_show, LatexCtx(ctx, Show.WORK))}$",
+			f"- Both (default): `latex(x + y, LatexCtx(ctx))` → ${latex(add_show, LatexCtx(ctx))}$",
+			"",
+			"**Boolean Expressions:**",
+			f"- Structure: `latex(x < y, LatexCtx(ctx, Show(0)))` → ${latex(comp_show, LatexCtx(ctx, Show(0)))}$",
+			f"- VALUES: `latex(x < y, LatexCtx(ctx, Show.VALUES))` → ${latex(comp_show, LatexCtx(ctx, Show.VALUES))}$",
+			f"- WORK: `latex(x < y, LatexCtx(ctx, Show.WORK))` → ${latex(comp_show, LatexCtx(ctx, Show.WORK))}$",
+			f"- Both: `latex(x < y, LatexCtx(ctx))` → ${latex(comp_show, LatexCtx(ctx))}$",
+			"",
+			"**Complex Expressions:**",
+			f"- Structure: `latex((x + z) * y, LatexCtx(ctx, Show(0)))` → ${latex(complex_show, LatexCtx(ctx, Show(0)))}$",
+			f"- VALUES: `latex((x + z) * y, LatexCtx(ctx, Show.VALUES))` → ${latex(complex_show, LatexCtx(ctx, Show.VALUES))}$",
+			f"- Both: `latex((x + z) * y, LatexCtx(ctx))` → ${latex(complex_show, LatexCtx(ctx))}$",
 			"",
 		]
 	)

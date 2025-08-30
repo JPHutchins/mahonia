@@ -20,7 +20,8 @@ mathematical notation.
 'x > 5'
 """
 
-from typing import Any, Final
+from enum import Flag, auto
+from typing import Any, Final, Generic, NamedTuple
 
 from mahonia import (
 	Add,
@@ -42,6 +43,7 @@ from mahonia import (
 	PlusMinus,
 	Pow,
 	Predicate,
+	S,
 	Sub,
 	Var,
 )
@@ -58,16 +60,53 @@ type BinaryOpExpr = (
 )
 
 
-def latex(expr: Expr[Any, Any]) -> str:
+class Show(Flag):
+	"""Display options for latex evaluation.
+
+	Assuming that x is 2 and y is 3:
+	- (none): `x + y`
+	- VALUES: `x:2 + y:3`
+	- WORK: `(x + y \\rightarrow 5)`
+	- VALUES | WORK: `(x:2 + y:3 \\rightarrow 5)`
+
+	Examples:
+	>>> from typing import NamedTuple
+	>>> class TestCtx(NamedTuple):
+	...     x: int
+	...     y: int
+	>>> x = Var[int, TestCtx]("x")
+	>>> y = Var[int, TestCtx]("y")
+	>>> test_ctx = TestCtx(x=2, y=3)
+	>>> expr = x + y
+	>>> latex(expr, LatexCtx(test_ctx, Show.VALUES))
+	'(x:2 + y:3 \\\\rightarrow 5)'
+	>>> latex(expr, LatexCtx(test_ctx, Show.WORK))
+	'(x + y \\\\rightarrow 5)'
+	>>> latex(expr, LatexCtx(test_ctx, Show.VALUES | Show.WORK))
+	'(x:2 + y:3 \\\\rightarrow 5)'
+	"""
+
+	VALUES = auto()
+	"""Add values to variables: `name:<val>."""
+	WORK = auto()
+	"""Show the evaluated result of the expression."""
+
+
+class LatexCtx(NamedTuple, Generic[S]):
+	ctx: S
+	show: Show = Show.VALUES | Show.WORK
+
+
+def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	"""Convert a mahonia expression to LaTeX mathematical notation.
 
 	Examples:
 	>>> from typing import NamedTuple
-	>>> class Ctx(NamedTuple):
+	>>> class TestCtx(NamedTuple):
 	...     x: float
 	...     y: float
-	>>> x = Var[float, Ctx]("x")
-	>>> y = Var[float, Ctx]("y")
+	>>> x = Var[float, TestCtx]("x")
+	>>> y = Var[float, TestCtx]("y")
 	>>> latex(x + y)
 	'x + y'
 	>>> latex(x * y)
@@ -76,9 +115,68 @@ def latex(expr: Expr[Any, Any]) -> str:
 	'\\\\frac{x}{y}'
 	>>> latex(x**2 + y**2)
 	'x^2 + y^2'
+	>>> # With context - default shows values and work
+	>>> test_ctx = TestCtx(x=2.0, y=3.0)
+	>>> latex(x + y, LatexCtx(test_ctx))
+	'(x:2.0 + y:3.0 \\\\rightarrow 5.0)'
+	>>> # Show only values
+	>>> latex(x + y, LatexCtx(test_ctx, Show.VALUES))
+	'(x:2.0 + y:3.0 \\\\rightarrow 5.0)'
+	>>> # Show only work
+	>>> latex(x + y, LatexCtx(test_ctx, Show.WORK))
+	'(x + y \\\\rightarrow 5.0)'
+	>>> # Show nothing (structure only)
+	>>> latex(x + y, LatexCtx(test_ctx, Show(0)))
+	'(x + y \\\\rightarrow 5.0)'
+	>>> # Boolean expressions
+	>>> latex(x > y, LatexCtx(test_ctx, Show.VALUES | Show.WORK))
+	'(x:2.0 > y:3.0 \\\\rightarrow \\\\text{False})'
+	>>> # Complex expressions
+	>>> latex((x + y) / 2, LatexCtx(test_ctx, Show.VALUES))
+	'(\\\\frac{x:2.0 + y:3.0}{2} \\\\rightarrow 2.5)'
 	"""
+	if ctx is None:
+		# Without context, show expression structure
+		return _latex_expr_structure(expr)
+	else:
+		# With context, show based on Show flags
+		show_values = bool(ctx.show & Show.VALUES)
+		show_work = bool(ctx.show & Show.WORK)
+
+		# Show intermediate work if WORK flag is set
+		show_intermediate_work = show_work
+
+		structure = _latex_expr_structure(expr, ctx.ctx, show_values, show_intermediate_work)
+
+		# If WORK flag shows intermediate results, don't add final arrow
+		if show_intermediate_work and "\\rightarrow" in structure:
+			return structure
+		else:
+			# Show final result wrapper when context is provided
+			result = expr.eval(ctx.ctx)
+			if isinstance(result, (PlusMinus, Percent)):
+				result_latex = _latex_expr_structure(result)
+			else:
+				result_latex = _latex_value(result.value)
+			return f"({structure} \\rightarrow {result_latex})"
+
+
+def _latex_value(value: Any) -> str:
+	"""Convert a value to LaTeX format."""
+	if isinstance(value, bool):
+		return f"\\text{{{str(value)}}}"
+	return str(value)
+
+
+def _latex_expr_structure(
+	expr: Expr[Any, Any], ctx: Any = None, show_values: bool = False, show_work: bool = False
+) -> str:
+	"""Convert expression structure to LaTeX, optionally showing variable values."""
 	match expr:
 		case Var(name=name):
+			if show_values and ctx is not None:
+				evaluated = expr.eval(ctx)
+				return f"{_latex_var(name)}:{evaluated.value}"
 			return _latex_var(name)
 		case PlusMinus(name=name, value=value, plus_minus=pm):
 			name_str = _latex_var(name) if name else str(value)
@@ -87,39 +185,104 @@ def latex(expr: Expr[Any, Any]) -> str:
 			name_str = _latex_var(name) if name else str(value)
 			return f"{name_str} \\pm {pct}\\%"
 		case Const(name=name, value=value) if name:
+			if show_values:
+				return f"{_latex_var(name)}:{value}"
 			return _latex_var(name)
 		case Const(value=value):
-			return str(value)
+			return _latex_value(value)
 		case Add():
-			return f"{latex(expr.left)} + {latex(expr.right)}"
+			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			if show_work and ctx is not None:
+				# Show intermediate result for this binary operation
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({left} + {right} \\rightarrow {result_latex})"
+			else:
+				return f"{left} + {right}"
 		case Sub():
-			right = latex(expr.right)
-			return f"{latex(expr.left)} - {f'({right})' if _needs_parentheses(expr.right, expr) else right}"
+			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({left} - {right_formatted} \\rightarrow {result_latex})"
+			else:
+				return f"{left} - {right_formatted}"
 		case Mul():
-			left = latex(expr.left)
-			right = latex(expr.right)
-			return f"{f'({left})' if _needs_parentheses(expr.left, expr) else left} \\cdot {f'({right})' if _needs_parentheses(expr.right, expr) else right}"
+			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			left_formatted = f"({left})" if _needs_parentheses(expr.left, expr) else left
+			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({left_formatted} \\cdot {right_formatted} \\rightarrow {result_latex})"
+			else:
+				return f"{left_formatted} \\cdot {right_formatted}"
 		case Div():
-			return f"\\frac{{{latex(expr.left)}}}{{{latex(expr.right)}}}"
+			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\frac{{{left}}}{{{right}}} \\rightarrow {result_latex})"
+			else:
+				return f"\\frac{{{left}}}{{{right}}}"
 		case Pow():
-			base = latex(expr.left)
-			power = latex(expr.right)
+			base = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			power = _latex_expr_structure(expr.right, ctx, show_values, show_work)
 			formatted_base = f"({base})" if _needs_parentheses(expr.left, expr) else base
-			return (
+			power_formatted = (
 				f"{formatted_base}^{{{power}}}"
 				if len(power) > 1 or not power.isdigit()
 				else f"{formatted_base}^{power}"
 			)
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({power_formatted} \\rightarrow {result_latex})"
+			else:
+				return power_formatted
 		case Eq() | Ne() | Lt() | Le() | Gt() | Ge() | And() | Or() as binary_op:
-			return f"{latex(binary_op.left)} {LATEX_OP[type(binary_op)]} {latex(binary_op.right)}"
+			left = _latex_expr_structure(binary_op.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(binary_op.right, ctx, show_values, show_work)
+			expr_str = f"{left} {LATEX_OP[type(binary_op)]} {right}"
+			if show_work and ctx is not None:
+				result = binary_op.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({expr_str} \\rightarrow {result_latex})"
+			else:
+				return expr_str
 		case Not():
-			operand = latex(expr.left)
-			return f"\\neg {f'({operand})' if _needs_parentheses(expr.left, expr) else operand}"
+			operand = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			operand_formatted = f"({operand})" if _needs_parentheses(expr.left, expr) else operand
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"(\\neg {operand_formatted} \\rightarrow {result_latex})"
+			else:
+				return f"\\neg {operand_formatted}"
 		case Approximately():
-			return f"{latex(expr.left)} \\approx {latex(expr.right)}"
+			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			expr_str = f"{left} \\approx {right}"
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({expr_str} \\rightarrow {result_latex})"
+			else:
+				return expr_str
 		case Predicate(name=name, expr=pred_expr):
-			expr_latex = latex(pred_expr)
-			return f"\\text{{{name}}}: {expr_latex}" if name else expr_latex
+			expr_latex = _latex_expr_structure(pred_expr, ctx, show_values, show_work)
+			pred_str = f"\\text{{{name}}}: {expr_latex}" if name else expr_latex
+			if show_work and ctx is not None:
+				result = expr.eval(ctx)
+				result_latex = _latex_value(result.value)
+				return f"({pred_str} \\rightarrow {result_latex})"
+			else:
+				return pred_str
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 

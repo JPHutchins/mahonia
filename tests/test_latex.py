@@ -11,7 +11,7 @@ from mahonia import (
 	Predicate,
 	Var,
 )
-from mahonia.latex import latex
+from mahonia.latex import LatexCtx, Show, latex
 
 
 class Ctx(NamedTuple):
@@ -569,3 +569,323 @@ def test_function_docstring_examples() -> None:
 
 	# Test power
 	assert latex(x**2 + y**2) == "x^2 + y^2"
+
+
+# Evaluated Expression Tests
+
+
+def test_latex_with_context_variables() -> None:
+	"""Test LaTeX output of variables with context."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Without context
+	assert latex(x) == "x"
+	assert latex(y) == "y"
+
+	# With context - shows expression -> result
+	assert latex(x, LatexCtx(ctx)) == "(x:5 \\rightarrow 5)"
+	assert latex(y, LatexCtx(ctx)) == "(y:10 \\rightarrow 10)"
+
+
+def test_latex_with_context_arithmetic() -> None:
+	"""Test LaTeX output of arithmetic expressions with context."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Addition
+	add_expr = x + y
+	assert latex(add_expr) == "x + y"
+	assert latex(add_expr, LatexCtx(ctx)) == "(x:5 + y:10 \\rightarrow 15)"
+
+	# Subtraction
+	sub_expr = y - x
+	assert latex(sub_expr) == "y - x"
+	assert latex(sub_expr, LatexCtx(ctx)) == "(y:10 - x:5 \\rightarrow 5)"
+
+	# Multiplication
+	mul_expr = x * y
+	assert latex(mul_expr) == "x \\cdot y"
+	assert latex(mul_expr, LatexCtx(ctx)) == "(x:5 \\cdot y:10 \\rightarrow 50)"
+
+	# Division (need floats for proper division)
+	x_float = Var[float, Ctx]("f")  # f = 1.5
+	y_float = Var[float, Ctx]("beta")  # beta = 3.0
+	div_expr = x_float / y_float
+	assert latex(div_expr) == "\\frac{f}{\\beta}"
+	assert latex(div_expr, LatexCtx(ctx)) == "(\\frac{f:1.5}{\\beta:3.0} \\rightarrow 0.5)"
+
+
+def test_latex_with_context_power() -> None:
+	"""Test LaTeX output of power expressions with context."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Simple power
+	power_expr = x**2
+	assert latex(power_expr) == "x^2"
+	assert latex(power_expr, LatexCtx(ctx)) == "(x:5^2 \\rightarrow 25)"
+
+	# Variable exponent
+	var_power_expr = x**y
+	assert latex(var_power_expr) == "x^{y}"
+	assert latex(var_power_expr, LatexCtx(ctx)) == "(x:5^{y:10} \\rightarrow 9765625)"
+
+
+def test_latex_with_context_comparisons() -> None:
+	"""Test LaTeX output of comparison expressions with context."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Equal
+	eq_expr = x == 5
+	assert latex(eq_expr) == "x = 5"
+	assert latex(eq_expr, LatexCtx(ctx)) == "(x:5 = 5 \\rightarrow \\text{True})"
+
+	# Not equal
+	ne_expr = x != y
+	assert latex(ne_expr) == "x \\neq y"
+	assert latex(ne_expr, LatexCtx(ctx)) == "(x:5 \\neq y:10 \\rightarrow \\text{True})"
+
+	# Less than
+	lt_expr = x < y
+	assert latex(lt_expr) == "x < y"
+	assert latex(lt_expr, LatexCtx(ctx)) == "(x:5 < y:10 \\rightarrow \\text{True})"
+
+	# Greater than
+	gt_expr = x > y
+	assert latex(gt_expr) == "x > y"
+	assert latex(gt_expr, LatexCtx(ctx)) == "(x:5 > y:10 \\rightarrow \\text{False})"
+
+
+def test_latex_with_context_logical() -> None:
+	"""Test LaTeX output of logical expressions with context."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# AND
+	and_expr = (x > 0) & (y > 0)
+	assert latex(and_expr) == "x > 0 \\land y > 0"
+	assert (
+		latex(and_expr, LatexCtx(ctx))
+		== "((x:5 > 0 \\rightarrow \\text{True}) \\land (y:10 > 0 \\rightarrow \\text{True}) \\rightarrow \\text{True})"
+	)
+
+	# OR
+	or_expr = (x > 100) | (y > 0)
+	assert latex(or_expr) == "x > 100 \\lor y > 0"
+	assert (
+		latex(or_expr, LatexCtx(ctx))
+		== "((x:5 > 100 \\rightarrow \\text{False}) \\lor (y:10 > 0 \\rightarrow \\text{True}) \\rightarrow \\text{True})"
+	)
+
+	# NOT
+	not_expr = ~(x > 100)
+	assert latex(not_expr) == "\\neg x > 100"
+	assert (
+		latex(not_expr, LatexCtx(ctx))
+		== "(\\neg (x:5 > 100 \\rightarrow \\text{False}) \\rightarrow \\text{True})"
+	)
+
+
+def test_latex_with_context_special_expressions() -> None:
+	"""Test LaTeX output of special expressions with context."""
+	x = Var[float, Ctx]("f")  # Using f=1.5 from ctx
+
+	# PlusMinus (evaluates to itself)
+	pm = PlusMinus("measurement", 5.0, 0.1)
+	assert latex(pm) == "measurement \\pm 0.1"
+	assert latex(pm, LatexCtx(ctx)) == "(measurement \\pm 0.1 \\rightarrow measurement \\pm 0.1)"
+
+	# Percent (evaluates to itself)
+	pct = Percent("tolerance", 100.0, 5.0)
+	assert latex(pct) == "tolerance \\pm 5.0\\%"
+	assert latex(pct, LatexCtx(ctx)) == "(tolerance \\pm 5.0\\% \\rightarrow tolerance \\pm 5.0\\%)"
+
+	# Approximately
+	target = PlusMinus("target", 1.5, 0.1)
+	approx = Approximately(x, target)
+	assert latex(approx) == "f \\approx target \\pm 0.1"
+	assert (
+		latex(approx, LatexCtx(ctx)) == "(f:1.5 \\approx target \\pm 0.1 \\rightarrow \\text{True})"
+	)
+
+	# Predicate
+	pred = Predicate("condition", x > 1.0)
+	assert latex(pred) == "\\text{condition}: f > 1.0"
+	assert (
+		latex(pred, LatexCtx(ctx))
+		== "(\\text{condition}: (f:1.5 > 1.0 \\rightarrow \\text{True}) \\rightarrow \\text{True})"
+	)
+
+
+def test_latex_with_context_complex_expressions() -> None:
+	"""Test LaTeX output of complex expressions with context."""
+	x = Var[float, Ctx]("f")  # f=1.5
+	y = Var[int, Ctx]("x")  # x=5
+	z = Var[int, Ctx]("y")  # y=10
+
+	# Nested arithmetic with proper parentheses handling
+	complex_expr = (x + y) * z
+	assert latex(complex_expr) == "(f + x) \\cdot y"
+	assert (
+		latex(complex_expr, LatexCtx(ctx))
+		== "(((f:1.5 + x:5 \\rightarrow 6.5)) \\cdot y:10 \\rightarrow 65.0)"
+	)
+
+	# Polynomial-like expression
+	poly_expr = y**2 + y + 1
+	assert latex(poly_expr) == "x^2 + x + 1"
+	assert (
+		latex(poly_expr, LatexCtx(ctx))
+		== "(((x:5^2 \\rightarrow 25) + x:5 \\rightarrow 30) + 1 \\rightarrow 31)"
+	)
+
+
+def test_latex_with_context_edge_cases() -> None:
+	"""Test LaTeX output with context for edge cases."""
+	x = Var[int, Ctx]("x")
+
+	# Zero result
+	zero_expr = x - x
+	assert latex(zero_expr) == "x - x"
+	assert latex(zero_expr, LatexCtx(ctx)) == "(x:5 - x:5 \\rightarrow 0)"
+
+	# Negative values
+	neg_expr = x - 10
+	assert latex(neg_expr) == "x - 10"
+	assert latex(neg_expr, LatexCtx(ctx)) == "(x:5 - 10 \\rightarrow -5)"
+
+	# Float values
+	x_float = Var[float, Ctx]("f")  # f=1.5
+	float_expr = x_float * 2
+	assert latex(float_expr) == "f \\cdot 2"
+	assert latex(float_expr, LatexCtx(ctx)) == "(f:1.5 \\cdot 2 \\rightarrow 3.0)"
+
+
+def test_latex_boolean_expressions_with_context() -> None:
+	"""Test LaTeX output of expressions that evaluate to booleans."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	# Boolean expressions should show their values as \\text{True/False} when evaluated
+	true_expr = x < y  # 5 < 10 is True
+	false_expr = x > y  # 5 > 10 is False
+
+	# Without context - shows structure
+	assert latex(true_expr) == "x < y"
+	assert latex(false_expr) == "x > y"
+
+	# With context - shows expression -> boolean result
+	assert latex(true_expr, LatexCtx(ctx)) == "(x:5 < y:10 \\rightarrow \\text{True})"
+	assert latex(false_expr, LatexCtx(ctx)) == "(x:5 > y:10 \\rightarrow \\text{False})"
+
+
+# Show Flags Tests
+
+
+def test_show_flags_no_flags() -> None:
+	"""Test LaTeX output with no Show flags."""
+
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x + y
+
+	# No flags - shows structure with result
+	assert latex(expr, LatexCtx(ctx, Show(0))) == "(x + y \\rightarrow 15)"
+
+
+def test_show_flags_values_only() -> None:
+	"""Test LaTeX output with VALUES flag only."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x + y
+
+	# VALUES only - shows values with final result wrapper
+	assert latex(expr, LatexCtx(ctx, Show.VALUES)) == "(x:5 + y:10 \\rightarrow 15)"
+
+
+def test_show_flags_work_only() -> None:
+	"""Test LaTeX output with WORK flag only."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x + y
+
+	# WORK only - shows structure and result
+	assert latex(expr, LatexCtx(ctx, Show.WORK)) == "(x + y \\rightarrow 15)"
+
+
+def test_show_flags_values_and_work() -> None:
+	"""Test LaTeX output with both VALUES and WORK flags."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x + y
+
+	# Both VALUES and WORK - shows values and result
+	assert latex(expr, LatexCtx(ctx, Show.VALUES | Show.WORK)) == "(x:5 + y:10 \\rightarrow 15)"
+
+
+def test_show_flags_complex_expressions() -> None:
+	"""Test Show flags with complex expressions."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = (x + y) * 2
+
+	# Structure only - shows structure with result
+	assert latex(expr, LatexCtx(ctx, Show(0))) == "((x + y) \\cdot 2 \\rightarrow 30)"
+
+	# VALUES only
+	assert latex(expr, LatexCtx(ctx, Show.VALUES)) == "((x:5 + y:10) \\cdot 2 \\rightarrow 30)"
+
+	# WORK only
+	assert (
+		latex(expr, LatexCtx(ctx, Show.WORK))
+		== "(((x + y \\rightarrow 15)) \\cdot 2 \\rightarrow 30)"
+	)
+
+	# Both FLAGS
+	assert (
+		latex(expr, LatexCtx(ctx, Show.VALUES | Show.WORK))
+		== "(((x:5 + y:10 \\rightarrow 15)) \\cdot 2 \\rightarrow 30)"
+	)
+
+
+def test_show_flags_boolean_expressions() -> None:
+	"""Test Show flags with boolean expressions."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x < y
+
+	# Structure only - shows structure with result
+	assert latex(expr, LatexCtx(ctx, Show(0))) == "(x < y \\rightarrow \\text{True})"
+
+	# VALUES only - shows values with result
+	assert latex(expr, LatexCtx(ctx, Show.VALUES)) == "(x:5 < y:10 \\rightarrow \\text{True})"
+
+	# WORK only
+	assert latex(expr, LatexCtx(ctx, Show.WORK)) == "(x < y \\rightarrow \\text{True})"
+
+	# Both FLAGS
+	assert (
+		latex(expr, LatexCtx(ctx, Show.VALUES | Show.WORK))
+		== "(x:5 < y:10 \\rightarrow \\text{True})"
+	)
+
+
+def test_show_flags_with_constants() -> None:
+	"""Test Show flags with named constants."""
+	x = Var[int, Ctx]("x")
+	Max = Const("Max", 20)
+	expr = x + Max
+
+	# Structure only shows constant name with result
+	assert latex(expr, LatexCtx(ctx, Show(0))) == "(x + Max \\rightarrow 25)"
+
+	# VALUES shows constant name:value with result
+	assert latex(expr, LatexCtx(ctx, Show.VALUES)) == "(x:5 + Max:20 \\rightarrow 25)"
+
+	# WORK shows structure and result
+	assert latex(expr, LatexCtx(ctx, Show.WORK)) == "(x + Max \\rightarrow 25)"
+
+	# Both show values and result
+	assert latex(expr, LatexCtx(ctx, Show.VALUES | Show.WORK)) == "(x:5 + Max:20 \\rightarrow 25)"
