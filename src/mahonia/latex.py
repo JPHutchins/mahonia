@@ -137,29 +137,20 @@ def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	'(\\\\frac{x:2.0 + y:3.0}{2} \\\\rightarrow 2.5)'
 	"""
 	if ctx is None:
-		# Without context, show expression structure
 		return _latex_expr_structure(expr)
+
+	structure = _latex_expr_structure(expr, ctx)
+
+	show_work = bool(ctx.show & Show.WORK)
+	if show_work and "\\rightarrow" in structure:
+		return structure
+
+	result = expr.eval(ctx.ctx)
+	if isinstance(result, (PlusMinus, Percent)):
+		result_latex = _latex_expr_structure(result)
 	else:
-		# With context, show based on Show flags
-		show_values = bool(ctx.show & Show.VALUES)
-		show_work = bool(ctx.show & Show.WORK)
-
-		# Show intermediate work if WORK flag is set
-		show_intermediate_work = show_work
-
-		structure = _latex_expr_structure(expr, ctx.ctx, show_values, show_intermediate_work)
-
-		# If WORK flag shows intermediate results, don't add final arrow
-		if show_intermediate_work and "\\rightarrow" in structure:
-			return structure
-		else:
-			# Show final result wrapper when context is provided
-			result = expr.eval(ctx.ctx)
-			if isinstance(result, (PlusMinus, Percent)):
-				result_latex = _latex_expr_structure(result)
-			else:
-				result_latex = _latex_value(result.value)
-			return f"({structure} \\rightarrow {result_latex})"
+		result_latex = _latex_value(result.value)
+	return f"({structure} \\rightarrow {result_latex})"
 
 
 def _latex_value(value: Any) -> str:
@@ -169,16 +160,16 @@ def _latex_value(value: Any) -> str:
 	return str(value)
 
 
-def _latex_expr_structure(
-	expr: Expr[Any, Any], ctx: Any = None, show_values: bool = False, show_work: bool = False
-) -> str:
+def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
 	"""Convert expression structure to LaTeX, optionally showing variable values."""
 	match expr:
 		case Var(name=name):
-			if show_values and ctx is not None:
-				evaluated = expr.eval(ctx)
-				return f"{_latex_var(name)}:{evaluated.value}"
-			return _latex_var(name)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.VALUES:
+					evaluated = expr.eval(ctx)
+					return f"{_latex_var(name)}:{evaluated.value}"
+				case _:
+					return _latex_var(name)
 		case PlusMinus(name=name, value=value, plus_minus=pm):
 			name_str = _latex_var(name) if name else str(value)
 			return f"{name_str} \\pm {pm}"
@@ -186,155 +177,173 @@ def _latex_expr_structure(
 			name_str = _latex_var(name) if name else str(value)
 			return f"{name_str} \\pm {pct}\\%"
 		case Const(name=name, value=value) if name:
-			if show_values:
-				return f"{_latex_var(name)}:{value}"
-			return _latex_var(name)
+			match latex_ctx:
+				case LatexCtx(_, show) if show & Show.VALUES:
+					return f"{_latex_var(name)}:{value}"
+				case _:
+					return _latex_var(name)
 		case Const(value=value):
 			return _latex_value(value)
 		case Add():
-			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
-			if show_work and ctx is not None:
-				# Show intermediate result for this binary operation
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({left} + {right} \\rightarrow {result_latex})"
-			else:
-				return f"{left} + {right}"
+			left = _latex_expr_structure(expr.left, latex_ctx)
+			right = _latex_expr_structure(expr.right, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({left} + {right} \\rightarrow {result_latex})"
+				case _:
+					return f"{left} + {right}"
 		case Sub():
-			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			left = _latex_expr_structure(expr.left, latex_ctx)
+			right = _latex_expr_structure(expr.right, latex_ctx)
 			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({left} - {right_formatted} \\rightarrow {result_latex})"
-			else:
-				return f"{left} - {right_formatted}"
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({left} - {right_formatted} \\rightarrow {result_latex})"
+				case _:
+					return f"{left} - {right_formatted}"
 		case Mul():
-			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			left = _latex_expr_structure(expr.left, latex_ctx)
+			right = _latex_expr_structure(expr.right, latex_ctx)
 			left_formatted = f"({left})" if _needs_parentheses(expr.left, expr) else left
 			right_formatted = f"({right})" if _needs_parentheses(expr.right, expr) else right
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({left_formatted} \\cdot {right_formatted} \\rightarrow {result_latex})"
-			else:
-				return f"{left_formatted} \\cdot {right_formatted}"
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return (
+						f"({left_formatted} \\cdot {right_formatted} \\rightarrow {result_latex})"
+					)
+				case _:
+					return f"{left_formatted} \\cdot {right_formatted}"
 		case Div():
-			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\frac{{{left}}}{{{right}}} \\rightarrow {result_latex})"
-			else:
-				return f"\\frac{{{left}}}{{{right}}}"
+			left = _latex_expr_structure(expr.left, latex_ctx)
+			right = _latex_expr_structure(expr.right, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\frac{{{left}}}{{{right}}} \\rightarrow {result_latex})"
+				case _:
+					return f"\\frac{{{left}}}{{{right}}}"
 		case Pow():
-			base = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			power = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			base = _latex_expr_structure(expr.left, latex_ctx)
+			power = _latex_expr_structure(expr.right, latex_ctx)
 			formatted_base = f"({base})" if _needs_parentheses(expr.left, expr) else base
 			power_formatted = (
 				f"{formatted_base}^{{{power}}}"
 				if len(power) > 1 or not power.isdigit()
 				else f"{formatted_base}^{power}"
 			)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({power_formatted} \\rightarrow {result_latex})"
-			else:
-				return power_formatted
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({power_formatted} \\rightarrow {result_latex})"
+				case _:
+					return power_formatted
 		case Eq() | Ne() | Lt() | Le() | Gt() | Ge() | And() | Or() as binary_op:
-			left = _latex_expr_structure(binary_op.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(binary_op.right, ctx, show_values, show_work)
+			left = _latex_expr_structure(binary_op.left, latex_ctx)
+			right = _latex_expr_structure(binary_op.right, latex_ctx)
 			expr_str = f"{left} {LATEX_OP[type(binary_op)]} {right}"
-			if show_work and ctx is not None:
-				result = binary_op.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({expr_str} \\rightarrow {result_latex})"
-			else:
-				return expr_str
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = binary_op.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({expr_str} \\rightarrow {result_latex})"
+				case _:
+					return expr_str
 		case Not():
-			operand = _latex_expr_structure(expr.left, ctx, show_values, show_work)
+			operand = _latex_expr_structure(expr.left, latex_ctx)
 			operand_formatted = f"({operand})" if _needs_parentheses(expr.left, expr) else operand
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\neg {operand_formatted} \\rightarrow {result_latex})"
-			else:
-				return f"\\neg {operand_formatted}"
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\neg {operand_formatted} \\rightarrow {result_latex})"
+				case _:
+					return f"\\neg {operand_formatted}"
 		case Approximately():
-			left = _latex_expr_structure(expr.left, ctx, show_values, show_work)
-			right = _latex_expr_structure(expr.right, ctx, show_values, show_work)
+			left = _latex_expr_structure(expr.left, latex_ctx)
+			right = _latex_expr_structure(expr.right, latex_ctx)
 			expr_str = f"{left} \\approx {right}"
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({expr_str} \\rightarrow {result_latex})"
-			else:
-				return expr_str
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({expr_str} \\rightarrow {result_latex})"
+				case _:
+					return expr_str
 		case Predicate(name=name, expr=pred_expr):
-			expr_latex = _latex_expr_structure(pred_expr, ctx, show_values, show_work)
+			expr_latex = _latex_expr_structure(pred_expr, latex_ctx)
 			pred_str = f"\\text{{{name}}}: {expr_latex}" if name else expr_latex
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({pred_str} \\rightarrow {result_latex})"
-			else:
-				return pred_str
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({pred_str} \\rightarrow {result_latex})"
+				case _:
+					return pred_str
 		case Mean():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\bar{{{operand_formatted}}} \\rightarrow {result_latex})"
-			else:
-				return f"\\bar{{{operand_formatted}}}"
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\bar{{{operand_formatted}}} \\rightarrow {result_latex})"
+				case _:
+					return f"\\bar{{{operand_formatted}}}"
 		case StdDev():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\sigma_{{{operand_formatted}}} \\rightarrow {result_latex})"
-			else:
-				return f"\\sigma_{{{operand_formatted}}}"
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\sigma_{{{operand_formatted}}} \\rightarrow {result_latex})"
+				case _:
+					return f"\\sigma_{{{operand_formatted}}}"
 		case Median():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\text{{median}}({operand_formatted}) \\rightarrow {result_latex})"
-			else:
-				return f"\\text{{median}}({operand_formatted})"
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\text{{median}}({operand_formatted}) \\rightarrow {result_latex})"
+				case _:
+					return f"\\text{{median}}({operand_formatted})"
 		case Percentile():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
 			percentile_str = (
 				f"P_{{{int(expr.percentile) if expr.percentile.is_integer() else expr.percentile}}}"
 			)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"({percentile_str}({operand_formatted}) \\rightarrow {result_latex})"
-			else:
-				return f"{percentile_str}({operand_formatted})"
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"({percentile_str}({operand_formatted}) \\rightarrow {result_latex})"
+				case _:
+					return f"{percentile_str}({operand_formatted})"
 		case Range():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(\\text{{range}}({operand_formatted}) \\rightarrow {result_latex})"
-			else:
-				return f"\\text{{range}}({operand_formatted})"
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(\\text{{range}}({operand_formatted}) \\rightarrow {result_latex})"
+				case _:
+					return f"\\text{{range}}({operand_formatted})"
 		case Count():
-			operand_formatted = _format_statistical_operand(expr, ctx, show_values)
-			if show_work and ctx is not None:
-				result = expr.eval(ctx)
-				result_latex = _latex_value(result.value)
-				return f"(|{operand_formatted}| \\rightarrow {result_latex})"
-			else:
-				return f"|{operand_formatted}|"
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result = expr.eval(ctx)
+					result_latex = _latex_value(result.value)
+					return f"(|{operand_formatted}| \\rightarrow {result_latex})"
+				case _:
+					return f"|{operand_formatted}|"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 
@@ -438,51 +447,52 @@ def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
 	return False
 
 
-def _format_statistical_operand(stat_expr: Expr[Any, Any], ctx: Any, show_values: bool) -> str:
+def _format_statistical_operand(stat_expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None) -> str:
 	"""Format statistical operand for LaTeX, handling iterable display.
 
 	This leverages the existing to_string method from the statistical operations
 	to get proper iterable formatting, then converts to LaTeX-friendly format.
 	"""
-	if ctx is None or not show_values:
-		# Without context or values, just show the variable name
-		if hasattr(stat_expr, "left"):
-			left_expr = getattr(stat_expr, "left")
-			if hasattr(left_expr, "name"):
-				return _latex_var(getattr(left_expr, "name"))
-		return "data"
+	match latex_ctx:
+		case LatexCtx(ctx, show) if show & Show.VALUES:
+			# Use the existing to_string formatting which handles iterable display nicely
+			string_repr = stat_expr.to_string(ctx)
 
-	# Use the existing to_string formatting which handles iterable display nicely
-	string_repr = stat_expr.to_string(ctx)
+			# Extract the operand part from the string representation
+			# E.g., "mean(measurements:5[1.0,..5.0] -> 3.0)" -> "measurements:5[1.0,..5.0]"
+			if " -> " in string_repr:
+				operand_part = string_repr.split(" -> ")[0]
+			else:
+				operand_part = string_repr
 
-	# Extract the operand part from the string representation
-	# E.g., "mean(measurements:5[1.0,..5.0] -> 3.0)" -> "measurements:5[1.0,..5.0]"
-	if " -> " in string_repr:
-		operand_part = string_repr.split(" -> ")[0]
-	else:
-		operand_part = string_repr
+			# Remove the operation name and parentheses
+			# E.g., "mean(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
+			# For Percentile: "percentile:95(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
 
-	# Remove the operation name and parentheses
-	# E.g., "mean(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
-	# For Percentile: "percentile:95(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
+			# Find the first opening parenthesis and extract what's inside
+			paren_start = operand_part.find("(")
+			if paren_start != -1:
+				# Find the matching closing parenthesis
+				paren_end = operand_part.rfind(")")
+				if paren_end != -1 and paren_end > paren_start:
+					variable_part = operand_part[paren_start + 1 : paren_end]
+				else:
+					variable_part = operand_part[paren_start + 1 :]
+			else:
+				variable_part = operand_part
 
-	# Find the first opening parenthesis and extract what's inside
-	paren_start = operand_part.find("(")
-	if paren_start != -1:
-		# Find the matching closing parenthesis
-		paren_end = operand_part.rfind(")")
-		if paren_end != -1 and paren_end > paren_start:
-			variable_part = operand_part[paren_start + 1 : paren_end]
-		else:
-			variable_part = operand_part[paren_start + 1 :]
-	else:
-		variable_part = operand_part
-
-	# Convert variable names to LaTeX format
-	# E.g., "measurements:5[1.0,..5.0]" -> "measurements:5[1.0,..5.0]"
-	if ":" in variable_part:
-		var_name, rest = variable_part.split(":", 1)
-		latex_var_name = _latex_var(var_name)
-		return f"{latex_var_name}:{rest}"
-	else:
-		return _latex_var(variable_part)
+			# Convert variable names to LaTeX format
+			# E.g., "measurements:5[1.0,..5.0]" -> "measurements:5[1.0,..5.0]"
+			if ":" in variable_part:
+				var_name, rest = variable_part.split(":", 1)
+				latex_var_name = _latex_var(var_name)
+				return f"{latex_var_name}:{rest}"
+			else:
+				return _latex_var(variable_part)
+		case _:
+			# Without context or values, just show the variable name
+			if hasattr(stat_expr, "left"):
+				left_expr = getattr(stat_expr, "left")
+				if hasattr(left_expr, "name"):
+					return _latex_var(getattr(left_expr, "name"))
+			return "data"
