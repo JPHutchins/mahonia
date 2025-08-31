@@ -25,9 +25,12 @@ from typing import Any, Final, Generic, NamedTuple, assert_never
 
 from mahonia import (
 	Add,
+	AllExpr,
 	And,
+	AnyExpr,
 	Approximately,
 	Const,
+	Contains,
 	Div,
 	Eq,
 	Expr,
@@ -321,6 +324,28 @@ def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None 
 					)
 				case _:
 					return f"|{operand_formatted}|"
+		case Contains():
+			element_formatted = _latex_expr_structure(expr.element, latex_ctx)
+			container_formatted = _latex_expr_structure(expr.container, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"({element_formatted} \\in {container_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"{element_formatted} \\in {container_formatted}"
+		case AnyExpr():
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"(\\exists x \\in {operand_formatted}: x \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"\\exists x \\in {operand_formatted}: x"
+		case AllExpr():
+			operand_formatted = _format_statistical_operand(expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"(\\forall x \\in {operand_formatted}: x \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"\\forall x \\in {operand_formatted}: x"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 

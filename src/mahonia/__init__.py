@@ -166,9 +166,11 @@ from typing import (
 	ClassVar,
 	Final,
 	Generic,
+	Iterable,
 	NamedTuple,
 	Protocol,
 	Self,
+	Sized,
 	TypeVar,
 	overload,
 	runtime_checkable,
@@ -187,6 +189,14 @@ S = TypeVar("S", bound=ContextProtocol)
 
 S_contra = TypeVar("S_contra", bound=ContextProtocol, contravariant=True)
 """The contravariant type of the expression's context."""
+
+T_co = TypeVar("T_co", covariant=True)
+
+
+class SizedIterable(Sized, Iterable[T_co], Protocol[T_co]):
+	"""Protocol for containers that are both sized and iterable with indexing support."""
+
+	def __getitem__(self, index: int, /) -> T_co: ...
 
 
 class _SupportsArithmetic(Protocol):
@@ -1036,3 +1046,166 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 			else f"{self.unwrap(ctx)} {self.expr.to_string(ctx)}"
 		)
 		return f"{self.name}: {result}" if self.name else result
+
+
+def _format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
+	"""Format an iterable variable with custom container display logic."""
+	if ctx is None:
+		return expr.to_string(ctx)
+
+	value: Final = expr.unwrap(ctx)
+
+	if isinstance(value, (str, bytes)):
+		return expr.to_string(ctx)
+
+	length: Final = len(value)
+	name: Final = getattr(expr, "name", None)
+	prefix: Final = f"{name}:" if name else ""
+
+	# Handle different container types
+	if hasattr(value, "__getitem__") and not isinstance(value, (str, bytes)):
+		# Indexable sequences (list, tuple)
+		if length <= 2:
+			return f"{prefix}{length}[{','.join(str(elem) for elem in value)}]"
+		else:
+			return f"{prefix}{length}[{value[0]},..{value[-1]}]"
+	else:
+		# Sets, other iterables without indexing
+		elements = list(value)
+		if length <= 2:
+			return f"{prefix}{length}[{','.join(str(elem) for elem in elements)}]"
+		else:
+			return f"{prefix}{length}[{elements[0]},..{elements[-1]}]"
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Contains(
+	BinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[bool, S],
+	Generic[T, S],
+):
+	"""Check if a value is contained in a collection.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[int]
+	... 	target: int
+	>>> values = Var[SizedIterable[int], Ctx]("values")
+	>>> target = Var[int, Ctx]("target")
+	>>> contains_expr = Contains(target, values)
+	>>> contains_expr.to_string()
+	'(target in values)'
+	>>> contains_expr.unwrap(Ctx(values=[1, 2, 3], target=2))
+	True
+	>>> contains_expr.unwrap(Ctx(values=[1, 2, 3], target=5))
+	False
+	>>> contains_expr.to_string(Ctx(values=[1, 2, 3], target=2))
+	'(target:2 in values:3[1,..3] -> True)'
+	"""
+
+	op: ClassVar[str] = " in "
+	template: ClassVar[str] = "({left}{op}{right})"
+	template_eval: ClassVar[str] = "({left}{op}{right} -> {out})"
+
+	element: Expr[T, S]
+	container: Expr[SizedIterable[T], S]
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return Const(None, self.element.unwrap(ctx) in self.container.unwrap(ctx))
+
+	def unwrap(self, ctx: S) -> bool:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = self.element.to_string(ctx)
+		right: Final = _format_iterable_var(self.container, ctx)
+		if ctx is None:
+			return self.template.format(left=left, op=self.op, right=right)
+		else:
+			return self.template_eval.format(
+				left=left, op=self.op, right=right, out=self.eval(ctx).value
+			)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class AnyExpr(
+	BinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[bool, S],
+):
+	"""True if any element in the container is truthy.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[bool]
+	>>> values = Var[list[bool], Ctx]("values")
+	>>> any_expr = AnyExpr(values)
+	>>> any_expr.to_string()
+	'any(values)'
+	>>> any_expr.unwrap(Ctx(values=[False, True, False]))
+	True
+	>>> any_expr.unwrap(Ctx(values=[False, False, False]))
+	False
+	>>> any_expr.to_string(Ctx(values=[False, True, False]))
+	'any(values:3[False,..False] -> True)'
+	"""
+
+	op: ClassVar[str] = "any"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+
+	container: Expr[SizedIterable[Any], S]
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return Const(None, any(self.container.unwrap(ctx)))
+
+	def unwrap(self, ctx: S) -> bool:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = _format_iterable_var(self.container, ctx)
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		else:
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class AllExpr(
+	BinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[bool, S],
+):
+	"""True if all elements in the container are truthy.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[bool]
+	>>> values = Var[list[bool], Ctx]("values")
+	>>> all_expr = AllExpr(values)
+	>>> all_expr.to_string()
+	'all(values)'
+	>>> all_expr.unwrap(Ctx(values=[True, True, True]))
+	True
+	>>> all_expr.unwrap(Ctx(values=[True, False, True]))
+	False
+	>>> all_expr.to_string(Ctx(values=[True, False, True]))
+	'all(values:3[True,..True] -> False)'
+	"""
+
+	op: ClassVar[str] = "all"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+
+	container: Expr[SizedIterable[Any], S]
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return Const(None, all(self.container.unwrap(ctx)))
+
+	def unwrap(self, ctx: S) -> bool:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = _format_iterable_var(self.container, ctx)
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		else:
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)

@@ -253,6 +253,61 @@ With context (using measurements data):
 - Mean sigma with data: $(\bar{\sigma:5[1.0,..5.0]} \rightarrow 3.0)$
 - StdDev alpha with data: $(\sigma_{\alpha:5[1.0,..5.0]} \rightarrow 1.5811388300841898)$
 
+## Container Operations
+
+Mahonia supports container operations that check membership and evaluate boolean properties of collections:
+
+```python
+from mahonia import Contains, AnyExpr, AllExpr, SizedIterable
+
+# Define context with container data
+class ContainerCtx(NamedTuple):
+    values: SizedIterable[int] = [1, 2, 3, 4, 5]
+    flags: SizedIterable[bool] = [True, False, True, True, False]
+    target: int = 3
+    search_value: int = 7
+
+# Variables for container data
+values = Var[SizedIterable[int], ContainerCtx]('values')
+flags = Var[SizedIterable[bool], ContainerCtx]('flags')
+target = Var[int, ContainerCtx]('target')
+```
+
+### Basic Container Operations
+
+- Contains (membership): `latex(Contains(target, values))` → $target \in values$
+- Contains (non-member): `latex(Contains(search_value, values))` → $search_{value} \in values$
+- Any (existential): `latex(AnyExpr(flags))` → $\exists x \in data: x$
+- All (universal): `latex(AllExpr(flags))` → $\forall x \in data: x$
+
+### Container Operations with Context
+
+When evaluated with context, container operations show data values and results:
+
+- Contains with data (found): `latex(Contains(target, values), ContainerCtx())` → $(target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True})$
+- Contains with data (missing): `latex(Contains(search_value, values), ContainerCtx())` → $(search_{value}:7 \in values:[1, 2, 3, 4, 5] \rightarrow \text{False})$
+- Any with data: `latex(AnyExpr(flags), ContainerCtx())` → $(\exists x \in flags:5[True,..False]: x \rightarrow \text{True})$
+- All with data: `latex(AllExpr(flags), ContainerCtx())` → $(\forall x \in flags:5[True,..False]: x \rightarrow \text{False})$
+
+### Container Operations Showing Work
+
+Using `Show.WORK` displays the evaluation process:
+
+- Contains with work: $(target \in values \rightarrow \text{True})$
+- Any with work: $(\exists x \in data: x \rightarrow \text{True})$
+- All with work: $(\forall x \in data: x \rightarrow \text{False})$
+
+### Complex Container Expressions
+
+Container operations can be combined with logical operations:
+
+- Logical combination: `latex((target in values) & any(flags))` → $target \in values \land \exists x \in data: x$
+- Container predicate: `latex(Predicate('Data Validation', condition))` → $\text{Data Validation}: target \in values \land \forall x \in data: x$
+
+With context evaluation:
+- Logic with data: $((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\exists x \in flags:5[True,..False]: x \rightarrow \text{True}) \rightarrow \text{True})$
+- Predicate with data: $(\text{Data Validation}: ((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\forall x \in flags:5[True,..False]: x \rightarrow \text{False}) \rightarrow \text{False}) \rightarrow \text{False})$
+
 ## Expressions with Context
 
 The `latex()` function supports an optional context parameter that evaluates variables and shows their values:

@@ -8,7 +8,6 @@ useful for manufacturing quality control and batch analysis.
 """
 
 import statistics
-from collections.abc import Iterable, Sized
 from dataclasses import dataclass
 from typing import (
 	TYPE_CHECKING,
@@ -16,11 +15,20 @@ from typing import (
 	ClassVar,
 	Final,
 	Generic,
-	Protocol,
 	TypeVar,
 )
 
-from mahonia import BinaryOperationOverloads, Const, Eval, Expr, S, ToString, UnaryOpToString
+from mahonia import (
+	BinaryOperationOverloads,
+	Const,
+	Eval,
+	Expr,
+	S,
+	SizedIterable,
+	ToString,
+	UnaryOpToString,
+	_format_iterable_var,
+)
 
 if TYPE_CHECKING:
 	from statistics import _NumberT
@@ -30,10 +38,6 @@ else:
 	_NumberT = TypeVar("_NumberT", bound=float | Decimal | Fraction)  # type: ignore[misc]
 
 T_co = TypeVar("T_co", covariant=True)
-
-
-class SizedIterable(Sized, Iterable[T_co], Protocol[T_co]):
-	def __getitem__(self, index: int, /) -> T_co: ...
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -268,23 +272,3 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 			return self.template.format(op=self.op, left=left)
 		else:
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
-
-
-def _format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
-	"""Format an iterable variable with custom container display logic."""
-	if ctx is None:
-		return expr.to_string(ctx)
-
-	value: Final = expr.unwrap(ctx)
-
-	if isinstance(value, (str, bytes)):
-		return expr.to_string(ctx)
-
-	length: Final = len(value)
-	name: Final = getattr(expr, "name", None)
-	prefix: Final = f"{name}:" if name else ""
-
-	if length <= 2:
-		return f"{prefix}{length}[{','.join(str(elem) for elem in value)}]"
-	else:
-		return f"{prefix}{length}[{value[0]},..{value[-1]}]"

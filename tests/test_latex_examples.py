@@ -13,8 +13,11 @@ from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 from mahonia import (
+	AllExpr,
+	AnyExpr,
 	Approximately,
 	Const,
+	Contains,
 	Expr,
 	Percent,
 	PlusMinus,
@@ -44,6 +47,13 @@ def test_generate_latex_examples() -> None:
 		measurements: SizedIterable[float] = [1.0, 2.0, 3.0, 4.0, 5.0]
 		voltages: SizedIterable[float] = [4.95, 5.05, 4.98, 5.02, 5.0]
 		batch_sizes: SizedIterable[int] = [10, 12, 8, 15, 11]
+
+	# Define container context for container operations
+	class ContainerCtx(NamedTuple):
+		values: SizedIterable[int] = [1, 2, 3, 4, 5]
+		flags: SizedIterable[bool] = [True, False, True, True, False]
+		target: int = 3
+		search_value: int = 7
 
 	# Start building the markdown content
 	lines = [
@@ -559,6 +569,106 @@ def test_generate_latex_examples() -> None:
 			"With context (using measurements data):",
 			f"- Mean sigma with data: ${latex(mean_sigma, LatexCtx(greek_stats_ctx))}$",
 			f"- StdDev alpha with data: ${latex(stddev_alpha, LatexCtx(greek_stats_ctx))}$",
+			"",
+		]
+	)
+
+	# Container Operations Examples - NEW SECTION
+	container_ctx = ContainerCtx()
+
+	lines.extend(
+		[
+			"## Container Operations",
+			"",
+			"Mahonia supports container operations that check membership and evaluate boolean properties of collections:",
+			"",
+			"```python",
+			"from mahonia import Contains, AnyExpr, AllExpr, SizedIterable",
+			"",
+			"# Define context with container data",
+			"class ContainerCtx(NamedTuple):",
+			"    values: SizedIterable[int] = [1, 2, 3, 4, 5]",
+			"    flags: SizedIterable[bool] = [True, False, True, True, False]",
+			"    target: int = 3",
+			"    search_value: int = 7",
+			"",
+			"# Variables for container data",
+			"values = Var[SizedIterable[int], ContainerCtx]('values')",
+			"flags = Var[SizedIterable[bool], ContainerCtx]('flags')",
+			"target = Var[int, ContainerCtx]('target')",
+			"```",
+			"",
+		]
+	)
+
+	# Container operations variables
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	flags = Var[SizedIterable[bool], ContainerCtx]("flags")
+	target = Var[int, ContainerCtx]("target")
+	search_value = Var[int, ContainerCtx]("search_value")
+
+	# Individual container operations
+	contains_target = Contains(target, values)
+	contains_missing = Contains(search_value, values)
+	any_flags = AnyExpr(flags)
+	all_flags = AllExpr(flags)
+
+	lines.extend(
+		[
+			"### Basic Container Operations",
+			"",
+			f"- Contains (membership): `latex(Contains(target, values))` → ${latex(contains_target)}$",
+			f"- Contains (non-member): `latex(Contains(search_value, values))` → ${latex(contains_missing)}$",
+			f"- Any (existential): `latex(AnyExpr(flags))` → ${latex(any_flags)}$",
+			f"- All (universal): `latex(AllExpr(flags))` → ${latex(all_flags)}$",
+			"",
+		]
+	)
+
+	lines.extend(
+		[
+			"### Container Operations with Context",
+			"",
+			"When evaluated with context, container operations show data values and results:",
+			"",
+			f"- Contains with data (found): `latex(Contains(target, values), ContainerCtx())` → ${latex(contains_target, LatexCtx(container_ctx))}$",
+			f"- Contains with data (missing): `latex(Contains(search_value, values), ContainerCtx())` → ${latex(contains_missing, LatexCtx(container_ctx))}$",
+			f"- Any with data: `latex(AnyExpr(flags), ContainerCtx())` → ${latex(any_flags, LatexCtx(container_ctx))}$",
+			f"- All with data: `latex(AllExpr(flags), ContainerCtx())` → ${latex(all_flags, LatexCtx(container_ctx))}$",
+			"",
+		]
+	)
+
+	# Container operations with Show.WORK
+	lines.extend(
+		[
+			"### Container Operations Showing Work",
+			"",
+			"Using `Show.WORK` displays the evaluation process:",
+			"",
+			f"- Contains with work: ${latex(contains_target, LatexCtx(container_ctx, Show.WORK))}$",
+			f"- Any with work: ${latex(any_flags, LatexCtx(container_ctx, Show.WORK))}$",
+			f"- All with work: ${latex(all_flags, LatexCtx(container_ctx, Show.WORK))}$",
+			"",
+		]
+	)
+
+	# Complex container expressions
+	container_logic = contains_target & any_flags
+	container_predicate = Predicate("Data Validation", contains_target & all_flags)
+
+	lines.extend(
+		[
+			"### Complex Container Expressions",
+			"",
+			"Container operations can be combined with logical operations:",
+			"",
+			f"- Logical combination: `latex((target in values) & any(flags))` → ${latex(container_logic)}$",
+			f"- Container predicate: `latex(Predicate('Data Validation', condition))` → ${latex(container_predicate)}$",
+			"",
+			"With context evaluation:",
+			f"- Logic with data: ${latex(container_logic, LatexCtx(container_ctx))}$",
+			f"- Predicate with data: ${latex(container_predicate, LatexCtx(container_ctx))}$",
 			"",
 		]
 	)
