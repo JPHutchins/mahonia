@@ -34,6 +34,7 @@ from mahonia import (
 	Div,
 	Eq,
 	Expr,
+	Func,
 	Ge,
 	Gt,
 	Le,
@@ -101,7 +102,7 @@ class LatexCtx(NamedTuple, Generic[S]):
 	show: Show = Show.VALUES | Show.WORK
 
 
-def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
+def latex(expr: Expr[Any, S] | Func[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	"""Convert a mahonia expression to LaTeX mathematical notation.
 
 	Examples:
@@ -139,6 +140,9 @@ def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	>>> latex((x + y) / 2, LatexCtx(test_ctx, Show.VALUES))
 	'(\\\\frac{x:2.0 + y:3.0}{2} \\\\rightarrow 2.5)'
 	"""
+	if isinstance(expr, Func):
+		return _latex_func(expr, ctx)
+
 	match ctx:
 		case None:
 			return _latex_expr_structure(expr)
@@ -153,6 +157,20 @@ def latex(expr: Expr[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 			return _format_with_result(_latex_expr_structure(expr, ctx), expr.eval(ctx_data))
 		case _:
 			assert_never(ctx)
+
+
+def _latex_func(func: Func[Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
+	"""Convert a Func to LaTeX lambda calculus notation."""
+	expr_latex = _latex_expr_structure(func.expr, latex_ctx)
+
+	if len(func.args) == 0:
+		return f"\\lambda.{expr_latex}"
+	elif len(func.args) == 1:
+		arg_latex = _latex_expr_structure(func.args[0], latex_ctx)
+		return f"\\lambda {arg_latex}.{expr_latex}"
+	else:
+		args_latex = ",".join(_latex_expr_structure(arg, latex_ctx) for arg in func.args)
+		return f"\\lambda {args_latex}.{expr_latex}"
 
 
 def _latex_value(value: Any) -> str:

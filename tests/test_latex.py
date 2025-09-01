@@ -6,6 +6,7 @@ from typing import NamedTuple
 from mahonia import (
 	Approximately,
 	Const,
+	Func,
 	Percent,
 	PlusMinus,
 	Predicate,
@@ -1077,3 +1078,131 @@ def test_statistical_operations_with_subscripts() -> None:
 		latex(mean_expr, LatexCtx(measurements_ctx, Show.VALUES))
 		== "(\\bar{measurements:5[10.0,..30.0]} \\rightarrow 20.0)"
 	)
+
+
+# Function (Lambda) Expressions Tests
+
+
+def test_func_basic_two_args() -> None:
+	"""Test basic two-argument function conversion."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	func = Func((x, y), x + y)
+	assert latex(func) == "\\lambda x,y.x + y"
+
+
+def test_func_single_arg() -> None:
+	"""Test single-argument function conversion."""
+	x = Var[int, Ctx]("x")
+	func = Func((x,), x * 2)
+	assert latex(func) == "\\lambda x.x \\cdot 2"
+
+
+def test_func_no_args() -> None:
+	"""Test no-argument function (constant) conversion."""
+	const_expr = Const("pi", 3.14159)
+	func = Func((), const_expr)
+	assert latex(func) == "\\lambda.\\pi"
+
+
+def test_func_auto_extraction() -> None:
+	"""Test function with automatic variable extraction."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	func = (x + y).to_func()
+	assert latex(func) == "\\lambda x,y.x + y"
+
+
+def test_func_complex_arithmetic() -> None:
+	"""Test function with complex arithmetic expression."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	z = Var[float, Ctx]("z")
+	func = ((x + y) * z).to_func()
+	assert latex(func) == "\\lambda x,y,z.(x + y) \\cdot z"
+
+
+def test_func_boolean_expression() -> None:
+	"""Test function with boolean expression."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	func = (x > y).to_func()
+	assert latex(func) == "\\lambda x,y.x > y"
+
+
+def test_func_logical_operations() -> None:
+	"""Test function with logical operations."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	func = ((x > 0) & (y < 10)).to_func()
+	assert latex(func) == "\\lambda x,y.x > 0 \\land y < 10"
+
+
+def test_func_with_context_values() -> None:
+	"""Test function LaTeX representation with context showing values."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	func = (x + y).to_func()
+
+	ctx_test = Ctx(x=2, y=3)
+	result = latex(func, LatexCtx(ctx_test, Show.VALUES))
+	assert result == "\\lambda x:2,y:3.x:2 + y:3"
+
+
+def test_func_with_context_no_values() -> None:
+	"""Test function LaTeX representation with context but no values shown."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	func = (x + y).to_func()
+
+	ctx_test = Ctx(x=2, y=3)
+	result = latex(func, LatexCtx(ctx_test, Show(0)))
+	assert result == "\\lambda x,y.x + y"
+
+
+def test_func_greek_variables() -> None:
+	"""Test function with Greek letter variables."""
+	alpha = Var[float, Ctx]("alpha")
+	beta = Var[float, Ctx]("beta")
+	func = (alpha * beta).to_func()
+	assert latex(func) == "\\lambda \\alpha,\\beta.\\alpha \\cdot \\beta"
+
+
+def test_func_nested_expressions() -> None:
+	"""Test function with nested expressions requiring parentheses."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	z = Var[float, Ctx]("z")
+	func = (x + (y * z)).to_func()
+	assert latex(func) == "\\lambda x,y,z.x + y \\cdot z"
+
+
+def test_func_power_operations() -> None:
+	"""Test function with power operations."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	func = (x**y).to_func()
+	assert latex(func) == "\\lambda x,y.x^{y}"
+
+
+def test_func_division_operations() -> None:
+	"""Test function with division operations."""
+	x = Var[float, Ctx]("x")
+	y = Var[float, Ctx]("y")
+	func = (x / y).to_func()
+	assert latex(func) == "\\lambda x,y.\\frac{x}{y}"
+
+
+def test_func_single_variable_multiple_usage() -> None:
+	"""Test function where single variable is used multiple times."""
+	x = Var[int, Ctx]("x")
+	func = ((x * x) + x).to_func()
+	assert latex(func) == "\\lambda x.x \\cdot x + x"
+
+
+def test_func_with_constants() -> None:
+	"""Test function mixing variables and constants."""
+	x = Var[int, Ctx]("x")
+	offset = Const("offset", 10)
+	func = (x + offset).to_func()
+	assert latex(func) == "\\lambda x.x + offset"

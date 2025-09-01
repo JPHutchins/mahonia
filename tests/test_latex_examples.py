@@ -19,6 +19,7 @@ from mahonia import (
 	Const,
 	Contains,
 	Expr,
+	Func,
 	Percent,
 	PlusMinus,
 	Predicate,
@@ -827,6 +828,84 @@ def test_generate_latex_examples() -> None:
 			f"- Structure: `latex((x + z) * y, LatexCtx(ctx, Show(0)))` → ${latex(complex_show, LatexCtx(ctx, Show(0)))}$",
 			f"- VALUES: `latex((x + z) * y, LatexCtx(ctx, Show.VALUES))` → ${latex(complex_show, LatexCtx(ctx, Show.VALUES))}$",
 			f"- Both: `latex((x + z) * y, LatexCtx(ctx))` → ${latex(complex_show, LatexCtx(ctx))}$",
+			"",
+		]
+	)
+
+	# Function Examples - NEW SECTION
+	func_ctx = Ctx(x=2.0, y=3.0, z=1.5, w=4.0, a=1.0, b=2.0, c=3.0, v=5.0)
+
+	lines.extend(
+		[
+			"## Function Expressions (Lambda Calculus)",
+			"",
+			"Mahonia supports function expressions using lambda calculus notation:",
+			"",
+			"```python",
+			"from mahonia import Func, Var",
+			"",
+			"# Define variables",
+			"x = Var[int, Ctx]('x')",
+			"y = Var[int, Ctx]('y')",
+			"",
+			"# Manual function construction",
+			"func = Func((x, y), x + y)",
+			"",
+			"# Automatic variable extraction",
+			"func_auto = (x + y).to_func()",
+			"```",
+			"",
+		]
+	)
+
+	# Function examples
+	x_func = Var[float, Ctx]("x")
+	y_func = Var[float, Ctx]("y")
+	z_func = Var[float, Ctx]("z")
+
+	# Basic function examples
+	func_add = Func[float, Ctx]((x_func, y_func), x_func + y_func)
+	func_single = Func[float, Ctx]((x_func,), x_func * 2)
+	func_const = Func[float, Ctx]((), Const("pi", 3.14159))
+	func_auto = (x_func + y_func).to_func()
+
+	lines.extend(
+		[
+			"### Basic Function Examples",
+			"",
+			f"- Two-argument function: `latex(Func((x, y), x + y))` → ${latex(func_add)}$",
+			f"- Single-argument function: `latex(Func((x,), x * 2))` → ${latex(func_single)}$",
+			f"- No-argument function: `latex(Func((), Const('pi', 3.14159)))` → ${latex(func_const)}$",
+			f"- Auto-extracted function: `latex((x + y).to_func())` → ${latex(func_auto)}$",
+			"",
+		]
+	)
+
+	# Complex function examples
+	func_complex = ((x_func + y_func) * z_func).to_func()
+	func_boolean = (x_func > y_func).to_func()
+	func_logical = ((x_func > 0) & (y_func < 10)).to_func()
+
+	lines.extend(
+		[
+			"### Complex Function Examples",
+			"",
+			f"- Complex arithmetic: `latex(((x + y) * z).to_func())` → ${latex(func_complex)}$",
+			f"- Boolean expression: `latex((x > y).to_func())` → ${latex(func_boolean)}$",
+			f"- Logical operations: `latex(((x > 0) & (y < 10)).to_func())` → ${latex(func_logical)}$",
+			"",
+		]
+	)
+
+	# Functions with context
+	lines.extend(
+		[
+			"### Functions with Context",
+			"",
+			"Functions show variable values when context is provided:",
+			"",
+			f"- Function with VALUES: `latex(func, LatexCtx(ctx, Show.VALUES))` → ${latex(func_auto, LatexCtx(func_ctx, Show.VALUES))}$",
+			f"- Function structure only: `latex(func, LatexCtx(ctx, Show(0)))` → ${latex(func_auto, LatexCtx(func_ctx, Show(0)))}$",
 			"",
 		]
 	)
