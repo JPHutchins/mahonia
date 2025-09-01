@@ -179,6 +179,9 @@ from typing import (
 T = TypeVar("T")
 """The type of the expression's value."""
 
+U = TypeVar("U")
+"""A generic type parameter for mapped values."""
+
 
 class ContextProtocol(Protocol):
 	def __getattribute__(self, name: str, /) -> Any: ...
@@ -338,11 +341,86 @@ class Expr(Protocol[T, S]):
 	def __call__(self, ctx: S) -> "Const[T]":
 		return self.eval(ctx)
 
+	def to_func(self) -> "Func[T, S]":
+		return Func(_extract_vars((), self), self)
+
+	def map(self, container: "Expr[SizedIterable[Any], Any]") -> "MapExpr[Any, T, Any]":
+		"""Apply this expression as a function to each element in a container.
+
+		This is shorthand for: self.to_func() -> MapExpr(func, container)
+
+		>>> from typing import NamedTuple
+		>>> class ElemCtx(NamedTuple):
+		... 	x: int
+		>>> class ContainerCtx(NamedTuple):
+		... 	numbers: list[int]
+		>>> x = Var[int, ElemCtx]("x")
+		>>> numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+		>>> mapped = (x * 2).map(numbers)
+		>>> mapped.to_string()
+		'(map x -> (x * 2) numbers)'
+		"""
+		func = self.to_func()
+		return MapExpr(func, container)
+
 	def unwrap(self, ctx: S) -> T:
 		return self.eval(ctx).value
 
 	def bind(self, ctx: S) -> BoundExpr[T, S]:
 		return BoundExpr(self, ctx)
+
+
+def _extract_vars(
+	vars: tuple["Var[Any, Any]", ...], expr: "Expr[Any, Any]"
+) -> tuple["Var[Any, Any]", ...]:
+	"""Extract all unique variables from an expression, preserving order."""
+	match expr:
+		case Var() as v:
+			if id(v) not in (id(var) for var in vars):
+				vars += (v,)
+		case BinaryOpEval(left, right):
+			vars = _extract_vars(vars, left)
+			vars = _extract_vars(vars, right)
+		case UnaryOpEval(left):
+			vars = _extract_vars(vars, left)
+		case Contains(element, container):
+			vars = _extract_vars(vars, element)
+			vars = _extract_vars(vars, container)
+		case AnyExpr(container) | AllExpr(container):
+			vars = _extract_vars(vars, container)
+		case MapExpr(func, container):
+			# Extract variables from both the function and container
+			for arg in func.args:
+				if isinstance(arg, Var) and id(arg) not in (id(var) for var in vars):
+					vars += (arg,)
+			vars = _extract_vars(vars, container)
+		case _:
+			pass
+	return vars
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Func(Generic[T, S]):
+	args: tuple[Expr[T, S], ...]
+	expr: Expr[T, S]
+
+	def to_string(self, ctx: S | None = None) -> str:
+		if ctx is None:
+			if len(self.args) == 0:
+				return f"() -> {self.expr.to_string()}"
+			elif len(self.args) == 1:
+				return f"{self.args[0].to_string()} -> {self.expr.to_string()}"
+			else:
+				args_str = ", ".join(arg.to_string() for arg in self.args)
+				return f"({args_str}) -> {self.expr.to_string()}"
+		else:
+			if len(self.args) == 0:
+				return f"() -> {self.expr.to_string()} -> {self.expr.unwrap(ctx)}"
+			elif len(self.args) == 1:
+				return f"{self.args[0].unwrap(ctx)} -> {self.expr.to_string()} -> {self.expr.unwrap(ctx)}"
+			else:
+				args_str = ", ".join(f"{arg.unwrap(ctx)}" for arg in self.args)
+				return f"({args_str}) -> {self.expr.to_string()} -> {self.expr.unwrap(ctx)}"
 
 
 @runtime_checkable
@@ -366,9 +444,6 @@ class BoolExpr(Expr[TSupportsLogic, S], Protocol[TSupportsLogic, S]):
 	"""
 
 	def eval(self, ctx: S) -> "Const[TSupportsLogic]": ...  # type: ignore[override]
-
-	def __call__(self, ctx: S) -> "Const[TSupportsLogic]":
-		return self.eval(ctx)
 
 
 class UnaryOperationOverloads(Expr[bool, S]):
@@ -1209,3 +1284,46 @@ class AllExpr(
 			return self.template.format(op=self.op, left=left)
 		else:
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class MapExpr(
+	BinaryOperationOverloads[SizedIterable[U], S],
+	Generic[T, U, S],
+):
+	"""Apply a function to each element in a container."""
+
+	op: ClassVar[str] = "map"
+	template: ClassVar[str] = "({op} {func} {container})"
+	template_eval: ClassVar[str] = "({op} {func} {container} -> {out})"
+
+	func: "Func[U, Any]"
+	container: Expr[SizedIterable[T], S]
+
+	def eval(self, ctx: S) -> "Const[SizedIterable[U]]":
+		container_values = self.container.unwrap(ctx)
+		result = []
+		for item in container_values:
+			# Create a temporary context for the function evaluation
+			if self.func.args and hasattr(self.func.args[0], "name"):
+				arg_name = self.func.args[0].name  # type: ignore[attr-defined]
+				temp_ctx = type("TempCtx", (), {arg_name: item})()
+				result.append(self.func.expr.unwrap(temp_ctx))
+		return Const(None, result)
+
+	def unwrap(self, ctx: S) -> SizedIterable[U]:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		func_str = self.func.to_string()
+		container_str = self.container.to_string() if ctx is None else self.container.to_string()
+		if ctx is None:
+			return self.template.format(op=self.op, func=func_str, container=container_str)
+		else:
+			result_value = self.eval(ctx).value
+			# Use existing formatter for consistent output
+			result_expr = Const(None, result_value)
+			out_str = _format_iterable_var(result_expr, ctx)
+			return self.template_eval.format(
+				op=self.op, func=func_str, container=container_str, out=out_str
+			)
