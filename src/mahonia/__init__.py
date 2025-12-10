@@ -1222,6 +1222,21 @@ class AnyExpr(
 	False
 	>>> any_expr.to_string(Ctx(values=[False, True, False]))
 	'any(values:3[False,..False] -> True)'
+
+	With complex expressions like MapExpr, shows the full evaluation trace:
+
+	>>> class NumCtx(NamedTuple):
+	... 	nums: list[int]
+	>>> nums = Var[list[int], NumCtx]("nums")
+	>>> n = Var[int, NumCtx]("n")
+	>>> gt_five = (n > 5).map(nums)
+	>>> any_gt_five = AnyExpr(gt_five)
+	>>> any_gt_five.to_string()
+	'any((map n -> (n > 5) nums))'
+	>>> any_gt_five.to_string(NumCtx(nums=[3, 7, 2]))
+	'any((map n -> (n > 5) nums -> 3[False,..False]) -> True)'
+	>>> any_gt_five.to_string(NumCtx(nums=[1, 2, 3]))
+	'any((map n -> (n > 5) nums -> 3[False,..False]) -> False)'
 	"""
 
 	op: ClassVar[str] = "any"
@@ -1237,10 +1252,14 @@ class AnyExpr(
 		return self.eval(ctx).value
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = _format_iterable_var(self.container, ctx)
 		if ctx is None:
+			left = _format_iterable_var(self.container, ctx)
 			return self.template.format(op=self.op, left=left)
 		else:
+			if isinstance(self.container, (Var, Const)):
+				left = _format_iterable_var(self.container, ctx)
+			else:
+				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
 
@@ -1264,6 +1283,21 @@ class AllExpr(
 	False
 	>>> all_expr.to_string(Ctx(values=[True, False, True]))
 	'all(values:3[True,..True] -> False)'
+
+	With complex expressions like MapExpr, shows the full evaluation trace:
+
+	>>> class NumCtx(NamedTuple):
+	... 	nums: list[int]
+	>>> nums = Var[list[int], NumCtx]("nums")
+	>>> n = Var[int, NumCtx]("n")
+	>>> lt_ten = (n < 10).map(nums)
+	>>> all_lt_ten = AllExpr(lt_ten)
+	>>> all_lt_ten.to_string()
+	'all((map n -> (n < 10) nums))'
+	>>> all_lt_ten.to_string(NumCtx(nums=[3, 7, 2]))
+	'all((map n -> (n < 10) nums -> 3[True,..True]) -> True)'
+	>>> all_lt_ten.to_string(NumCtx(nums=[3, 15, 2]))
+	'all((map n -> (n < 10) nums -> 3[True,..True]) -> False)'
 	"""
 
 	op: ClassVar[str] = "all"
@@ -1279,10 +1313,14 @@ class AllExpr(
 		return self.eval(ctx).value
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = _format_iterable_var(self.container, ctx)
 		if ctx is None:
+			left = _format_iterable_var(self.container, ctx)
 			return self.template.format(op=self.op, left=left)
 		else:
+			if isinstance(self.container, (Var, Const)):
+				left = _format_iterable_var(self.container, ctx)
+			else:
+				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
 
