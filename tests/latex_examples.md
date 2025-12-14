@@ -286,8 +286,8 @@ When evaluated with context, container operations show data values and results:
 
 - Contains with data (found): `latex(Contains(target, values), ContainerCtx())` → $(target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True})$
 - Contains with data (missing): `latex(Contains(search_value, values), ContainerCtx())` → $(search_{value}:7 \in values:[1, 2, 3, 4, 5] \rightarrow \text{False})$
-- Any with data: `latex(AnyExpr(flags), ContainerCtx())` → $(\exists x \in flags:5[True,..False]: x \rightarrow \text{True})$
-- All with data: `latex(AllExpr(flags), ContainerCtx())` → $(\forall x \in flags:5[True,..False]: x \rightarrow \text{False})$
+- Any with data: `latex(AnyExpr(flags), ContainerCtx())` → $(\exists x \in data: x \rightarrow \text{True})$
+- All with data: `latex(AllExpr(flags), ContainerCtx())` → $(\forall x \in data: x \rightarrow \text{False})$
 
 ### Container Operations Showing Work
 
@@ -305,8 +305,8 @@ Container operations can be combined with logical operations:
 - Container predicate: `latex(Predicate('Data Validation', condition))` → $\text{Data Validation}: target \in values \land \forall x \in data: x$
 
 With context evaluation:
-- Logic with data: $((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\exists x \in flags:5[True,..False]: x \rightarrow \text{True}) \rightarrow \text{True})$
-- Predicate with data: $(\text{Data Validation}: ((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\forall x \in flags:5[True,..False]: x \rightarrow \text{False}) \rightarrow \text{False}) \rightarrow \text{False})$
+- Logic with data: $((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\exists x \in data: x \rightarrow \text{True}) \rightarrow \text{True})$
+- Predicate with data: $(\text{Data Validation}: ((target:3 \in values:[1, 2, 3, 4, 5] \rightarrow \text{True}) \land (\forall x \in data: x \rightarrow \text{False}) \rightarrow \text{False}) \rightarrow \text{False})$
 
 ## Expressions with Context
 

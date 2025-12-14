@@ -1123,8 +1123,20 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 		return f"{self.name}: {result}" if self.name else result
 
 
-def _format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
-	"""Format an iterable variable with custom container display logic."""
+def format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
+	"""Format an iterable variable with compact container display.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	nums: list[int]
+	>>> nums = Var[list[int], Ctx]("nums")
+	>>> format_iterable_var(nums, None)
+	'nums'
+	>>> format_iterable_var(nums, Ctx(nums=[1, 2]))
+	'nums:2[1,2]'
+	>>> format_iterable_var(nums, Ctx(nums=[1, 2, 3, 4, 5]))
+	'nums:5[1,..5]'
+	"""
 	if ctx is None:
 		return expr.to_string(ctx)
 
@@ -1137,20 +1149,23 @@ def _format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> st
 	name: Final = getattr(expr, "name", None)
 	prefix: Final = f"{name}:" if name else ""
 
+	def _serialize_elem(elem: Any) -> str:
+		return elem.to_string(ctx) if isinstance(elem, Expr) else str(elem)  # type: ignore[arg-type]
+
 	# Handle different container types
 	if hasattr(value, "__getitem__") and not isinstance(value, (str, bytes)):
 		# Indexable sequences (list, tuple)
 		if length <= 2:
-			return f"{prefix}{length}[{','.join(str(elem) for elem in value)}]"
+			return f"{prefix}{length}[{','.join(_serialize_elem(elem) for elem in value)}]"
 		else:
-			return f"{prefix}{length}[{value[0]},..{value[-1]}]"
+			return f"{prefix}{length}[{_serialize_elem(value[0])},..{_serialize_elem(value[-1])}]"
 	else:
 		# Sets, other iterables without indexing
 		elements = list(value)
 		if length <= 2:
-			return f"{prefix}{length}[{','.join(str(elem) for elem in elements)}]"
+			return f"{prefix}{length}[{','.join(_serialize_elem(elem) for elem in elements)}]"
 		else:
-			return f"{prefix}{length}[{elements[0]},..{elements[-1]}]"
+			return f"{prefix}{length}[{_serialize_elem(elements[0])},..{_serialize_elem(elements[-1])}]"
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1193,7 +1208,7 @@ class Contains(
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.element.to_string(ctx)
-		right: Final = _format_iterable_var(self.container, ctx)
+		right: Final = format_iterable_var(self.container, ctx)
 		if ctx is None:
 			return self.template.format(left=left, op=self.op, right=right)
 		else:
@@ -1234,9 +1249,9 @@ class AnyExpr(
 	>>> any_gt_five.to_string()
 	'any((map n -> (n > 5) nums))'
 	>>> any_gt_five.to_string(NumCtx(nums=[3, 7, 2]))
-	'any((map n -> (n > 5) nums -> 3[False,..False]) -> True)'
+	'any((map n -> (n > 5) nums:3[3,..2] -> 3[False,..False]) -> True)'
 	>>> any_gt_five.to_string(NumCtx(nums=[1, 2, 3]))
-	'any((map n -> (n > 5) nums -> 3[False,..False]) -> False)'
+	'any((map n -> (n > 5) nums:3[1,..3] -> 3[False,..False]) -> False)'
 	"""
 
 	op: ClassVar[str] = "any"
@@ -1253,11 +1268,11 @@ class AnyExpr(
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
-			left = _format_iterable_var(self.container, ctx)
+			left = format_iterable_var(self.container, ctx)
 			return self.template.format(op=self.op, left=left)
 		else:
 			if isinstance(self.container, (Var, Const)):
-				left = _format_iterable_var(self.container, ctx)
+				left = format_iterable_var(self.container, ctx)
 			else:
 				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
@@ -1295,9 +1310,9 @@ class AllExpr(
 	>>> all_lt_ten.to_string()
 	'all((map n -> (n < 10) nums))'
 	>>> all_lt_ten.to_string(NumCtx(nums=[3, 7, 2]))
-	'all((map n -> (n < 10) nums -> 3[True,..True]) -> True)'
+	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)'
 	>>> all_lt_ten.to_string(NumCtx(nums=[3, 15, 2]))
-	'all((map n -> (n < 10) nums -> 3[True,..True]) -> False)'
+	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> False)'
 	"""
 
 	op: ClassVar[str] = "all"
@@ -1314,11 +1329,11 @@ class AllExpr(
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
-			left = _format_iterable_var(self.container, ctx)
+			left = format_iterable_var(self.container, ctx)
 			return self.template.format(op=self.op, left=left)
 		else:
 			if isinstance(self.container, (Var, Const)):
-				left = _format_iterable_var(self.container, ctx)
+				left = format_iterable_var(self.container, ctx)
 			else:
 				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
@@ -1354,14 +1369,14 @@ class MapExpr(
 
 	def to_string(self, ctx: S | None = None) -> str:
 		func_str = self.func.to_string()
-		container_str = self.container.to_string() if ctx is None else self.container.to_string()
 		if ctx is None:
+			container_str = self.container.to_string()
 			return self.template.format(op=self.op, func=func_str, container=container_str)
 		else:
+			container_str = format_iterable_var(self.container, ctx)
 			result_value = self.eval(ctx).value
-			# Use existing formatter for consistent output
 			result_expr = Const(None, result_value)
-			out_str = _format_iterable_var(result_expr, ctx)
+			out_str = format_iterable_var(result_expr, ctx)
 			return self.template_eval.format(
 				op=self.op, func=func_str, container=container_str, out=out_str
 			)

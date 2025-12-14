@@ -207,3 +207,238 @@ def test_explicit_contains_types() -> None:
 	# Test with literal element - wrap in Const
 	contains_expr2 = Contains(Const("literal", 5), values)
 	assert_type(contains_expr2, Contains[int, Any])  # Context type is Any due to Const
+
+
+def test_iterable_serialization_with_expr_elements() -> None:
+	"""Test that iterables containing Expr objects are serialized correctly."""
+	from mahonia import format_iterable_var
+
+	class ExprCtx(NamedTuple):
+		exprs: list[Const[int]]
+
+	# Create a list of Const expressions
+	const_list = [Const("a", 1), Const("b", 2), Const("c", 3)]
+	ctx = ExprCtx(exprs=const_list)
+
+	exprs_var = Var[SizedIterable[Const[int]], ExprCtx]("exprs")
+
+	# Test with 3 elements (should show first..last)
+	result = format_iterable_var(exprs_var, ctx)
+	assert result == "exprs:3[a:1,..c:3]"
+
+	# Test with 2 elements (should show all)
+	two_ctx = ExprCtx(exprs=[Const("x", 10), Const("y", 20)])
+	result = format_iterable_var(exprs_var, two_ctx)
+	assert result == "exprs:2[x:10,y:20]"
+
+	# Test with 1 element
+	one_ctx = ExprCtx(exprs=[Const("z", 99)])
+	result = format_iterable_var(exprs_var, one_ctx)
+	assert result == "exprs:1[z:99]"
+
+
+def test_set_serialization() -> None:
+	"""Test serialization of set iterables."""
+	from mahonia import format_iterable_var
+
+	class SetCtx(NamedTuple):
+		number_set: set[int]
+		string_set: set[str]
+
+	ctx = SetCtx(number_set={1, 2, 3, 4, 5}, string_set={"a", "b"})
+
+	# Sets are non-indexable, should be converted to list first
+	numbers = Var[SizedIterable[int], SetCtx]("number_set")
+	result = format_iterable_var(numbers, ctx)
+	# Result should show length and format (order may vary for sets, but length is stable)
+	assert result.startswith("number_set:5[")
+	assert result.endswith("]")
+	assert ".." in result  # Should use first..last format for >2 elements
+
+	# Test small set
+	strings = Var[SizedIterable[str], SetCtx]("string_set")
+	result = format_iterable_var(strings, ctx)
+	assert result.startswith("string_set:2[")
+	# For 2 elements, should show all (though order may vary)
+	assert "," in result or len(result.split("[")[1].split("]")[0].split(",")) == 2
+
+
+def test_tuple_vs_list_serialization() -> None:
+	"""Test that tuples and lists serialize the same way."""
+	from mahonia import format_iterable_var
+
+	class TupleListCtx(NamedTuple):
+		tuple_data: tuple[int, ...]
+		list_data: list[int]
+
+	ctx = TupleListCtx(tuple_data=(1, 2, 3, 4, 5), list_data=[1, 2, 3, 4, 5])
+
+	tuple_var = Var[SizedIterable[int], TupleListCtx]("tuple_data")
+	list_var = Var[SizedIterable[int], TupleListCtx]("list_data")
+
+	tuple_result = format_iterable_var(tuple_var, ctx)
+	list_result = format_iterable_var(list_var, ctx)
+
+	# Both should format identically (both are indexable)
+	assert tuple_result == "tuple_data:5[1,..5]"
+	assert list_result == "list_data:5[1,..5]"
+
+	# Test with small tuples
+	small_ctx = TupleListCtx(tuple_data=(10, 20), list_data=[10, 20])
+	tuple_result = format_iterable_var(tuple_var, small_ctx)
+	list_result = format_iterable_var(list_var, small_ctx)
+
+	assert tuple_result == "tuple_data:2[10,20]"
+	assert list_result == "list_data:2[10,20]"
+
+
+def test_mapexpr_in_anyexpr_serialization() -> None:
+	"""Test that MapExpr in AnyExpr shows full evaluation trace."""
+
+	class NumCtx(NamedTuple):
+		nums: list[int]
+
+	n = Var[int, NumCtx]("n")
+	nums = Var[SizedIterable[int], NumCtx]("nums")
+
+	# Create a mapped expression that returns booleans
+	lt_ten = (n < 10).map(nums)
+	any_lt_ten = AnyExpr(lt_ten)
+
+	# Without context
+	assert any_lt_ten.to_string() == "any((map n -> (n < 10) nums))"
+
+	# With context - should show full MapExpr evaluation
+	ctx = NumCtx(nums=[3, 7, 2])
+	result = any_lt_ten.to_string(ctx)
+	assert result == "any((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)"
+
+	# With some values >= 10
+	ctx2 = NumCtx(nums=[15, 20, 25])
+	result = any_lt_ten.to_string(ctx2)
+	assert result == "any((map n -> (n < 10) nums:3[15,..25] -> 3[False,..False]) -> False)"
+
+	# Mixed values
+	ctx3 = NumCtx(nums=[5, 15, 3])
+	result = any_lt_ten.to_string(ctx3)
+	assert result == "any((map n -> (n < 10) nums:3[5,..3] -> 3[True,..True]) -> True)"
+
+
+def test_mapexpr_in_allexpr_serialization() -> None:
+	"""Test that MapExpr in AllExpr shows full evaluation trace."""
+
+	class NumCtx(NamedTuple):
+		nums: list[int]
+
+	n = Var[int, NumCtx]("n")
+	nums = Var[SizedIterable[int], NumCtx]("nums")
+
+	# Create a mapped expression that returns booleans
+	gt_zero = (n > 0).map(nums)
+	all_gt_zero = AllExpr(gt_zero)
+
+	# Without context
+	assert all_gt_zero.to_string() == "all((map n -> (n > 0) nums))"
+
+	# With context - all positive
+	ctx = NumCtx(nums=[3, 7, 2])
+	result = all_gt_zero.to_string(ctx)
+	assert result == "all((map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> True)"
+
+	# With some non-positive
+	ctx2 = NumCtx(nums=[3, 0, 2])
+	result = all_gt_zero.to_string(ctx2)
+	assert result == "all((map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> False)"
+
+	# All non-positive
+	ctx3 = NumCtx(nums=[-1, -5, 0])
+	result = all_gt_zero.to_string(ctx3)
+	assert result == "all((map n -> (n > 0) nums:3[-1,..0] -> 3[False,..False]) -> False)"
+
+
+def test_var_vs_mapexpr_in_anyexpr() -> None:
+	"""Test the distinction between Var/Const and MapExpr in AnyExpr serialization."""
+
+	class FlagCtx(NamedTuple):
+		flags: list[bool]
+		nums: list[int]
+
+	flags = Var[SizedIterable[bool], FlagCtx]("flags")
+	nums = Var[SizedIterable[int], FlagCtx]("nums")
+	n = Var[int, FlagCtx]("n")
+
+	# Simple Var - uses compact format
+	simple_any = AnyExpr(flags)
+	ctx = FlagCtx(flags=[True, False, True], nums=[1, 2, 3])
+	assert simple_any.to_string(ctx) == "any(flags:3[True,..True] -> True)"
+
+	# MapExpr - shows full evaluation trace
+	mapped = (n > 1).map(nums)
+	complex_any = AnyExpr(mapped)
+	assert (
+		complex_any.to_string(ctx)
+		== "any((map n -> (n > 1) nums:3[1,..3] -> 3[False,..True]) -> True)"
+	)
+
+
+def test_var_vs_mapexpr_in_allexpr() -> None:
+	"""Test the distinction between Var/Const and MapExpr in AllExpr serialization."""
+
+	class FlagCtx(NamedTuple):
+		flags: list[bool]
+		nums: list[int]
+
+	flags = Var[SizedIterable[bool], FlagCtx]("flags")
+	nums = Var[SizedIterable[int], FlagCtx]("nums")
+	n = Var[int, FlagCtx]("n")
+
+	# Simple Var - uses compact format
+	simple_all = AllExpr(flags)
+	ctx = FlagCtx(flags=[True, True, True], nums=[5, 10, 15])
+	assert simple_all.to_string(ctx) == "all(flags:3[True,..True] -> True)"
+
+	# MapExpr - shows full evaluation trace
+	mapped = (n >= 5).map(nums)
+	complex_all = AllExpr(mapped)
+	assert (
+		complex_all.to_string(ctx)
+		== "all((map n -> (n >= 5) nums:3[5,..15] -> 3[True,..True]) -> True)"
+	)
+
+
+def test_empty_iterable_serialization() -> None:
+	"""Test serialization of empty iterables."""
+	from mahonia import format_iterable_var
+
+	class EmptyCtx(NamedTuple):
+		empty_list: list[int]
+		empty_set: set[str]
+		empty_tuple: tuple[int, ...]
+
+	ctx = EmptyCtx(empty_list=[], empty_set=set(), empty_tuple=())
+
+	empty_list = Var[SizedIterable[int], EmptyCtx]("empty_list")
+	assert format_iterable_var(empty_list, ctx) == "empty_list:0[]"
+
+	empty_set = Var[SizedIterable[str], EmptyCtx]("empty_set")
+	assert format_iterable_var(empty_set, ctx) == "empty_set:0[]"
+
+	empty_tuple = Var[SizedIterable[int], EmptyCtx]("empty_tuple")
+	assert format_iterable_var(empty_tuple, ctx) == "empty_tuple:0[]"
+
+
+def test_large_iterable_serialization() -> None:
+	"""Test that large iterables show first..last format."""
+	from mahonia import format_iterable_var
+
+	class LargeCtx(NamedTuple):
+		large_list: list[int]
+
+	# Test with exactly 3 elements (threshold for first..last)
+	ctx3 = LargeCtx(large_list=[10, 20, 30])
+	large_var = Var[SizedIterable[int], LargeCtx]("large_list")
+	assert format_iterable_var(large_var, ctx3) == "large_list:3[10,..30]"
+
+	# Test with many elements
+	ctx_many = LargeCtx(large_list=list(range(100)))
+	assert format_iterable_var(large_var, ctx_many) == "large_list:100[0,..99]"

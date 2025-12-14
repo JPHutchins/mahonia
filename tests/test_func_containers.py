@@ -147,10 +147,10 @@ def test_string_representations_with_context() -> None:
 
 	# Simple expressions with context
 	result = (x + 5).map(numbers).to_string(ctx)
-	assert result == "(map x -> (x + 5) numbers -> 3[6,..8])"
+	assert result == "(map x -> (x + 5) numbers:3[1,..3] -> 3[6,..8])"
 
 	result = (x * 2).map(numbers).to_string(ctx)
-	assert result == "(map x -> (x * 2) numbers -> 3[2,..6])"
+	assert result == "(map x -> (x * 2) numbers:3[1,..3] -> 3[2,..6])"
 
 
 def test_string_representations_edge_cases() -> None:
@@ -161,12 +161,12 @@ def test_string_representations_edge_cases() -> None:
 	# Empty container
 	empty_ctx = ContainerCtx(numbers=[], values=[])
 	result = (x * 2).map(numbers).to_string(empty_ctx)
-	assert result == "(map x -> (x * 2) numbers -> 0[])"
+	assert result == "(map x -> (x * 2) numbers:0[] -> 0[])"
 
 	# Single element
 	single_ctx = ContainerCtx(numbers=[42], values=[])
 	result = (x + 1).map(numbers).to_string(single_ctx)
-	assert result == "(map x -> (x + 1) numbers -> 1[43])"
+	assert result == "(map x -> (x + 1) numbers:1[42] -> 1[43])"
 
 
 def test_string_representations_boolean_expressions() -> None:
@@ -185,10 +185,10 @@ def test_string_representations_boolean_expressions() -> None:
 	ctx = ContainerCtx(numbers=[1, 3, 7], values=[])
 
 	result = gt_expr.to_string(ctx)
-	assert result == "(map x -> (x > 5) numbers -> 3[False,..True])"
+	assert result == "(map x -> (x > 5) numbers:3[1,..7] -> 3[False,..True])"
 
 	result = eq_expr.to_string(ctx)
-	assert result == "(map x -> (x == 3) numbers -> 3[False,..False])"
+	assert result == "(map x -> (x == 3) numbers:3[1,..7] -> 3[False,..False])"
 
 
 def test_string_representations_logical_operations() -> None:
@@ -204,7 +204,7 @@ def test_string_representations_logical_operations() -> None:
 	# With context
 	ctx = ContainerCtx(numbers=[0, 2, 4, 6], values=[])
 	result = logic_expr.to_string(ctx)
-	assert result == "(map x -> ((x > 1) & (x < 5)) numbers -> 4[False,..False])"
+	assert result == "(map x -> ((x > 1) & (x < 5)) numbers:4[0,..6] -> 4[False,..False])"
 
 
 def test_string_representations_with_constants() -> None:
@@ -223,7 +223,7 @@ def test_string_representations_with_constants() -> None:
 	# With context
 	ctx = ContainerCtx(numbers=[1, 2], values=[])
 	result = expr.to_string(ctx)
-	assert result == "(map x -> (x + OFFSET:100) numbers -> 2[101,102])"
+	assert result == "(map x -> (x + OFFSET:100) numbers:2[1,2] -> 2[101,102])"
 
 
 def test_string_representations_nested_expressions() -> None:
@@ -240,7 +240,7 @@ def test_string_representations_nested_expressions() -> None:
 	ctx = ContainerCtx(numbers=[1, 2], values=[])
 	result = nested.to_string(ctx)
 	assert (
-		result == "(map x -> (((x + 1) * 2) - 3) numbers -> 2[1,3])"
+		result == "(map x -> (((x + 1) * 2) - 3) numbers:2[1,2] -> 2[1,3])"
 	)  # ((1+1)*2)-3=1, ((2+1)*2)-3=3
 
 
@@ -256,7 +256,7 @@ def test_string_representations_float_operations() -> None:
 	# With context
 	ctx = ContainerCtx(numbers=[], values=[2.0, 4.0])
 	result = expr.to_string(ctx)
-	assert result == "(map f -> (f * 1.5) values -> 2[3.0,6.0])"
+	assert result == "(map f -> (f * 1.5) values:2[2.0,4.0] -> 2[3.0,6.0])"
 
 
 def test_string_representations_different_containers() -> None:
@@ -286,10 +286,10 @@ def test_string_representations_different_containers() -> None:
 	ctx_b = CtxB(items=[3, 4])
 
 	result_a = data_mapped.to_string(ctx_a)
-	assert result_a == "(map x -> (x * 2) data -> 2[2,4])"
+	assert result_a == "(map x -> (x * 2) data:2[1,2] -> 2[2,4])"
 
 	result_b = items_mapped.to_string(ctx_b)
-	assert result_b == "(map x -> (x * 2) items -> 2[6,8])"
+	assert result_b == "(map x -> (x * 2) items:2[3,4] -> 2[6,8])"
 
 
 def test_string_representations_large_containers() -> None:
@@ -302,7 +302,7 @@ def test_string_representations_large_containers() -> None:
 	ctx = ContainerCtx(numbers=large_list, values=[])
 
 	result = (x + 1).map(numbers).to_string(ctx)
-	assert result == "(map x -> (x + 1) numbers -> 20[1,..20])"
+	assert result == "(map x -> (x + 1) numbers:20[0,..19] -> 20[1,..20])"
 	# Result should contain the mapped values
 
 

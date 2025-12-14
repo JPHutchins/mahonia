@@ -50,6 +50,7 @@ from mahonia import (
 	S,
 	Sub,
 	Var,
+	format_iterable_var,
 )
 from mahonia.stats import Count, Mean, Median, Percentile, Range, StdDev
 
@@ -468,49 +469,17 @@ def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
 
 
 def _format_statistical_operand(stat_expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None) -> str:
-	"""Format statistical operand for LaTeX, handling iterable display.
-
-	This leverages the existing to_string method from the statistical operations
-	to get proper iterable formatting, then converts to LaTeX-friendly format.
-	"""
 	match latex_ctx:
 		case LatexCtx(ctx, show) if show & Show.VALUES:
-			# Use the existing to_string formatting which handles iterable display nicely
-			string_repr = stat_expr.to_string(ctx)
-
-			# Extract the operand part from the string representation
-			# E.g., "mean(measurements:5[1.0,..5.0] -> 3.0)" -> "measurements:5[1.0,..5.0]"
-			if " -> " in string_repr:
-				operand_part = string_repr.split(" -> ")[0]
-			else:
-				operand_part = string_repr
-
-			# Remove the operation name and parentheses
-			# E.g., "mean(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
-			# For Percentile: "percentile:95(measurements:5[1.0,..5.0])" -> "measurements:5[1.0,..5.0]"
-
-			# Find the first opening parenthesis and extract what's inside
-			paren_start = operand_part.find("(")
-			if paren_start != -1:
-				# Find the matching closing parenthesis
-				paren_end = operand_part.rfind(")")
-				if paren_end != -1 and paren_end > paren_start:
-					variable_part = operand_part[paren_start + 1 : paren_end]
-				else:
-					variable_part = operand_part[paren_start + 1 :]
-			else:
-				variable_part = operand_part
-
-			# Convert variable names to LaTeX format
-			# E.g., "measurements:5[1.0,..5.0]" -> "measurements:5[1.0,..5.0]"
-			if ":" in variable_part:
-				var_name, rest = variable_part.split(":", 1)
-				latex_var_name = _latex_var(var_name)
-				return f"{latex_var_name}:{rest}"
-			else:
-				return _latex_var(variable_part)
+			if hasattr(stat_expr, "left"):
+				left_expr = getattr(stat_expr, "left")
+				formatted = format_iterable_var(left_expr, ctx)
+				if ":" in formatted:
+					var_name, rest = formatted.split(":", 1)
+					return f"{_latex_var(var_name)}:{rest}"
+				return _latex_var(formatted)
+			return "data"
 		case _:
-			# Without context or values, just show the variable name
 			if hasattr(stat_expr, "left"):
 				left_expr = getattr(stat_expr, "left")
 				if hasattr(left_expr, "name"):

@@ -27,7 +27,7 @@ from mahonia import (
 	SizedIterable,
 	ToString,
 	UnaryOpToString,
-	_format_iterable_var,
+	format_iterable_var,
 )
 
 if TYPE_CHECKING:
@@ -57,7 +57,7 @@ class UnaryStatisticalOpToString(
 	template_eval: ClassVar[str] = "{op}({left} -> {out})"
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = _format_iterable_var(self.left, ctx)
+		left: Final = format_iterable_var(self.left, ctx)
 		if ctx is None:
 			return self.template.format(op=self.op, left=left)
 		else:
@@ -207,7 +207,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 			)
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left_str = _format_iterable_var(self.left, ctx)
+		left_str = format_iterable_var(self.left, ctx)
 		if ctx is None:
 			return f"{self.op}:{self.percentile}({left_str})"
 		else:
@@ -267,7 +267,7 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 		return Const(None, len(self.left.unwrap(ctx)))
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = _format_iterable_var(self.left, ctx)  # type: ignore[arg-type]
+		left: Final = format_iterable_var(self.left, ctx)  # type: ignore[arg-type]
 		if ctx is None:
 			return self.template.format(op=self.op, left=left)
 		else:
