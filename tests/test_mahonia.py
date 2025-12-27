@@ -15,13 +15,17 @@ from mahonia import (
 	Eq,
 	Expr,
 	Lt,
+	MergeContextProtocol,
+	Mul,
 	Not,
 	Percent,
 	PlusMinus,
 	Pow,
 	Predicate,
+	Sub,
 	TSupportsComparison,
 	Var,
+	merge,
 )
 
 
@@ -951,3 +955,345 @@ def test_approximately_coercion() -> None:
 	expr1 = target == 5.0
 	assert_type(expr1, Approximately[float, Any])
 	print(expr1.to_string())
+
+
+def test_context_merge() -> None:
+	"""Test merging context values with merge function."""
+
+	class A(NamedTuple):
+		a: int
+
+	class B(NamedTuple):
+		b: int
+
+	c = merge(A(a=1), B(b=2))
+	assert c.a == 1
+	assert c.b == 2
+
+
+def test_context_merge_arity() -> None:
+	"""Test merging contexts with a single field."""
+
+	class SingleFieldCtx(NamedTuple):
+		value: int
+
+	merged = merge(
+		SingleFieldCtx(value=42),
+	)
+
+	assert merged.value == 42
+
+	merge()
+
+
+def test_context_merge_typing() -> None:
+	"""Test typing of merged contexts."""
+
+	class CtxA(NamedTuple):
+		a: int
+
+	class CtxB(NamedTuple):
+		b: str
+
+	merged = merge(CtxA(a=10), CtxB(b="test"))
+	assert_type(merged, MergeContextProtocol[CtxA, CtxB])
+
+
+def test_context_merge_multiple_fields() -> None:
+	"""Test merging contexts with multiple fields."""
+
+	class VoltageCtx(NamedTuple):
+		voltage: float
+		current: float
+
+	class TempCtx(NamedTuple):
+		temperature: float
+		humidity: float
+
+	class DurationCtx(NamedTuple):
+		duration: float
+		unit: str
+
+	measurement = merge(
+		VoltageCtx(voltage=3.3, current=0.5),
+		TempCtx(temperature=25.0, humidity=60.0),
+		DurationCtx(duration=10.0, unit="seconds"),
+	)
+
+	assert measurement.voltage == 3.3
+	assert measurement.current == 0.5
+	assert measurement.temperature == 25.0
+	assert measurement.humidity == 60.0
+	assert measurement.duration == 10.0
+	assert measurement.unit == "seconds"
+
+
+def test_context_merge_with_expressions() -> None:
+	"""Test using merged contexts with expressions."""
+
+	class XCtx(NamedTuple):
+		x: int
+
+	class YCtx(NamedTuple):
+		y: int
+
+	ctx = merge(XCtx(x=5), YCtx(y=10))
+
+	x = Var[int, Any]("x")
+	y = Var[int, Any]("y")
+
+	expr = x + y
+
+	assert expr.unwrap(ctx) == 15
+	assert expr.to_string(ctx) == "(x:5 + y:10 -> 15)"
+
+
+def test_context_merge_conflict() -> None:
+	"""Test merging contexts with conflicting field names."""
+
+	class A(NamedTuple):
+		value: int
+
+	class B(NamedTuple):
+		value: int
+
+	with pytest.raises(TypeError):
+		merge(A(value=1), B(value=2))
+
+
+def test_partial_application() -> None:
+	"""Partial context resolves some vars, leaves others as Var."""
+
+	class XCtx(NamedTuple):
+		x: int
+
+	class YCtx(NamedTuple):
+		y: int
+
+	x = Var[int, Any]("x")
+	y = Var[int, Any]("y")
+	expr = x + y
+
+	partial_expr = expr.partial(XCtx(x=5))
+	assert_type(partial_expr, Expr[int, Any])
+
+	assert partial_expr.to_string() == "(x:5 + y)"
+
+	result = partial_expr.unwrap(YCtx(y=10))
+	assert_type(result, int)
+	assert result == 15
+
+	assert partial_expr.to_string(YCtx(y=10)) == "(x:5 + y:10 -> 15)"
+
+	# prevent type narrowing from polluting above results
+	assert isinstance(partial_expr, Add)
+	assert isinstance(partial_expr.left, Const)
+	assert isinstance(partial_expr.right, Var)
+
+
+def test_partial_application_multiple() -> None:
+	"""Partial application with multiple context fields."""
+
+	class XCtx(NamedTuple):
+		x: int
+
+	class YCtx(NamedTuple):
+		y: int
+
+	class ZCtx(NamedTuple):
+		z: int
+
+	x = Var[int, Any]("x")
+	y = Var[int, Any]("y")
+	z = Var[int, Any]("z")
+	expr = x * y + z
+
+	partial_expr = expr.partial(merge(XCtx(x=5), YCtx(y=10)))
+	assert_type(partial_expr, Expr[int, Any])
+
+	assert partial_expr.to_string() == "((x:5 * y:10) + z)"
+
+	result = partial_expr.unwrap(ZCtx(z=3))
+	assert_type(result, int)
+	assert result == 53
+
+	assert partial_expr.to_string(ZCtx(z=3)) == "((x:5 * y:10 -> 50) + z:3 -> 53)"
+
+
+def test_partial_application_exhausted() -> None:
+	"""Partial application that resolves all Vars results in Const."""
+
+	class XCtx(NamedTuple):
+		x: int
+
+	class YCtx(NamedTuple):
+		y: int
+
+	x = Var[int, Any]("x")
+	y = Var[int, Any]("y")
+	expr = x + y
+
+	partial_expr = expr.partial(merge(XCtx(x=5), YCtx(y=10)))
+	assert_type(partial_expr, Expr[int, Any])
+
+	assert partial_expr.to_string() == "(x:5 + y:10)"
+	assert partial_expr.to_string(()) == "(x:5 + y:10 -> 15)"
+
+	result = partial_expr.unwrap(None)
+	assert_type(result, int)
+	assert result == 15
+
+
+def test_partial_application_preserves_structure() -> None:
+	"""Partial application preserves expression tree - no work is lost."""
+
+	class ABCtx(NamedTuple):
+		a: int
+		b: int
+
+	class CDCtx(NamedTuple):
+		c: int
+		d: int
+
+	a = Var[int, Any]("a")
+	b = Var[int, Any]("b")
+	c = Var[int, Any]("c")
+	d = Var[int, Any]("d")
+
+	# Deeply nested: ((a + b) * (c - d)) ** 2
+	expr = ((a + b) * (c - d)) ** Const(None, 2)
+
+	# Partial with only a and b
+	partial1 = expr.partial(ABCtx(a=3, b=2))
+	assert_type(partial1, Expr[int, Any])
+	assert partial1.to_string() == "(((a:3 + b:2) * (c - d))^2)"
+
+	# The structure is preserved: Add and Sub are still there, not collapsed
+	assert isinstance(partial1, Pow)
+	assert isinstance(partial1.left, Mul)
+	assert isinstance(partial1.left.left, Add)
+	assert isinstance(partial1.left.right, Sub)
+
+	# Left side fully resolved to Const, right side still has Vars
+	assert isinstance(partial1.left.left.left, Const)
+	assert isinstance(partial1.left.left.right, Const)
+	assert isinstance(partial1.left.right.left, Var)
+	assert isinstance(partial1.left.right.right, Var)
+
+	# Complete the evaluation
+	partial2 = partial1.partial(CDCtx(c=10, d=3))
+	assert partial2.to_string() == "(((a:3 + b:2) * (c:10 - d:3))^2)"
+
+	# All leaves are now Const but structure is intact
+	assert isinstance(partial2, Pow)
+	assert isinstance(partial2.left, Mul)
+	assert isinstance(partial2.left.left, Add)
+	assert isinstance(partial2.left.right, Sub)
+
+	# Final evaluation: ((3+2) * (10-3)) ** 2 = (5 * 7) ** 2 = 35 ** 2 = 1225
+	assert partial2.unwrap(()) == 1225
+	assert partial2.to_string(()) == "(((a:3 + b:2 -> 5) * (c:10 - d:3 -> 7) -> 35)^2 -> 1225)"
+
+
+def test_bound_expr_satisfies_expr_protocol() -> None:
+	"""BoundExpr satisfies the Expr protocol as a closed term."""
+
+	class Ctx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr = x + y
+	ctx = Ctx(x=5, y=10)
+
+	bound = expr.bind(ctx)
+
+	# BoundExpr satisfies Expr protocol
+	assert isinstance(bound, Expr)
+
+	# eval ignores passed context, uses captured context
+	assert bound.eval(()).value == 15
+	assert bound.eval(None).value == 15
+
+	# to_string ignores passed context
+	assert bound.to_string() == "(x:5 + y:10 -> 15)"
+	assert bound.to_string(()) == "(x:5 + y:10 -> 15)"
+
+	# partial returns self (closed term)
+	assert bound.partial(()) is bound
+
+	# bind returns self (already bound)
+	assert bound.bind(()) is bound
+
+	# unwrap works with any context
+	assert bound.unwrap() == 15
+	assert bound.unwrap(None) == 15
+
+
+def test_bound_expr_composable() -> None:
+	"""BoundExpr can be composed with other expressions."""
+
+	class XCtx(NamedTuple):
+		x: int
+
+	class YCtx(NamedTuple):
+		y: int
+
+	x = Var[int, XCtx]("x")
+	y = Var[int, YCtx]("y")
+
+	# Bind x to 5
+	bound_x = x.bind(XCtx(x=5))
+
+	# Compose bound expression with unbound expression
+	composed = bound_x + y
+	assert_type(composed, Add[int, Any])
+
+	# The composed expression needs y's context
+	# BoundExpr.to_string() always shows evaluated form since it has its context
+	assert composed.to_string() == "(x:5 + y)"
+	assert composed.unwrap(YCtx(y=10)) == 15
+	assert composed.to_string(YCtx(y=10)) == "(x:5 + y:10 -> 15)"
+
+
+def test_bound_expr_boolean_composition() -> None:
+	"""BoundExpr supports boolean composition."""
+
+	class Ctx(NamedTuple):
+		x: int
+
+	x = Var[int, Ctx]("x")
+
+	# Bind a boolean expression - use explicit type annotation
+	# Note: Gt inherits from BinaryOp[TSupportsComparison, S] so T is int, not bool
+	# The eval() returns Const[bool] via override, but bind() uses the class T parameter
+	bound_true: BoundExpr[bool, Ctx] = (x > 0).bind(Ctx(x=5))  # type: ignore[assignment]
+	bound_false: BoundExpr[bool, Ctx] = (x < 0).bind(Ctx(x=5))  # type: ignore[assignment]
+
+	# Compose with & and |
+	combined_and = bound_true & bound_false
+	combined_or = bound_true | bound_false
+
+	assert combined_and.unwrap(()) is False
+	assert combined_or.unwrap(()) is True
+
+	# Invert
+	inverted = ~bound_true
+	assert inverted.unwrap(()) is False
+
+
+def test_bound_expr_arithmetic_composition() -> None:
+	"""BoundExpr supports arithmetic composition."""
+
+	class Ctx(NamedTuple):
+		x: int
+
+	x = Var[int, Ctx]("x")
+	bound = x.bind(Ctx(x=10))
+
+	# Arithmetic operators (note: reverse operators like 5 + bound not supported by mixin)
+	assert (bound + 5).unwrap(()) == 15
+	assert (bound - 3).unwrap(()) == 7
+	assert (bound * 2).unwrap(()) == 20
+	assert (bound / 2).unwrap(()) == 5.0

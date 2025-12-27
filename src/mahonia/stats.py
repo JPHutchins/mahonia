@@ -103,6 +103,9 @@ class Mean(
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.mean(self.left.unwrap(ctx)))
 
+	def partial(self, ctx: Any) -> "Mean[_NumberT, Any]":
+		return Mean(self.left.partial(ctx))
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class StdDev(
@@ -131,6 +134,9 @@ class StdDev(
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.stdev(self.left.unwrap(ctx)))
 
+	def partial(self, ctx: Any) -> "StdDev[_NumberT, Any]":
+		return StdDev(self.left.partial(ctx))
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Median(
@@ -158,6 +164,9 @@ class Median(
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.median(self.left.unwrap(ctx)))
+
+	def partial(self, ctx: Any) -> "Median[_NumberT, Any]":
+		return Median(self.left.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -213,6 +222,9 @@ class Percentile(BinaryOperationOverloads[float, S]):
 		else:
 			return f"{self.op}:{self.percentile}({left_str} -> {self.unwrap(ctx)})"
 
+	def partial(self, ctx: Any) -> "Percentile[Any]":
+		return Percentile(self.percentile, self.left.partial(ctx))
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float, S]):
@@ -238,6 +250,9 @@ class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float
 	def eval(self, ctx: S) -> Const[float]:
 		left = self.left.unwrap(ctx)
 		return Const(None, float(max(left) - min(left)))
+
+	def partial(self, ctx: Any) -> "Range[Any]":
+		return Range(self.left.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -272,3 +287,6 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 			return self.template.format(op=self.op, left=left)
 		else:
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+	def partial(self, ctx: Any) -> "Count[Any]":
+		return Count(self.left.partial(ctx))

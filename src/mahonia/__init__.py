@@ -159,19 +159,22 @@ True
 '(voltage:5.05 ≈ V:5.0 ± 0.1 -> True)'
 """
 
+import operator
 from dataclasses import dataclass
 from difflib import get_close_matches
+from types import SimpleNamespace
 from typing import (
 	Any,
+	Callable,
 	ClassVar,
 	Final,
 	Generic,
 	Iterable,
-	NamedTuple,
 	Protocol,
 	Self,
 	Sized,
 	TypeVar,
+	TypeVarTuple,
 	overload,
 	runtime_checkable,
 )
@@ -190,10 +193,44 @@ class ContextProtocol(Protocol):
 S = TypeVar("S", bound=ContextProtocol)
 """The type of the expression's context."""
 
+T_co = TypeVar("T_co", covariant=True)
+
+
+Ss = TypeVarTuple("Ss")
+
+
+class MergeContextProtocol(Protocol[*Ss]):
+	def __getattribute__(self, name: str, /) -> Any: ...
+
+
+def merge[*Ss](*contexts: *Ss) -> MergeContextProtocol[*Ss]:
+	"""Merge values from multiple context instances into a single namespace.
+
+	>>> from typing import NamedTuple
+	>>> class A(NamedTuple):
+	... 	a: int
+	>>> class B(NamedTuple):
+	... 	b: int
+	>>> ctx = merge(A(a=1), B(b=2))
+	>>> ctx.a
+	1
+	>>> ctx.b
+	2
+	"""
+
+	values: dict[str, Any] = {}
+	for context in contexts:
+		# https://typing.python.org/en/latest/spec/generics.html#variance-type-constraints-and-type-bounds-not-yet-supported
+		annotations: dict[str, Any] = getattr(type(context), "__annotations__")
+		for field_name in annotations:
+			if field_name in values:
+				raise TypeError(f"Duplicate field '{field_name}' found when merging contexts.")
+			values[field_name] = getattr(context, field_name)
+	return SimpleNamespace(**values)
+
+
 S_contra = TypeVar("S_contra", bound=ContextProtocol, contravariant=True)
 """The contravariant type of the expression's context."""
-
-T_co = TypeVar("T_co", covariant=True)
 
 
 class SizedIterable(Sized, Iterable[T_co], Protocol[T_co]):
@@ -290,30 +327,6 @@ class ToString(Protocol[S_contra]):
 	def to_string(self, ctx: S_contra | None = None) -> str: ...
 
 
-class BoundExpr(NamedTuple, Generic[T, S]):
-	"""An immutable expression bound to a specific context.
-
-	>>> from typing import NamedTuple
-	>>> class Ctx(NamedTuple):
-	... 	x: int
-	>>> x = Var[int, Ctx]("x")
-	>>> bound = (x > 5).bind(Ctx(x=10))
-	>>> bound.unwrap()
-	True
-	>>> str(bound)
-	'(x:10 > 5 -> True)'
-	"""
-
-	expr: "Expr[T, S]"
-	ctx: S
-
-	def unwrap(self) -> T:
-		return self.expr.unwrap(self.ctx)
-
-	def __str__(self) -> str:
-		return self.expr.to_string(self.ctx)
-
-
 @runtime_checkable
 class Expr(Protocol[T, S]):
 	"""Base class for all Mahonia expressions.
@@ -366,8 +379,33 @@ class Expr(Protocol[T, S]):
 	def unwrap(self, ctx: S) -> T:
 		return self.eval(ctx).value
 
-	def bind(self, ctx: S) -> BoundExpr[T, S]:
+	def bind(self, ctx: S) -> "BoundExpr[T, S]":
 		return BoundExpr(self, ctx)
+
+	def partial(self, ctx: Any) -> "Expr[T, Any]":
+		"""Partially apply a context, resolving variables that exist in it.
+
+		Variables whose names exist as attributes in ctx are replaced with Const.
+		Variables not found in ctx remain as Var. The expression structure is
+		preserved (no eager evaluation of operations).
+
+		>>> from typing import NamedTuple, Any
+		>>> class XCtx(NamedTuple):
+		... 	x: int
+		>>> class YCtx(NamedTuple):
+		... 	y: int
+		>>> x = Var[int, Any]("x")
+		>>> y = Var[int, Any]("y")
+		>>> expr = x + y
+		>>> partial_expr = expr.partial(XCtx(x=5))
+		>>> partial_expr.to_string()
+		'(x:5 + y)'
+		>>> partial_expr.unwrap(YCtx(y=10))
+		15
+		>>> partial_expr.to_string(YCtx(y=10))
+		'(x:5 + y:10 -> 15)'
+		"""
+		...
 
 
 def _extract_vars(
@@ -378,7 +416,7 @@ def _extract_vars(
 		case Var() as v:
 			if id(v) not in (id(var) for var in vars):
 				vars += (v,)
-		case BinaryOpEval(left, right):
+		case BinaryOp(left, right):
 			vars = _extract_vars(vars, left)
 			vars = _extract_vars(vars, right)
 		case UnaryOpEval(left):
@@ -625,6 +663,64 @@ class BinaryOperationOverloads(Expr[T, S]):
 
 
 @dataclass(frozen=True, eq=False, slots=True)
+class BoundExpr(
+	BinaryOperationOverloads[T, Any],
+	BooleanBinaryOperationOverloads[T, Any],  # type: ignore[type-var]
+	Generic[T, S],
+):
+	"""An immutable expression bound to a specific context.
+
+	BoundExpr satisfies the Expr protocol as a "closed term" - it ignores
+	any context passed to eval/to_string/partial and uses its captured context.
+	This makes it composable with other expressions.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> bound = (x > 5).bind(Ctx(x=10))
+	>>> bound.unwrap()
+	True
+	>>> str(bound)
+	'(x:10 > 5 -> True)'
+	>>> isinstance(bound, Expr)
+	True
+	>>> bound.eval(()).value
+	True
+	"""
+
+	expr: Expr[T, S]
+	ctx: S
+
+	def eval(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
+		return Const(None, self.expr.unwrap(self.ctx))
+
+	def __call__(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
+		return self.eval(ctx)
+
+	def to_string(self, ctx: Any | None = None) -> str:  # noqa: ARG002
+		return self.expr.to_string(self.ctx)
+
+	def partial(self, ctx: Any) -> Expr[T, Any]:  # noqa: ARG002
+		return self
+
+	def unwrap(self, ctx: Any = None) -> T:  # noqa: ARG002
+		return self.expr.unwrap(self.ctx)
+
+	def __str__(self) -> str:
+		return self.expr.to_string(self.ctx)
+
+	def bind(self, ctx: Any) -> "BoundExpr[T, S]":  # noqa: ARG002
+		return self
+
+	def to_func(self) -> "Func[T, Any]":
+		return Func((), self)
+
+	def map(self, container: Expr[SizedIterable[Any], Any]) -> "MapExpr[Any, T, Any]":
+		return MapExpr(self.to_func(), container)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
 class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):  # type: ignore[type-var]
 	"""A constant that evaluates to itself.
 
@@ -660,6 +756,9 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 
 	def to_string(self, ctx: Any | None = None) -> str:
 		return f"{self.name}:{self.value}" if self.name else str(self.value)
+
+	def partial(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
+		return self
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -707,6 +806,11 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 		else:
 			return f"{self.name}:{self.eval(ctx).value}"
 
+	def partial(self, ctx: Any) -> "Expr[T, Any]":
+		if hasattr(ctx, self.name):
+			return Const(self.name, getattr(ctx, self.name))
+		return self
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class UnaryOpEval(Eval[bool, S]):
@@ -732,17 +836,23 @@ class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperation
 	def eval(self, ctx: S) -> Const[bool]:
 		return Const(None, not self.left.eval(ctx).value)
 
+	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+		return Not(self.left.partial(ctx))
 
-@dataclass(frozen=True, eq=False, slots=True)
-class BinaryOpEval(Expr[T, S], Generic[T, S]):
+
+class BinaryOpProtocol(Expr[T, S], Protocol[T, S]):
 	left: Expr[T, S]
 	right: Expr[T, S]
 
 
-class BinaryOpToString(ToString[S], BinaryOpEval[T, S], Generic[T, S]):
+@dataclass(frozen=True, eq=False, slots=True)
+class BinaryOp(ToString[S], BinaryOpProtocol[T, S], Generic[T, S]):
 	op: ClassVar[str] = " ? "
 	template: ClassVar[str] = "({left}{op}{right})"
 	template_eval: ClassVar[str] = "({left}{op}{right} -> {out})"
+
+	left: Expr[T, S]
+	right: Expr[T, S]
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.left.to_string(ctx)
@@ -754,23 +864,45 @@ class BinaryOpToString(ToString[S], BinaryOpEval[T, S], Generic[T, S]):
 				left=left, op=self.op, right=right, out=self.eval(ctx).value
 			)
 
+	def partial(self, ctx: Any) -> "Expr[T, Any]":
+		return type(self)(self.left.partial(ctx), self.right.partial(ctx))
 
-class And(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
+
+class SymmetricalBinaryOpProtocol(BinaryOpProtocol[T, S], Protocol[T, S]):
+	op_func: Callable[[Expr[T, S], Expr[T, S]], Expr[T, S]]
+	identity_element: T
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Foldable(SymmetricalBinaryOpProtocol[T, S], BinaryOp[T, S]): ...
+
+
+class And(
+	Foldable[TSupportsLogic, S],
+	BooleanBinaryOperationOverloads[TSupportsLogic, S],
+):
 	op: ClassVar[str] = " & "
+	op_func: Final[ClassVar] = operator.and_  # type: ignore[misc]
+	identity_element: Final[ClassVar] = True  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
 
 
-class Or(BinaryOpToString[TSupportsLogic, S], BooleanBinaryOperationOverloads[TSupportsLogic, S]):
+class Or(
+	Foldable[TSupportsLogic, S],
+	BooleanBinaryOperationOverloads[TSupportsLogic, S],
+):
 	op: ClassVar[str] = " | "
+	op_func: Final[ClassVar] = operator.or_  # type: ignore[misc]
+	identity_element: Final[ClassVar] = False  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
 
 
 class Eq(
-	BinaryOpToString[TSupportsEquality, S],
+	BinaryOp[TSupportsEquality, S],
 	BinaryOperationOverloads[TSupportsEquality, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -784,7 +916,7 @@ class Eq(
 
 
 class Ne(
-	BinaryOpToString[TSupportsEquality, S],
+	BinaryOp[TSupportsEquality, S],
 	BinaryOperationOverloads[TSupportsEquality, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -798,7 +930,7 @@ class Ne(
 
 
 class Lt(
-	BinaryOpToString[TSupportsComparison, S],
+	BinaryOp[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -812,7 +944,7 @@ class Lt(
 
 
 class Le(
-	BinaryOpToString[TSupportsComparison, S],
+	BinaryOp[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -826,7 +958,7 @@ class Le(
 
 
 class Gt(
-	BinaryOpToString[TSupportsComparison, S],
+	BinaryOp[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -840,7 +972,7 @@ class Gt(
 
 
 class Ge(
-	BinaryOpToString[TSupportsComparison, S],
+	BinaryOp[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -854,36 +986,48 @@ class Ge(
 
 
 class Add(
-	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	Foldable[TSupportsArithmetic, S],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " + "
+	op_func: Final[ClassVar] = operator.add  # type: ignore[misc]
+	identity_element: Final[ClassVar] = 0  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
 
 
 class Sub(
-	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	Foldable[TSupportsArithmetic, S],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " - "
+	op_func: Final[ClassVar] = operator.sub  # type: ignore[misc]
+	identity_element: Final[ClassVar] = 0  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
 
 
 class Mul(
-	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	Foldable[TSupportsArithmetic, S],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " * "
+	op_func: Final[ClassVar] = operator.mul  # type: ignore[misc]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
 
 
 class Div(
-	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	Foldable[TSupportsArithmetic, S],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " / "
+	op_func: Final[ClassVar] = operator.truediv  # type: ignore[misc]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
@@ -891,9 +1035,12 @@ class Div(
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Pow(
-	BinaryOpToString[TSupportsArithmetic, S], BinaryOperationOverloads[TSupportsArithmetic, S]
+	Foldable[TSupportsArithmetic, S],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = "^"
+	op_func: Final[ClassVar] = operator.pow  # type: ignore[misc]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
 
 	left: Expr[TSupportsArithmetic, S]
 	right: Expr[TSupportsArithmetic, S]
@@ -1032,7 +1179,7 @@ class Percent(ConstTolerance[TSupportsArithmetic]):
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Approximately(
-	BinaryOpToString[TSupportsArithmetic, S],
+	BinaryOp[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 	BooleanBinaryOperationOverloads[Any, S],
 ):
@@ -1067,6 +1214,9 @@ class Approximately(
 		return Const(
 			None, abs(self.left.eval(ctx).value - self.right.value) <= self.right.max_abs_error
 		)
+
+	def partial(self, ctx: Any) -> "Approximately[TSupportsArithmetic, Any]":
+		return Approximately(self.left.partial(ctx), self.right)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1122,6 +1272,9 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 		)
 		return f"{self.name}: {result}" if self.name else result
 
+	def partial(self, ctx: Any) -> "Predicate[Any]":
+		return Predicate(self.name, self.expr.partial(ctx))  # type: ignore[arg-type]
+
 
 def format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
 	"""Format an iterable variable with compact container display.
@@ -1150,7 +1303,7 @@ def format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str
 	prefix: Final = f"{name}:" if name else ""
 
 	def _serialize_elem(elem: Any) -> str:
-		return elem.to_string(ctx) if isinstance(elem, Expr) else str(elem)  # type: ignore[arg-type]
+		return elem.to_string(ctx) if hasattr(elem, "to_string") else str(elem)
 
 	# Handle different container types
 	if hasattr(value, "__getitem__") and not isinstance(value, (str, bytes)):
@@ -1216,6 +1369,9 @@ class Contains(
 				left=left, op=self.op, right=right, out=self.eval(ctx).value
 			)
 
+	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+		return Contains(self.element.partial(ctx), self.container.partial(ctx))
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class AnyExpr(
@@ -1276,6 +1432,9 @@ class AnyExpr(
 			else:
 				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+		return AnyExpr(self.container.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1338,6 +1497,9 @@ class AllExpr(
 				left = self.container.to_string(ctx)
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
+	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+		return AllExpr(self.container.partial(ctx))
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class MapExpr(
@@ -1380,3 +1542,54 @@ class MapExpr(
 			return self.template_eval.format(
 				op=self.op, func=func_str, container=container_str, out=out_str
 			)
+
+	def partial(self, ctx: Any) -> "Expr[SizedIterable[U], Any]":
+		partial_func = Func(self.func.args, self.func.expr.partial(ctx))
+		return MapExpr(partial_func, self.container.partial(ctx))
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class FoldLExpr(
+	BinaryOperationOverloads[T, S],
+	Generic[T, S],
+):
+	op_cls: type[Foldable[T, S]]
+	container: Expr[SizedIterable[T], S]
+	initial: T | None = None
+
+	def eval(self, ctx: S) -> Const[T]:
+		result_value: T = self.initial if self.initial is not None else self.op_cls.identity_element  # type: ignore[assignment]
+
+		for item in self.container.unwrap(ctx):
+			item_value: T = item.unwrap(ctx) if isinstance(item, Expr) else item  # type: ignore[arg-type,assignment]
+			result_value = self.op_cls.op_func(result_value, item_value)  # type: ignore[arg-type,assignment]
+
+		return Const(None, result_value)
+
+	def to_string(self, ctx: S | None = None) -> str:
+		op_str: Final = self.op_cls.op.strip()
+		container_name: Final = (
+			self.container.to_string()
+			if ctx is None
+			else self.container.to_string() + f":{len(self.container.unwrap(ctx))}"
+		)
+		if ctx is None:
+			return f"(foldl {op_str} {container_name})"
+		else:
+			items = list(self.container.unwrap(ctx))
+			initial_str = f"{str(self.initial)}{self.op_cls.op}" if self.initial is not None else ""
+			items_str = self._format_items(items, op_str, ctx)
+			result = self.eval(ctx).value
+			return f"(foldl {op_str} {container_name} -> ({initial_str}{items_str}) -> {result})"
+
+	@staticmethod
+	def _format_items(items: list[Any], op: str, ctx: S) -> str:
+		def serialize(item: Any) -> str:
+			if isinstance(item, Expr):
+				return item.to_string(ctx)
+			return str(item)
+
+		return f" {op} ".join(serialize(i) for i in items)
+
+	def partial(self, ctx: Any) -> "Expr[T, Any]":
+		return FoldLExpr(self.op_cls, self.container.partial(ctx), self.initial)

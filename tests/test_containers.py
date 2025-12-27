@@ -5,7 +5,20 @@
 
 from typing import Any, NamedTuple, assert_type
 
-from mahonia import AllExpr, AnyExpr, Const, Contains, SizedIterable, Var
+from mahonia import (
+	Add,
+	AllExpr,
+	And,
+	AnyExpr,
+	Const,
+	Contains,
+	Expr,
+	FoldLExpr,
+	Mul,
+	Or,
+	SizedIterable,
+	Var,
+)
 
 
 class ContainerData(NamedTuple):
@@ -442,3 +455,360 @@ def test_large_iterable_serialization() -> None:
 	# Test with many elements
 	ctx_many = LargeCtx(large_list=list(range(100)))
 	assert format_iterable_var(large_var, ctx_many) == "large_list:100[0,..99]"
+
+
+def test_foldl_add_int() -> None:
+	"""Test FoldLExpr with Add operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+
+	foldl_expr = FoldLExpr(Add, values)
+
+	assert foldl_expr.to_string() == "(foldl + values)"
+
+	ctx = ContainerCtx(values=[1, 2, 3, 4])
+	assert foldl_expr.unwrap(ctx) == 10
+	assert foldl_expr.to_string(ctx) == "(foldl + values:4 -> (1 + 2 + 3 + 4) -> 10)"
+
+	assert FoldLExpr(Add, values, 10).unwrap(ctx) == 20
+	assert FoldLExpr(Add, values, 10).to_string(ctx) == (
+		"(foldl + values:4 -> (10 + 1 + 2 + 3 + 4) -> 20)"
+	)
+
+
+def test_foldl_add_expr() -> None:
+	"""Test FoldLExpr with Add operation on Expr elements."""
+
+	class XYCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, XYCtx]("x")
+	y = Var[int, XYCtx]("y")
+
+	expr_1 = x + y
+	expr_2 = x * x
+	expr_3 = x * y
+	expr_4 = expr_1 * expr_2 - expr_3
+
+	class FoldCtx(NamedTuple):
+		x: int
+		y: int
+		values: list[Expr[int, XYCtx]]
+
+	values = Var[SizedIterable[Expr[int, XYCtx]], FoldCtx]("values")
+
+	foldl_expr = FoldLExpr(Add, values)
+
+	assert foldl_expr.to_string() == "(foldl + values)"
+	ctx = FoldCtx(x=5, y=8, values=[expr_1, expr_2, expr_3, expr_4])
+	assert foldl_expr.unwrap(ctx) == 363
+	assert foldl_expr.to_string(ctx) == (
+		"(foldl + values:4 -> ((x:5 + y:8 -> 13) + (x:5 * x:5 -> 25) + (x:5 * y:8 -> 40) "
+		"+ (((x:5 + y:8 -> 13) * (x:5 * x:5 -> 25) -> 325) - (x:5 * y:8 -> 40) -> 285)) -> 363)"
+	)
+
+
+def test_foldl_partial() -> None:
+	"""Test FoldLExpr with partial application."""
+
+	class PartialCtx(NamedTuple):
+		values: list[int]
+		multiplier: int
+
+	values = Var[SizedIterable[int], PartialCtx]("values")
+
+	foldl_expr = FoldLExpr(Add, values)
+
+	class ValuesOnlyCtx(NamedTuple):
+		values: list[int]
+
+	partial_expr = foldl_expr.partial(ValuesOnlyCtx(values=[1, 2, 3, 4]))
+
+	assert partial_expr.to_string() == "(foldl + values:[1, 2, 3, 4])"
+
+	class EmptyCtx(NamedTuple):
+		pass
+
+	assert partial_expr.unwrap(EmptyCtx()) == 10
+
+
+def test_foldl_partial_preserves_structure() -> None:
+	"""Test that FoldLExpr partial application preserves nested expression structure.
+
+	This tests that when we partial a FoldLExpr, we can later provide elements
+	that are themselves expressions requiring a context for final evaluation.
+	"""
+
+	class XYCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, XYCtx]("x")
+	y = Var[int, XYCtx]("y")
+
+	expr_1 = x + y
+	expr_2 = x * y
+
+	class FoldCtx(NamedTuple):
+		x: int
+		y: int
+		values: list[Expr[int, XYCtx]]
+
+	values = Var[SizedIterable[Expr[int, XYCtx]], FoldCtx]("values")
+	foldl_expr = FoldLExpr(Add, values)
+
+	class ValuesOnlyCtx(NamedTuple):
+		values: list[Expr[int, XYCtx]]
+
+	partial_ctx = ValuesOnlyCtx(values=[expr_1, expr_2])
+	partial_expr = foldl_expr.partial(partial_ctx)
+
+	class XYOnlyCtx(NamedTuple):
+		x: int
+		y: int
+
+	result = partial_expr.unwrap(XYOnlyCtx(x=5, y=3))
+	assert result == (5 + 3) + (5 * 3)  # 8 + 15 = 23
+
+
+def test_foldl_with_bound_expr() -> None:
+	"""Test FoldLExpr with BoundExpr elements (expr-compatible BoundExpr)."""
+	from mahonia import BoundExpr
+
+	class XYCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, XYCtx]("x")
+	y = Var[int, XYCtx]("y")
+
+	ctx1 = XYCtx(x=2, y=3)
+	ctx2 = XYCtx(x=4, y=5)
+	ctx3 = XYCtx(x=6, y=7)
+
+	bound_1 = (x + y).bind(ctx1)
+	bound_2 = (x * y).bind(ctx2)
+	bound_3 = (x - y).bind(ctx3)
+
+	class BoundFoldCtx(NamedTuple):
+		bounds: list[BoundExpr[int, XYCtx]]
+
+	bounds = Var[SizedIterable[BoundExpr[int, XYCtx]], BoundFoldCtx]("bounds")
+	foldl_expr = FoldLExpr(Add, bounds)
+
+	ctx = BoundFoldCtx(bounds=[bound_1, bound_2, bound_3])
+	assert foldl_expr.unwrap(ctx) == (2 + 3) + (4 * 5) + (6 - 7)  # 5 + 20 + (-1) = 24
+
+
+def test_foldl_bound_expr_composition() -> None:
+	"""Test FoldLExpr result can be composed with BoundExpr."""
+	from mahonia import BoundExpr
+
+	class SumCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], SumCtx]("values")
+	foldl_sum = FoldLExpr(Add, values)
+
+	ctx = SumCtx(values=[1, 2, 3, 4])
+	bound_sum: BoundExpr[int, SumCtx] = foldl_sum.bind(ctx)
+
+	assert bound_sum.unwrap() == 10
+
+	class MultiplyCtx(NamedTuple):
+		factor: int
+
+	factor = Var[int, MultiplyCtx]("factor")
+	combined = bound_sum * factor
+
+	mult_ctx = MultiplyCtx(factor=3)
+	assert combined.unwrap(mult_ctx) == 30
+	assert combined.to_string(mult_ctx) == (
+		"((foldl + values:4 -> (1 + 2 + 3 + 4) -> 10) * factor:3 -> 30)"
+	)
+
+
+def test_foldl_partial_then_bind() -> None:
+	"""Test partial application followed by binding produces correct closed term."""
+	from mahonia import BoundExpr
+
+	class FullCtx(NamedTuple):
+		values: list[int]
+		offset: int
+
+	values = Var[SizedIterable[int], FullCtx]("values")
+	offset = Var[int, FullCtx]("offset")
+
+	foldl_sum = FoldLExpr(Add, values)
+	expr = foldl_sum + offset
+
+	class ValuesCtx(NamedTuple):
+		values: list[int]
+
+	partial_expr = expr.partial(ValuesCtx(values=[10, 20, 30]))
+
+	class OffsetCtx(NamedTuple):
+		offset: int
+
+	bound: BoundExpr[int, OffsetCtx] = partial_expr.bind(OffsetCtx(offset=5))
+
+	assert bound.unwrap() == 65  # 10 + 20 + 30 + 5
+	assert bound.to_string() == (
+		"((foldl + values:[10, 20, 30]:3 -> (10 + 20 + 30) -> 60) + offset:5 -> 65)"
+	)
+
+
+def test_foldl_mul() -> None:
+	"""Test FoldLExpr with Mul operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	foldl_expr = FoldLExpr(Mul, values)
+
+	assert foldl_expr.to_string() == "(foldl * values)"
+
+	ctx = ContainerCtx(values=[2, 3, 4])
+	assert foldl_expr.unwrap(ctx) == 24
+	assert foldl_expr.to_string(ctx) == "(foldl * values:3 -> (2 * 3 * 4) -> 24)"
+
+
+def test_foldl_and() -> None:
+	"""Test FoldLExpr with And operation."""
+
+	class ContainerCtx(NamedTuple):
+		flags: list[bool]
+
+	flags = Var[SizedIterable[bool], ContainerCtx]("flags")
+	foldl_expr = FoldLExpr(And, flags)
+
+	assert foldl_expr.to_string() == "(foldl & flags)"
+
+	ctx_all_true = ContainerCtx(flags=[True, True, True])
+	assert foldl_expr.unwrap(ctx_all_true) is True
+	assert foldl_expr.to_string(ctx_all_true) == "(foldl & flags:3 -> (True & True & True) -> True)"
+
+	ctx_one_false = ContainerCtx(flags=[True, False, True])
+	assert foldl_expr.unwrap(ctx_one_false) is False
+	assert (
+		foldl_expr.to_string(ctx_one_false) == "(foldl & flags:3 -> (True & False & True) -> False)"
+	)
+
+
+def test_foldl_or() -> None:
+	"""Test FoldLExpr with Or operation."""
+
+	class ContainerCtx(NamedTuple):
+		flags: list[bool]
+
+	flags = Var[SizedIterable[bool], ContainerCtx]("flags")
+	foldl_expr = FoldLExpr(Or, flags)
+
+	assert foldl_expr.to_string() == "(foldl | flags)"
+
+	ctx_all_false = ContainerCtx(flags=[False, False, False])
+	assert foldl_expr.unwrap(ctx_all_false) is False
+
+	ctx_one_true = ContainerCtx(flags=[False, True, False])
+	assert foldl_expr.unwrap(ctx_one_true) is True
+
+
+def test_foldl_empty_container() -> None:
+	"""Test that FoldLExpr returns identity element on empty container."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+		flags: list[bool]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	flags = Var[SizedIterable[bool], ContainerCtx]("flags")
+
+	ctx = ContainerCtx(values=[], flags=[])
+
+	assert FoldLExpr(Add, values).unwrap(ctx) == 0
+	assert FoldLExpr(Mul, values).unwrap(ctx) == 1
+	assert FoldLExpr(And, flags).unwrap(ctx) is True
+	assert FoldLExpr(Or, flags).unwrap(ctx) is False
+
+
+def test_foldl_single_element() -> None:
+	"""Test FoldLExpr with single element returns identity op element."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+
+	ctx = ContainerCtx(values=[42])
+	assert FoldLExpr(Add, values).unwrap(ctx) == 42
+	assert FoldLExpr(Mul, values).unwrap(ctx) == 42
+
+
+def test_foldl_bound_predicates() -> None:
+	"""Test folding bound predicates with And - the motivating use case.
+
+	This demonstrates validating multiple conditions on a measurement context,
+	where predicates are bound to the measurement, then reduced lazily.
+	"""
+	from mahonia import Approximately, BoundExpr, PlusMinus, Predicate
+
+	class Measurement(NamedTuple):
+		voltage: float
+		current: float
+		temperature: float
+		power: float
+
+	voltage = Var[float, Measurement]("voltage")
+	current = Var[float, Measurement]("current")
+	temperature = Var[float, Measurement]("temperature")
+	power = Var[float, Measurement]("power")
+
+	voltage_ok = Predicate("Voltage OK", Approximately(voltage, PlusMinus("target", 5.0, 0.1)))
+	current_ok = Predicate("Current OK", Approximately(current, PlusMinus("target", 2.0, 0.05)))
+	temp_ok = Predicate("Temp OK", (temperature > 20.0) & (temperature < 80.0))
+	power_ok = Predicate("Power OK", power < 15.0)
+
+	class ValidationCtx(NamedTuple):
+		tests: list[BoundExpr[bool, Measurement]]
+
+	tests = Var[SizedIterable[BoundExpr[bool, Measurement]], ValidationCtx]("tests")
+	all_pass = FoldLExpr(And, tests)
+
+	assert all_pass.to_string() == "(foldl & tests)"
+
+	passing_measurement = Measurement(voltage=5.02, current=1.98, temperature=25.0, power=10.0)
+	passing_ctx = ValidationCtx(
+		tests=[
+			pred.bind(passing_measurement) for pred in [voltage_ok, current_ok, temp_ok, power_ok]
+		],
+	)
+
+	assert all_pass.unwrap(passing_ctx) is True
+	assert all_pass.to_string(passing_ctx) == (
+		"(foldl & tests:4 -> ("
+		"Voltage OK: True (voltage:5.02 ≈ target:5.0 ± 0.1 -> True) & "
+		"Current OK: True (current:1.98 ≈ target:2.0 ± 0.05 -> True) & "
+		"Temp OK: True ((temperature:25.0 > 20.0 -> True) & (temperature:25.0 < 80.0 -> True) -> True) & "
+		"Power OK: True (power:10.0 < 15.0 -> True)) -> True)"
+	)
+
+	failing_measurement = Measurement(voltage=5.5, current=1.98, temperature=25.0, power=10.0)
+	failing_ctx = ValidationCtx(
+		tests=[
+			pred.bind(failing_measurement) for pred in [voltage_ok, current_ok, temp_ok, power_ok]
+		],
+	)
+
+	assert all_pass.unwrap(failing_ctx) is False
+	assert all_pass.to_string(failing_ctx) == (
+		"(foldl & tests:4 -> ("
+		"Voltage OK: False (voltage:5.5 ≈ target:5.0 ± 0.1 -> False) & "
+		"Current OK: True (current:1.98 ≈ target:2.0 ± 0.05 -> True) & "
+		"Temp OK: True ((temperature:25.0 > 20.0 -> True) & (temperature:25.0 < 80.0 -> True) -> True) & "
+		"Power OK: True (power:10.0 < 15.0 -> True)) -> False)"
+	)

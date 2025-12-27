@@ -42,3 +42,9 @@ all = ["format", "lint", "test"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.uv.workspace]
+members = ["examples/manufacturing_tests"]
+
+[tool.uv.sources]
+mahonia = { workspace = true }
