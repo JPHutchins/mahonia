@@ -12,12 +12,18 @@ from mahonia import (
 	Approximately,
 	BoundExpr,
 	Const,
+	Div,
 	Eq,
 	Expr,
+	Ge,
+	Gt,
+	Le,
 	Lt,
 	MergeContextProtocol,
 	Mul,
+	Ne,
 	Not,
+	Or,
 	Percent,
 	PlusMinus,
 	Pow,
@@ -422,6 +428,114 @@ def test_const_ge_var_and_literal() -> None:
 	c10 = Const("Ten", 10)
 	assert (c10 >= y).unwrap(ctx) is True
 	assert (c10 >= 20).unwrap(ctx) is False
+
+
+def test_literal_radd_var() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 1 + x
+	assert_type(expr, Add[int, Ctx])
+	assert expr == Add(Const(None, 1), x)
+	assert expr.unwrap(ctx) == 6
+
+
+def test_literal_rsub_var() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 10 - x
+	assert_type(expr, Sub[int, Ctx])
+	assert expr == Sub(Const(None, 10), x)
+	assert expr.unwrap(ctx) == 5
+
+
+def test_literal_rmul_var() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 3 * x
+	assert_type(expr, Mul[int, Ctx])
+	assert expr == Mul(Const(None, 3), x)
+	assert expr.unwrap(ctx) == 15
+
+
+def test_literal_rtruediv_var() -> None:
+	y = Var[float, Ctx]("y")
+	expr = 20.0 / y
+	assert_type(expr, Div[float, Ctx])
+	assert expr == Div(Const(None, 20.0), y)
+	assert expr.unwrap(ctx) == 2.0
+
+
+def test_literal_rpow_var() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 2**x
+	assert_type(expr, Pow[int, Ctx])
+	assert expr == Pow(Const(None, 2), x)
+	assert expr.unwrap(ctx) == 32
+
+
+def test_literal_rand_expr() -> None:
+	x = Var[int, Ctx]("x")
+	expr = True & (x > 0)
+	assert_type(expr, And[Any, Ctx])
+	assert expr.left == Const(None, True)
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_ror_expr() -> None:
+	x = Var[int, Ctx]("x")
+	expr = False | (x > 0)
+	assert_type(expr, Or[Any, Ctx])
+	assert expr.left == Const(None, False)
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_lt_var_reflects_to_gt() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 3 < x
+	assert_type(expr, Gt[int, Ctx])
+	assert expr == Gt(x, Const(None, 3))
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_le_var_reflects_to_ge() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 5 <= x
+	assert_type(expr, Ge[int, Ctx])
+	assert expr == Ge(x, Const(None, 5))
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_gt_var_reflects_to_lt() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 10 > x
+	assert_type(expr, Lt[int, Ctx])
+	assert expr == Lt(x, Const(None, 10))
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_ge_var_reflects_to_le() -> None:
+	x = Var[int, Ctx]("x")
+	expr = 5 >= x
+	assert_type(expr, Le[int, Ctx])
+	assert expr == Le(x, Const(None, 5))
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_eq_var() -> None:
+	x = Var[int, Ctx]("x")
+	# Static type checker thinks int.__eq__ returns bool, but at runtime it returns
+	# NotImplemented for unknown types, causing Python to call Var.__eq__ instead.
+	expr = 5 == x  # type: ignore[comparison-overlap]
+	assert isinstance(expr, Eq)
+	assert expr == Eq(x, Const(None, 5))
+	assert expr.unwrap(ctx) is True
+
+
+def test_literal_ne_var() -> None:
+	x = Var[int, Ctx]("x")
+	# Static type checker thinks int.__ne__ returns bool, but at runtime it returns
+	# NotImplemented for unknown types, causing Python to call Var.__ne__ instead.
+	expr = 10 != x  # type: ignore[comparison-overlap]
+	assert isinstance(expr, Ne)
+	assert expr == Ne(x, Const(None, 10))
+	assert expr.unwrap(ctx) is True
 
 
 def test_var_in_range() -> None:

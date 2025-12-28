@@ -38,26 +38,34 @@ one context in another context and will get a static type error if you try.
 
 ### Type Coercion
 
-The most important rule to remember is that the leftmost leaf of your expression
-must be a Mahonia `Expr`. This is usually a `Var` or `Const`, but can be any
-type that implements the `Expr` protocol, e.g., any Mahonia expression.
+Coercible types (like `int`, `float`, `bool`) can appear on either side of
+a binary operator with a Mahonia `Expr`. The coercible type will be wrapped
+in an unnamed `Const`.
 
-For example, this will work, because the literal `1`
-is coerced to an unnamed `Const`:
 >>> X = Const("X", 41)
 >>> X + 1
 Add(left=Const(name='X', value=41), right=Const(name=None, value=1))
 
-But this will not:
 >>> 1 + X
-Traceback (most recent call last):
-	...
-TypeError: unsupported operand type(s) for +: 'int' and 'Const'
+Add(left=Const(name=None, value=1), right=Const(name='X', value=41))
 
-This is a result of Python's binary operator rules, which will use the type
-of the leftmost operand to determine the operation. In this case, `1` is an
-`int`, so Python will try to use the `int`'s `__add__` method, instead of
-Mahonia's `__add__` method. See `BinaryOperationOverloads` for more details.
+This works because `BinaryOperationOverloads` implements both the standard
+operators (`__add__`, etc.) and their right-associative counterparts
+(`__radd__`, etc.). When Python's `int.__add__` doesn't know how to handle
+a Mahonia `Expr`, it falls back to the Expr's `__radd__` method.
+
+Comparison operators also work with literals on the left, but Python reflects
+them to the swapped operator (e.g., `5 < x` becomes `x > 5`):
+
+>>> from typing import Any
+>>> x = Var[int, Any]("x")
+>>> 5 < x
+Gt(left=Var(name='x'), right=Const(name=None, value=5))
+
+For `==` and `!=`, static type checkers incorrectly infer `bool` because they
+don't know that `int.__eq__` returns `NotImplemented` for unknown types. At
+runtime, Python correctly falls back to the Expr's `__eq__` method. To avoid
+type checker errors, prefer placing the Expr on the left side: `x == 5`.
 
 ### Examples
 
@@ -493,8 +501,14 @@ class BooleanBinaryOperationOverloads(BoolExpr[TSupportsLogic, S]):
 	def __and__(self, other: BoolExpr[TSupportsLogic, S]) -> "And[TSupportsLogic, S]":
 		return And(self, other)
 
+	def __rand__(self, other: TSupportsLogic) -> "And[TSupportsLogic, S]":
+		return And(Const(None, other), self)  # type: ignore[arg-type]
+
 	def __or__(self, other: BoolExpr[TSupportsLogic, S]) -> "Or[TSupportsLogic, S]":
 		return Or(self, other)
+
+	def __ror__(self, other: TSupportsLogic) -> "Or[TSupportsLogic, S]":
+		return Or(Const(None, other), self)  # type: ignore[arg-type]
 
 	def __invert__(self) -> "Not[S]":
 		return Not(self)
@@ -608,6 +622,20 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Add(self, Const(None, other))  # type: ignore[arg-type]
 
 	@overload
+	def __radd__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __radd__(self, other: Expr[TSupportsArithmetic, S]) -> "Add[TSupportsArithmetic, S]": ...
+
+	def __radd__(
+		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Add[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Add(other, self)  # type: ignore[arg-type]
+		else:
+			return Add(Const(None, other), self)  # type: ignore[arg-type]
+
+	@overload
 	def __sub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
 	@overload
@@ -620,6 +648,20 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Sub(self, other)  # type: ignore[arg-type]
 		else:
 			return Sub(self, Const(None, other))  # type: ignore[arg-type]
+
+	@overload
+	def __rsub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rsub__(self, other: Expr[TSupportsArithmetic, S]) -> "Sub[TSupportsArithmetic, S]": ...
+
+	def __rsub__(
+		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Sub[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Sub(other, self)  # type: ignore[arg-type]
+		else:
+			return Sub(Const(None, other), self)  # type: ignore[arg-type]
 
 	@overload
 	def __mul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
@@ -636,6 +678,20 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Mul(self, Const(None, other))  # type: ignore[arg-type]
 
 	@overload
+	def __rmul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rmul__(self, other: Expr[TSupportsArithmetic, S]) -> "Mul[TSupportsArithmetic, S]": ...
+
+	def __rmul__(
+		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Mul[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Mul(other, self)  # type: ignore[arg-type]
+		else:
+			return Mul(Const(None, other), self)  # type: ignore[arg-type]
+
+	@overload
 	def __truediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
@@ -646,6 +702,18 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Div(self, other)  # type: ignore[arg-type]
 		else:
 			return Div(self, Const[float](None, other))  # type: ignore[arg-type]
+
+	@overload
+	def __rtruediv__(self, other: float) -> "Div[float, S]": ...
+
+	@overload
+	def __rtruediv__(self, other: Expr[float, S]) -> "Div[float, S]": ...
+
+	def __rtruediv__(self, other: Expr[float, S] | float) -> "Div[float, S]":
+		if isinstance(other, Expr):
+			return Div(other, self)  # type: ignore[arg-type]
+		else:
+			return Div(Const[float](None, other), self)  # type: ignore[arg-type]
 
 	@overload
 	def __pow__(self, power: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
@@ -660,6 +728,20 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Pow(self, power)  # type: ignore[arg-type]
 		else:
 			return Pow(self, Const(None, power))  # type: ignore[arg-type]
+
+	@overload
+	def __rpow__(self, other: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rpow__(self, other: Expr[TSupportsArithmetic, S]) -> "Pow[TSupportsArithmetic, S]": ...
+
+	def __rpow__(
+		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+	) -> "Pow[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Pow(other, self)  # type: ignore[arg-type]
+		else:
+			return Pow(Const(None, other), self)  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
