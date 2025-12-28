@@ -8,7 +8,7 @@ Contributions and bug reports are welcome!
 > - Install [uv](https://github.com/astral-sh/uv)
 > - Initialize the environment:
 >   ```
->   uv sync --locked --all-extras --dev
+>   uv sync --locked --all-extras --all-packages --dev
 >   ```
 
 ### Formatting
