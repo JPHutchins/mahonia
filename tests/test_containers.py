@@ -74,14 +74,14 @@ def test_any_expr() -> None:
 	flags = Var[SizedIterable[bool], ContainerData]("flags")
 	any_expr = AnyExpr(flags)
 
-	assert any_expr.to_string() == "any(flags)"
+	assert any_expr.to_string() == "(any flags)"
 	assert any_expr.unwrap(ctx) is True
-	assert any_expr.to_string(ctx) == "any(flags:3[True,..True] -> True)"
+	assert any_expr.to_string(ctx) == "(any flags:3[True,..True] -> True)"
 
 	# Test with all False
 	all_false_ctx = ContainerData(values=[1, 2, 3], targets=["a", "b"], flags=[False, False, False])
 	assert any_expr.unwrap(all_false_ctx) is False
-	assert any_expr.to_string(all_false_ctx) == "any(flags:3[False,..False] -> False)"
+	assert any_expr.to_string(all_false_ctx) == "(any flags:3[False,..False] -> False)"
 
 
 def test_all_expr() -> None:
@@ -91,14 +91,14 @@ def test_all_expr() -> None:
 	flags = Var[SizedIterable[bool], ContainerData]("flags")
 	all_expr = AllExpr(flags)
 
-	assert all_expr.to_string() == "all(flags)"
+	assert all_expr.to_string() == "(all flags)"
 	assert all_expr.unwrap(ctx) is True
-	assert all_expr.to_string(ctx) == "all(flags:3[True,..True] -> True)"
+	assert all_expr.to_string(ctx) == "(all flags:3[True,..True] -> True)"
 
 	# Test with one False
 	mixed_ctx = ContainerData(values=[1, 2, 3], targets=["a", "b"], flags=[True, False, True])
 	assert all_expr.unwrap(mixed_ctx) is False
-	assert all_expr.to_string(mixed_ctx) == "all(flags:3[True,..True] -> False)"
+	assert all_expr.to_string(mixed_ctx) == "(all flags:3[True,..True] -> False)"
 
 
 def test_empty_containers() -> None:
@@ -323,22 +323,22 @@ def test_mapexpr_in_anyexpr_serialization() -> None:
 	any_lt_ten = AnyExpr(lt_ten)
 
 	# Without context
-	assert any_lt_ten.to_string() == "any((map n -> (n < 10) nums))"
+	assert any_lt_ten.to_string() == "(any (map n -> (n < 10) nums))"
 
 	# With context - should show full MapExpr evaluation
 	ctx = NumCtx(nums=[3, 7, 2])
 	result = any_lt_ten.to_string(ctx)
-	assert result == "any((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)"
+	assert result == "(any (map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)"
 
 	# With some values >= 10
 	ctx2 = NumCtx(nums=[15, 20, 25])
 	result = any_lt_ten.to_string(ctx2)
-	assert result == "any((map n -> (n < 10) nums:3[15,..25] -> 3[False,..False]) -> False)"
+	assert result == "(any (map n -> (n < 10) nums:3[15,..25] -> 3[False,..False]) -> False)"
 
 	# Mixed values
 	ctx3 = NumCtx(nums=[5, 15, 3])
 	result = any_lt_ten.to_string(ctx3)
-	assert result == "any((map n -> (n < 10) nums:3[5,..3] -> 3[True,..True]) -> True)"
+	assert result == "(any (map n -> (n < 10) nums:3[5,..3] -> 3[True,..True]) -> True)"
 
 
 def test_mapexpr_in_allexpr_serialization() -> None:
@@ -355,22 +355,22 @@ def test_mapexpr_in_allexpr_serialization() -> None:
 	all_gt_zero = AllExpr(gt_zero)
 
 	# Without context
-	assert all_gt_zero.to_string() == "all((map n -> (n > 0) nums))"
+	assert all_gt_zero.to_string() == "(all (map n -> (n > 0) nums))"
 
 	# With context - all positive
 	ctx = NumCtx(nums=[3, 7, 2])
 	result = all_gt_zero.to_string(ctx)
-	assert result == "all((map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> True)"
+	assert result == "(all (map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> True)"
 
 	# With some non-positive
 	ctx2 = NumCtx(nums=[3, 0, 2])
 	result = all_gt_zero.to_string(ctx2)
-	assert result == "all((map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> False)"
+	assert result == "(all (map n -> (n > 0) nums:3[3,..2] -> 3[True,..True]) -> False)"
 
 	# All non-positive
 	ctx3 = NumCtx(nums=[-1, -5, 0])
 	result = all_gt_zero.to_string(ctx3)
-	assert result == "all((map n -> (n > 0) nums:3[-1,..0] -> 3[False,..False]) -> False)"
+	assert result == "(all (map n -> (n > 0) nums:3[-1,..0] -> 3[False,..False]) -> False)"
 
 
 def test_var_vs_mapexpr_in_anyexpr() -> None:
@@ -387,14 +387,14 @@ def test_var_vs_mapexpr_in_anyexpr() -> None:
 	# Simple Var - uses compact format
 	simple_any = AnyExpr(flags)
 	ctx = FlagCtx(flags=[True, False, True], nums=[1, 2, 3])
-	assert simple_any.to_string(ctx) == "any(flags:3[True,..True] -> True)"
+	assert simple_any.to_string(ctx) == "(any flags:3[True,..True] -> True)"
 
 	# MapExpr - shows full evaluation trace
 	mapped = (n > 1).map(nums)
 	complex_any = AnyExpr(mapped)
 	assert (
 		complex_any.to_string(ctx)
-		== "any((map n -> (n > 1) nums:3[1,..3] -> 3[False,..True]) -> True)"
+		== "(any (map n -> (n > 1) nums:3[1,..3] -> 3[False,..True]) -> True)"
 	)
 
 
@@ -412,14 +412,14 @@ def test_var_vs_mapexpr_in_allexpr() -> None:
 	# Simple Var - uses compact format
 	simple_all = AllExpr(flags)
 	ctx = FlagCtx(flags=[True, True, True], nums=[5, 10, 15])
-	assert simple_all.to_string(ctx) == "all(flags:3[True,..True] -> True)"
+	assert simple_all.to_string(ctx) == "(all flags:3[True,..True] -> True)"
 
 	# MapExpr - shows full evaluation trace
 	mapped = (n >= 5).map(nums)
 	complex_all = AllExpr(mapped)
 	assert (
 		complex_all.to_string(ctx)
-		== "all((map n -> (n >= 5) nums:3[5,..15] -> 3[True,..True]) -> True)"
+		== "(all (map n -> (n >= 5) nums:3[5,..15] -> 3[True,..True]) -> True)"
 	)
 
 
@@ -827,11 +827,11 @@ def test_min_expr() -> None:
 	values = Var[SizedIterable[int], ContainerCtx]("values")
 	min_expr = MinExpr(values)
 
-	assert min_expr.to_string() == "min(values)"
+	assert min_expr.to_string() == "(min values)"
 
 	ctx = ContainerCtx(values=[3, 1, 4, 1, 5, 9])
 	assert min_expr.unwrap(ctx) == 1
-	assert min_expr.to_string(ctx) == "min(values:6[3,..9] -> 1)"
+	assert min_expr.to_string(ctx) == "(min values:6[3,..9] -> 1)"
 
 
 def test_max_expr() -> None:
@@ -843,11 +843,11 @@ def test_max_expr() -> None:
 	values = Var[SizedIterable[int], ContainerCtx]("values")
 	max_expr = MaxExpr(values)
 
-	assert max_expr.to_string() == "max(values)"
+	assert max_expr.to_string() == "(max values)"
 
 	ctx = ContainerCtx(values=[3, 1, 4, 1, 5, 9])
 	assert max_expr.unwrap(ctx) == 9
-	assert max_expr.to_string(ctx) == "max(values:6[3,..9] -> 9)"
+	assert max_expr.to_string(ctx) == "(max values:6[3,..9] -> 9)"
 
 
 def test_foldl_min() -> None:

@@ -1597,13 +1597,13 @@ class AnyExpr(
 	>>> values = Var[list[bool], Ctx]("values")
 	>>> any_expr = AnyExpr(values)
 	>>> any_expr.to_string()
-	'any(values)'
+	'(any values)'
 	>>> any_expr.unwrap(Ctx(values=[False, True, False]))
 	True
 	>>> any_expr.unwrap(Ctx(values=[False, False, False]))
 	False
 	>>> any_expr.to_string(Ctx(values=[False, True, False]))
-	'any(values:3[False,..False] -> True)'
+	'(any values:3[False,..False] -> True)'
 
 	With complex expressions like MapExpr, shows the full evaluation trace:
 
@@ -1614,16 +1614,16 @@ class AnyExpr(
 	>>> gt_five = (n > 5).map(nums)
 	>>> any_gt_five = AnyExpr(gt_five)
 	>>> any_gt_five.to_string()
-	'any((map n -> (n > 5) nums))'
+	'(any (map n -> (n > 5) nums))'
 	>>> any_gt_five.to_string(NumCtx(nums=[3, 7, 2]))
-	'any((map n -> (n > 5) nums:3[3,..2] -> 3[False,..False]) -> True)'
+	'(any (map n -> (n > 5) nums:3[3,..2] -> 3[False,..False]) -> True)'
 	>>> any_gt_five.to_string(NumCtx(nums=[1, 2, 3]))
-	'any((map n -> (n > 5) nums:3[1,..3] -> 3[False,..False]) -> False)'
+	'(any (map n -> (n > 5) nums:3[1,..3] -> 3[False,..False]) -> False)'
 	"""
 
 	op: ClassVar[str] = "any"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[Any], S]
 	_foldl: FoldLExpr[bool, S] = field(init=False)
@@ -1665,13 +1665,13 @@ class AllExpr(
 	>>> values = Var[list[bool], Ctx]("values")
 	>>> all_expr = AllExpr(values)
 	>>> all_expr.to_string()
-	'all(values)'
+	'(all values)'
 	>>> all_expr.unwrap(Ctx(values=[True, True, True]))
 	True
 	>>> all_expr.unwrap(Ctx(values=[True, False, True]))
 	False
 	>>> all_expr.to_string(Ctx(values=[True, False, True]))
-	'all(values:3[True,..True] -> False)'
+	'(all values:3[True,..True] -> False)'
 
 	With complex expressions like MapExpr, shows the full evaluation trace:
 
@@ -1682,16 +1682,16 @@ class AllExpr(
 	>>> lt_ten = (n < 10).map(nums)
 	>>> all_lt_ten = AllExpr(lt_ten)
 	>>> all_lt_ten.to_string()
-	'all((map n -> (n < 10) nums))'
+	'(all (map n -> (n < 10) nums))'
 	>>> all_lt_ten.to_string(NumCtx(nums=[3, 7, 2]))
-	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)'
+	'(all (map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)'
 	>>> all_lt_ten.to_string(NumCtx(nums=[3, 15, 2]))
-	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> False)'
+	'(all (map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> False)'
 	"""
 
 	op: ClassVar[str] = "all"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[Any], S]
 	_foldl: FoldLExpr[bool, S] = field(init=False)
@@ -1733,16 +1733,16 @@ class MinExpr(
 	>>> values = Var[list[int], Ctx]("values")
 	>>> min_expr = MinExpr(values)
 	>>> min_expr.to_string()
-	'min(values)'
+	'(min values)'
 	>>> min_expr.unwrap(Ctx(values=[3, 1, 4, 1, 5]))
 	1
 	>>> min_expr.to_string(Ctx(values=[3, 1, 4]))
-	'min(values:3[3,..4] -> 1)'
+	'(min values:3[3,..4] -> 1)'
 	"""
 
 	op: ClassVar[str] = "min"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[TSupportsComparison], S]
 	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)
@@ -1784,16 +1784,16 @@ class MaxExpr(
 	>>> values = Var[list[int], Ctx]("values")
 	>>> max_expr = MaxExpr(values)
 	>>> max_expr.to_string()
-	'max(values)'
+	'(max values)'
 	>>> max_expr.unwrap(Ctx(values=[3, 1, 4, 1, 5]))
 	5
 	>>> max_expr.to_string(Ctx(values=[3, 1, 4]))
-	'max(values:3[3,..4] -> 4)'
+	'(max values:3[3,..4] -> 4)'
 	"""
 
 	op: ClassVar[str] = "max"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[TSupportsComparison], S]
 	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)

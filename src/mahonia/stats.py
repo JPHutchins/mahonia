@@ -53,8 +53,8 @@ class UnaryStatisticalOpToString(
 	"""String formatting mixin for unary statistical operations."""
 
 	op: ClassVar[str] = "stat"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = format_iterable_var(self.left, ctx)
@@ -89,12 +89,12 @@ class Mean(
 	>>> values = Var[list[float], Data]("values")
 	>>> mean_expr = Mean(values)  # User can provide any iterable
 	>>> mean_expr.to_string()
-	'mean(values)'
+	'(mean values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> mean_expr.unwrap(ctx)
 	3.0
 	>>> mean_expr.to_string(ctx)
-	'mean(values:5[1.0,..5.0] -> 3.0)'
+	'(mean values:5[1.0,..5.0] -> 3.0)'
 	"""
 
 	op: ClassVar[str] = "mean"
@@ -122,7 +122,7 @@ class StdDev(
 	>>> values = Var[list[float], Data]("values")
 	>>> std_expr = StdDev(values)
 	>>> std_expr.to_string()
-	'stddev(values)'
+	'(stddev values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> round(std_expr.unwrap(ctx), 3)
 	1.581
@@ -153,7 +153,7 @@ class Median(
 	>>> values = Var[list[float], Data]("values")
 	>>> median_expr = Median(values)
 	>>> median_expr.to_string()
-	'median(values)'
+	'(median values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> median_expr.unwrap(ctx)
 	3.0
@@ -180,7 +180,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 	>>> values = Var[list[float], Data]("values")
 	>>> p95_expr = Percentile(95, values)
 	>>> p95_expr.to_string()
-	'percentile:95(values)'
+	'(percentile:95 values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> p95_expr.unwrap(ctx)
 	4.8
@@ -218,9 +218,9 @@ class Percentile(BinaryOperationOverloads[float, S]):
 	def to_string(self, ctx: S | None = None) -> str:
 		left_str = format_iterable_var(self.left, ctx)
 		if ctx is None:
-			return f"{self.op}:{self.percentile}({left_str})"
+			return f"({self.op}:{self.percentile} {left_str})"
 		else:
-			return f"{self.op}:{self.percentile}({left_str} -> {self.unwrap(ctx)})"
+			return f"({self.op}:{self.percentile} {left_str} -> {self.unwrap(ctx)})"
 
 	def partial(self, ctx: Any) -> "Percentile[Any]":
 		return Percentile(self.percentile, self.left.partial(ctx))
@@ -237,7 +237,7 @@ class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float
 	>>> values = Var[list[float], Data]("values")
 	>>> range_expr = Range(values)
 	>>> range_expr.to_string()
-	'range(values)'
+	'(range values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> range_expr.unwrap(ctx)
 	4.0
@@ -266,15 +266,15 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 	>>> values = Var[list[float], Data]("values")
 	>>> count_expr = Count(values)
 	>>> count_expr.to_string()
-	'count(values)'
+	'(count values)'
 	>>> ctx = Data(values=[1.0, 2.0, 3.0, 4.0, 5.0])
 	>>> count_expr.unwrap(ctx)
 	5
 	"""
 
 	op: ClassVar[str] = "count"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left}) -> {out}"
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	left: Expr[SizedIterable[Any], S]
 
