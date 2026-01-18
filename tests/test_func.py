@@ -3,9 +3,11 @@
 
 """Test functional programming features with Func class."""
 
-from typing import NamedTuple, assert_type
+from typing import Any, NamedTuple, assert_type
 
-from mahonia import Const, Func, Var, _extract_vars
+import pytest
+
+from mahonia import Const, Expr, Func, Var, _extract_vars
 
 
 class FuncCtx(NamedTuple):
@@ -192,6 +194,75 @@ def test_func_types() -> None:
 	assert_type(func, Func[int, FuncCtx])
 	assert len(func.args) == 2
 	assert func.expr == expr
+
+
+@pytest.mark.mypy_testing
+def test_func_result_type_int() -> None:
+	"""Verify Func preserves int result type."""
+	x = Var[int, FuncCtx]("x")
+	y = Var[int, FuncCtx]("y")
+
+	add_func = (x + y).to_func()
+	assert_type(add_func, Func[int, FuncCtx])
+	assert_type(add_func.expr, Expr[Any, FuncCtx, int])
+
+	mul_func = (x * y).to_func()
+	assert_type(mul_func, Func[int, FuncCtx])
+	assert_type(mul_func.expr, Expr[Any, FuncCtx, int])
+
+	sub_func = (x - y).to_func()
+	assert_type(sub_func, Func[int, FuncCtx])
+	assert_type(sub_func.expr, Expr[Any, FuncCtx, int])
+
+
+@pytest.mark.mypy_testing
+def test_func_result_type_float() -> None:
+	"""Verify Func preserves float result type."""
+	z = Var[float, FuncCtx]("z")
+
+	float_func = (z * 2.0).to_func()
+	assert_type(float_func, Func[float, FuncCtx])
+	assert_type(float_func.expr, Expr[Any, FuncCtx, float])
+
+
+@pytest.mark.mypy_testing
+def test_func_result_type_bool() -> None:
+	"""Verify Func preserves bool result type for comparisons."""
+	x = Var[int, FuncCtx]("x")
+	y = Var[int, FuncCtx]("y")
+
+	gt_func = (x > y).to_func()
+	assert_type(gt_func, Func[bool, FuncCtx])
+	assert_type(gt_func.expr, Expr[Any, FuncCtx, bool])
+
+	eq_func = (x == y).to_func()
+	assert_type(eq_func, Func[bool, FuncCtx])
+	assert_type(eq_func.expr, Expr[Any, FuncCtx, bool])
+
+	and_func = ((x > 0) & (y > 0)).to_func()
+	assert_type(and_func, Func[bool, FuncCtx])
+	assert_type(and_func.expr, Expr[Any, FuncCtx, bool])
+
+
+@pytest.mark.mypy_testing
+def test_func_args_tuple_types() -> None:
+	"""Verify Func.args tuple contains correctly typed Vars."""
+	x = Var[int, FuncCtx]("x")
+	y = Var[int, FuncCtx]("y")
+
+	func = Func((x, y), x + y)
+	assert_type(func.args, tuple[Expr[Any, FuncCtx, Any], ...])
+
+	single_func = Func((x,), x * 2)
+	assert_type(single_func.args, tuple[Expr[Any, FuncCtx, Any], ...])
+
+
+@pytest.mark.mypy_testing
+def test_func_from_const_any_context() -> None:
+	"""Verify Func from Const has Any context type."""
+	const_func = Const("answer", 42).to_func()
+	assert_type(const_func, Func[int, Any])
+	assert_type(const_func.expr, Expr[Any, Any, int])
 
 
 def test_func_with_boolean_expressions() -> None:

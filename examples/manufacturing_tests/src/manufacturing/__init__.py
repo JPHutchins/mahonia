@@ -85,7 +85,7 @@ STEPS: Final = (
 
 
 class PassContext(NamedTuple):
-	tests: mahonia.SizedIterable[mahonia.BoundExpr[Any, Any]]
+	tests: mahonia.SizedIterable[mahonia.BoundExpr[Any, Any, Any]]
 
 	@classmethod
 	def from_cases(
@@ -98,9 +98,9 @@ class PassContext(NamedTuple):
 
 @app.default
 async def run() -> None:
-	tests: Final = mahonia.Var[mahonia.SizedIterable[mahonia.BoundExpr[Any, Any]], PassContext](
-		"tests"
-	)
+	tests: Final = mahonia.Var[
+		mahonia.SizedIterable[mahonia.BoundExpr[Any, Any, Any]], PassContext
+	]("tests")
 	pass_expr: Final = mahonia.FoldLExpr(mahonia.And, tests)
 
 	for step in STEPS:
@@ -113,11 +113,11 @@ async def run() -> None:
 	console.print()
 
 	class ResultContext(NamedTuple):
-		results: list[mahonia.BoundExpr[Any, Any]]
+		results: list[mahonia.BoundExpr[Any, Any, Any]]
 
-	results: Final = mahonia.Var[mahonia.SizedIterable[mahonia.BoundExpr[Any, Any]], ResultContext](
-		"results"
-	)
+	results: Final = mahonia.Var[
+		mahonia.SizedIterable[mahonia.BoundExpr[Any, Any, Any]], ResultContext
+	]("results")
 
 	result_context = ResultContext(results=[])
 

@@ -160,7 +160,7 @@ def test_generate_latex_examples() -> None:
 	]
 
 	for const, code, desc in const_examples:
-		lines.append(f"- {desc}: `latex({code})` → ${latex(cast(Expr[Any, Any], const))}$")
+		lines.append(f"- {desc}: `latex({code})` → ${latex(cast(Expr[Any, Any, Any], const))}$")
 	lines.extend(["", ""])
 
 	# Named constants
@@ -180,7 +180,7 @@ def test_generate_latex_examples() -> None:
 	]
 
 	for const, code, desc in named_examples:
-		lines.append(f"- {desc}: `latex({code})` → ${latex(cast(Expr[Any, Any], const))}$")
+		lines.append(f"- {desc}: `latex({code})` → ${latex(cast(Expr[Any, Any, Any], const))}$")
 	lines.extend(["", ""])
 
 	# Arithmetic Operations
@@ -250,7 +250,7 @@ def test_generate_latex_examples() -> None:
 					"two = Const('Two', 2)",
 					"one = Const('One', 1)",
 					"expr = x**3 + two*x**2 - x + one",
-					f"latex(expr)  # '{latex(cast(Expr[Any, Any], expr))}'",
+					f"latex(expr)  # '{latex(cast(Expr[Any, Any, Any], expr))}'",
 					"```",
 				]
 			)
@@ -262,13 +262,13 @@ def test_generate_latex_examples() -> None:
 					"y = Var[float, Ctx]('y')",
 					"z = Var[float, Ctx]('z')",
 					f"expr = {code}",
-					f"latex(expr)  # '{latex(cast(Expr[Any, Any], expr))}'",
+					f"latex(expr)  # '{latex(cast(Expr[Any, Any, Any], expr))}'",
 					"```",
 				]
 			)
 		lines.extend(
 			[
-				f"- {desc}: ${latex(cast(Expr[Any, Any], expr))}$",
+				f"- {desc}: ${latex(cast(Expr[Any, Any, Any], expr))}$",
 				"",
 			]
 		)

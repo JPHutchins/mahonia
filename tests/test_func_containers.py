@@ -3,9 +3,18 @@
 
 """Test functional programming with containers."""
 
-from typing import NamedTuple
+from typing import Any, NamedTuple, assert_type
 
-from mahonia import MapExpr, SizedIterable, Var
+import pytest
+
+from mahonia import (
+	Const,
+	Expr,
+	Func,
+	MapExpr,
+	SizedIterable,
+	Var,
+)
 
 
 class ContainerCtx(NamedTuple):
@@ -455,3 +464,86 @@ def test_syntax_equivalence() -> None:
 	result_fluent = (x * x).map(numbers).unwrap(ctx)
 
 	assert result_verbose == result_fluent == [1, 4, 9]
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_int_result_type() -> None:
+	"""Verify MapExpr preserves int result type."""
+	x = Var[int, ElementCtx]("x")
+	numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+
+	mapped = (x * 2).map(numbers)
+	assert_type(mapped, MapExpr[Any, int, Any])
+
+	func = (x + 10).to_func()
+	assert_type(func, Func[int, ElementCtx])
+
+	map_expr = MapExpr(func, numbers)
+	assert_type(map_expr, MapExpr[int, int, ContainerCtx])
+
+	ctx = ContainerCtx(numbers=[1, 2, 3], values=[])
+	result = mapped.unwrap(ctx)
+	assert_type(result, SizedIterable[int])
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_float_result_type() -> None:
+	"""Verify MapExpr preserves float result type."""
+	f = Var[float, FloatElementCtx]("f")
+	values = Var[SizedIterable[float], ContainerCtx]("values")
+
+	mapped = (f * 1.5).map(values)
+	assert_type(mapped, MapExpr[Any, float, Any])
+
+	ctx = ContainerCtx(numbers=[], values=[1.0, 2.0])
+	result = mapped.unwrap(ctx)
+	assert_type(result, SizedIterable[float])
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_bool_result_type() -> None:
+	"""Verify MapExpr preserves bool result type for predicates."""
+	x = Var[int, ElementCtx]("x")
+	numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+
+	mapped = (x > 5).map(numbers)
+	assert_type(mapped, MapExpr[Any, bool, Any])
+
+	ctx = ContainerCtx(numbers=[1, 10], values=[])
+	result = mapped.unwrap(ctx)
+	assert_type(result, SizedIterable[bool])
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_func_field_types() -> None:
+	"""Verify MapExpr.func and MapExpr.container preserve types."""
+	x = Var[int, ElementCtx]("x")
+	numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+
+	mapped = (x * 2).map(numbers)
+	assert_type(mapped.func, Func[int, Any])
+	assert_type(mapped.container, Expr[SizedIterable[Any], Any, SizedIterable[Any]])
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_eval_returns_const() -> None:
+	"""Verify MapExpr.eval returns Const with correct element type."""
+	x = Var[int, ElementCtx]("x")
+	numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+
+	mapped = (x * 2).map(numbers)
+	ctx = ContainerCtx(numbers=[1, 2, 3], values=[])
+
+	result = mapped.eval(ctx)
+	assert_type(result, Const[SizedIterable[int]])
+
+
+@pytest.mark.mypy_testing
+def test_mapexpr_with_const_expression() -> None:
+	"""Verify MapExpr with expressions containing Const."""
+	x = Var[int, ElementCtx]("x")
+	numbers = Var[SizedIterable[int], ContainerCtx]("numbers")
+	offset = Const("offset", 100)
+
+	mapped = (x + offset).map(numbers)
+	assert_type(mapped, MapExpr[Any, int, Any])

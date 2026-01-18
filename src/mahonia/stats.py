@@ -44,7 +44,7 @@ T_co = TypeVar("T_co", covariant=True)
 class UnaryStatisticalOpEval(Eval["_NumberT", S], Generic[_NumberT, S]):
 	"""Base evaluation class for unary statistical operations."""
 
-	left: Expr[SizedIterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S, SizedIterable["_NumberT"]]
 
 
 class UnaryStatisticalOpToString(
@@ -98,7 +98,7 @@ class Mean(
 	"""
 
 	op: ClassVar[str] = "mean"
-	left: Expr[SizedIterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S, SizedIterable["_NumberT"]]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.mean(self.left.unwrap(ctx)))
@@ -129,7 +129,7 @@ class StdDev(
 	"""
 
 	op: ClassVar[str] = "stddev"
-	left: Expr[SizedIterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S, SizedIterable["_NumberT"]]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.stdev(self.left.unwrap(ctx)))
@@ -160,7 +160,7 @@ class Median(
 	"""
 
 	op: ClassVar[str] = "median"
-	left: Expr[SizedIterable["_NumberT"], S]
+	left: Expr[SizedIterable["_NumberT"], S, SizedIterable["_NumberT"]]
 
 	def eval(self, ctx: S) -> Const["_NumberT"]:
 		return Const(None, statistics.median(self.left.unwrap(ctx)))
@@ -189,7 +189,7 @@ class Percentile(BinaryOperationOverloads[float, S]):
 	op: ClassVar[str] = "percentile"
 
 	percentile: float
-	left: Expr[SizedIterable[float], S]
+	left: Expr[SizedIterable[float], S, SizedIterable[float]]
 
 	def eval(self, ctx: S) -> Const[float]:
 		iterable = self.left.unwrap(ctx)
@@ -245,7 +245,7 @@ class Range(UnaryStatisticalOpToString[float, S], BinaryOperationOverloads[float
 
 	op: ClassVar[str] = "range"
 
-	left: Expr[SizedIterable[float], S]
+	left: Expr[SizedIterable[float], S, SizedIterable[float]]
 
 	def eval(self, ctx: S) -> Const[float]:
 		left = self.left.unwrap(ctx)
@@ -276,7 +276,7 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 	template: ClassVar[str] = "({op} {left})"
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
-	left: Expr[SizedIterable[Any], S]
+	left: Expr[SizedIterable[Any], S, SizedIterable[Any]]
 
 	def eval(self, ctx: S) -> Const[int]:  # type: ignore[override]
 		return Const(None, len(self.left.unwrap(ctx)))

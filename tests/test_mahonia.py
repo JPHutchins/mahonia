@@ -8,20 +8,28 @@ import pytest
 
 from mahonia import (
 	Add,
+	AllExpr,
 	And,
+	AnyExpr,
 	Approximately,
 	BoundExpr,
 	Const,
+	Contains,
 	Div,
 	Eq,
 	Expr,
+	FoldLExpr,
+	Func,
 	Ge,
 	Gt,
 	Le,
 	Lt,
+	MapExpr,
 	Max,
+	MaxExpr,
 	MergeContextProtocol,
 	Min,
+	MinExpr,
 	Mul,
 	Ne,
 	Not,
@@ -30,6 +38,7 @@ from mahonia import (
 	PlusMinus,
 	Pow,
 	Predicate,
+	SizedIterable,
 	Sub,
 	TSupportsComparison,
 	Var,
@@ -48,11 +57,38 @@ class Ctx:
 	e: float = 2.71828
 
 
+class ElemCtx(NamedTuple):
+	n: int
+
+
+class ContainerCtx(NamedTuple):
+	nums: list[int]
+
+
+class ContainsCtx(NamedTuple):
+	values: list[int]
+	target: int
+
+
+class FlagsCtx(NamedTuple):
+	flags: list[bool]
+
+
+class ValuesCtx(NamedTuple):
+	values: list[int]
+
+
+class PredicateCtx(NamedTuple):
+	x: int
+
+
 ctx: Final = Ctx(x=5, y=10, name="example")
 
 
 def between(
-	expr: Expr[TSupportsComparison, Ctx], low: TSupportsComparison, high: TSupportsComparison
+	expr: Expr[TSupportsComparison, Ctx, TSupportsComparison],
+	low: TSupportsComparison,
+	high: TSupportsComparison,
 ) -> "And[bool, Ctx]":
 	"""Example of defining some convenience to compose an expression."""
 	return And(  # type: ignore[arg-type]
@@ -475,7 +511,7 @@ def test_literal_rpow_var() -> None:
 def test_literal_rand_expr() -> None:
 	x = Var[int, Ctx]("x")
 	expr = True & (x > 0)
-	assert_type(expr, And[Any, Ctx])
+	assert_type(expr, And[bool, Ctx])
 	assert expr.left == Const(None, True)
 	assert expr.unwrap(ctx) is True
 
@@ -483,7 +519,7 @@ def test_literal_rand_expr() -> None:
 def test_literal_ror_expr() -> None:
 	x = Var[int, Ctx]("x")
 	expr = False | (x > 0)
-	assert_type(expr, Or[Any, Ctx])
+	assert_type(expr, Or[bool, Ctx])
 	assert expr.left == Const(None, False)
 	assert expr.unwrap(ctx) is True
 
@@ -492,7 +528,7 @@ def test_literal_lt_var_reflects_to_gt() -> None:
 	x = Var[int, Ctx]("x")
 	expr = 3 < x
 	assert_type(expr, Gt[int, Ctx])
-	assert expr == Gt(x, Const(None, 3))
+	assert expr == Gt(x, Const(None, 3))  # type: ignore[misc]
 	assert expr.unwrap(ctx) is True
 
 
@@ -500,7 +536,7 @@ def test_literal_le_var_reflects_to_ge() -> None:
 	x = Var[int, Ctx]("x")
 	expr = 5 <= x
 	assert_type(expr, Ge[int, Ctx])
-	assert expr == Ge(x, Const(None, 5))
+	assert expr == Ge(x, Const(None, 5))  # type: ignore[misc]
 	assert expr.unwrap(ctx) is True
 
 
@@ -508,7 +544,7 @@ def test_literal_gt_var_reflects_to_lt() -> None:
 	x = Var[int, Ctx]("x")
 	expr = 10 > x
 	assert_type(expr, Lt[int, Ctx])
-	assert expr == Lt(x, Const(None, 10))
+	assert expr == Lt(x, Const(None, 10))  # type: ignore[misc]
 	assert expr.unwrap(ctx) is True
 
 
@@ -516,7 +552,7 @@ def test_literal_ge_var_reflects_to_le() -> None:
 	x = Var[int, Ctx]("x")
 	expr = 5 >= x
 	assert_type(expr, Le[int, Ctx])
-	assert expr == Le(x, Const(None, 5))
+	assert expr == Le(x, Const(None, 5))  # type: ignore[misc]
 	assert expr.unwrap(ctx) is True
 
 
@@ -982,7 +1018,7 @@ def test_bound_expr_type() -> None:
 	)
 
 	closure = voltage_pred.bind(m)
-	assert_type(closure, BoundExpr[bool, Measurement])
+	assert_type(closure, BoundExpr[bool, Measurement, bool])
 
 
 def test_bind() -> None:
@@ -1191,7 +1227,7 @@ def test_partial_application() -> None:
 	expr = x + y
 
 	partial_expr = expr.partial(XCtx(x=5))
-	assert_type(partial_expr, Expr[int, Any])
+	assert_type(partial_expr, Expr[int, Any, int])
 
 	assert partial_expr.to_string() == "(x:5 + y)"
 
@@ -1225,7 +1261,7 @@ def test_partial_application_multiple() -> None:
 	expr = x * y + z
 
 	partial_expr = expr.partial(merge(XCtx(x=5), YCtx(y=10)))
-	assert_type(partial_expr, Expr[int, Any])
+	assert_type(partial_expr, Expr[int, Any, int])
 
 	assert partial_expr.to_string() == "((x:5 * y:10) + z)"
 
@@ -1250,7 +1286,7 @@ def test_partial_application_exhausted() -> None:
 	expr = x + y
 
 	partial_expr = expr.partial(merge(XCtx(x=5), YCtx(y=10)))
-	assert_type(partial_expr, Expr[int, Any])
+	assert_type(partial_expr, Expr[int, Any, int])
 
 	assert partial_expr.to_string() == "(x:5 + y:10)"
 	assert partial_expr.to_string(()) == "(x:5 + y:10 -> 15)"
@@ -1281,7 +1317,7 @@ def test_partial_application_preserves_structure() -> None:
 
 	# Partial with only a and b
 	partial1 = expr.partial(ABCtx(a=3, b=2))
-	assert_type(partial1, Expr[int, Any])
+	assert_type(partial1, Expr[int, Any, int])
 	assert partial1.to_string() == "(((a:3 + b:2) * (c - d))^2)"
 
 	# The structure is preserved: Add and Sub are still there, not collapsed
@@ -1375,17 +1411,12 @@ def test_bound_expr_composable() -> None:
 
 def test_bound_expr_boolean_composition() -> None:
 	"""BoundExpr supports boolean composition."""
+	x = Var[int, PredicateCtx]("x")
 
-	class Ctx(NamedTuple):
-		x: int
-
-	x = Var[int, Ctx]("x")
-
-	# Bind a boolean expression - use explicit type annotation
-	# Note: Gt inherits from BinaryOp[TSupportsComparison, S] so T is int, not bool
-	# The eval() returns Const[bool] via override, but bind() uses the class T parameter
-	bound_true: BoundExpr[bool, Ctx] = (x > 0).bind(Ctx(x=5))  # type: ignore[assignment]
-	bound_false: BoundExpr[bool, Ctx] = (x < 0).bind(Ctx(x=5))  # type: ignore[assignment]
+	bound_true = (x > 0).bind(PredicateCtx(x=5))
+	assert_type(bound_true, BoundExpr[int, PredicateCtx, bool])
+	bound_false = (x < 0).bind(PredicateCtx(x=5))
+	assert_type(bound_false, BoundExpr[int, PredicateCtx, bool])
 
 	# Compose with & and |
 	combined_and = bound_true & bound_false
@@ -1493,3 +1524,310 @@ def test_min_max_chained() -> None:
 	assert clamped.unwrap(Ctx(x=-10.0)) == 0.0
 	assert clamped.unwrap(Ctx(x=50.0)) == 50.0
 	assert clamped.unwrap(Ctx(x=150.0)) == 100.0
+
+
+@pytest.mark.mypy_testing
+def test_comparison_result_types() -> None:
+	"""Verify comparison ops have R=bool."""
+	x = Var[int, Ctx]("x")
+
+	gt_expr = x > 5
+	assert_type(gt_expr, Gt[int, Ctx])
+	assert_type(gt_expr.eval(ctx), Const[bool])
+	assert_type(gt_expr.unwrap(ctx), bool)
+
+	lt_expr = x < 10
+	assert_type(lt_expr, Lt[int, Ctx])
+	assert_type(lt_expr.eval(ctx), Const[bool])
+	assert_type(lt_expr.unwrap(ctx), bool)
+
+	ge_expr = x >= 5
+	assert_type(ge_expr, Ge[int, Ctx])
+	assert_type(ge_expr.eval(ctx), Const[bool])
+
+	le_expr = x <= 10
+	assert_type(le_expr, Le[int, Ctx])
+	assert_type(le_expr.eval(ctx), Const[bool])
+
+	eq_expr = x == 5
+	assert_type(eq_expr, Eq[int, Ctx])
+	assert_type(eq_expr.eval(ctx), Const[bool])
+
+	ne_expr = x != 5
+	assert_type(ne_expr, Ne[int, Ctx])
+	assert_type(ne_expr.eval(ctx), Const[bool])
+
+
+@pytest.mark.mypy_testing
+def test_arithmetic_result_types() -> None:
+	"""Verify arithmetic ops preserve operand type."""
+	x = Var[int, Ctx]("x")
+
+	add_expr = x + 5
+	assert_type(add_expr, Add[int, Ctx])
+	assert_type(add_expr.eval(ctx), Const[int])
+	assert_type(add_expr.unwrap(ctx), int)
+
+	sub_expr = x - 3
+	assert_type(sub_expr, Sub[int, Ctx])
+	assert_type(sub_expr.eval(ctx), Const[int])
+
+	mul_expr = x * 2
+	assert_type(mul_expr, Mul[int, Ctx])
+	assert_type(mul_expr.eval(ctx), Const[int])
+
+	pow_expr = x**2
+	assert_type(pow_expr, Pow[int, Ctx])
+	assert_type(pow_expr.eval(ctx), Const[int])
+
+
+@pytest.mark.mypy_testing
+def test_bound_expr_result_type() -> None:
+	"""Verify BoundExpr preserves R type."""
+	x = Var[int, Ctx]("x")
+
+	bound_comparison = (x > 5).bind(ctx)
+	assert_type(bound_comparison, BoundExpr[int, Ctx, bool])
+	assert_type(bound_comparison.unwrap(), bool)
+
+	bound_arithmetic = (x + 5).bind(ctx)
+	assert_type(bound_arithmetic, BoundExpr[int, Ctx, int])
+	assert_type(bound_arithmetic.unwrap(), int)
+
+	bound_var = x.bind(ctx)
+	assert_type(bound_var, BoundExpr[int, Ctx, int])
+	assert_type(bound_var.unwrap(), int)
+
+
+@pytest.mark.mypy_testing
+def test_logical_composition_types() -> None:
+	"""Verify logical ops result type."""
+	x = Var[int, Ctx]("x")
+
+	and_expr = (x > 0) & (x < 10)
+	assert_type(and_expr, And[bool, Ctx])
+	assert_type(and_expr.unwrap(ctx), bool)
+
+	or_expr = (x < 0) | (x > 0)
+	assert_type(or_expr, Or[bool, Ctx])
+	assert_type(or_expr.unwrap(ctx), bool)
+
+	not_expr = ~(x > 10)
+	assert_type(not_expr, Not[Ctx])
+	assert_type(not_expr.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_func_result_types() -> None:
+	"""Verify Func type captures args and result type."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	expr = x + y
+	func = expr.to_func()
+	assert_type(func, Func[int, Ctx])
+
+	single_var_func = (x * 2).to_func()
+	assert_type(single_var_func, Func[int, Ctx])
+
+	const_func = Const("answer", 42).to_func()
+	assert_type(const_func, Func[int, Any])
+
+
+@pytest.mark.mypy_testing
+def test_map_expr_result_types() -> None:
+	"""Verify MapExpr type preserves element and result types."""
+	n = Var[int, ElemCtx]("n")
+	nums = Var[SizedIterable[int], ContainerCtx]("nums")
+
+	mapped = (n * 2).map(nums)
+	assert_type(mapped, MapExpr[Any, int, Any])
+
+	container_ctx = ContainerCtx(nums=[1, 2, 3])
+	result = mapped.unwrap(container_ctx)
+	assert_type(result, SizedIterable[int])
+
+
+@pytest.mark.mypy_testing
+def test_contains_result_types() -> None:
+	"""Verify Contains returns bool."""
+	values = Var[SizedIterable[int], ContainsCtx]("values")
+	target = Var[int, ContainsCtx]("target")
+
+	contains_expr = Contains(target, values)
+	assert_type(contains_expr, Contains[int, ContainsCtx])
+
+	contains_ctx = ContainsCtx(values=[1, 2, 3], target=2)
+	assert_type(contains_expr.eval(contains_ctx), Const[bool])
+	assert_type(contains_expr.unwrap(contains_ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_any_all_expr_result_types() -> None:
+	"""Verify AnyExpr and AllExpr return bool."""
+	flags = Var[SizedIterable[bool], FlagsCtx]("flags")
+
+	any_expr = AnyExpr(flags)
+	assert_type(any_expr, AnyExpr[FlagsCtx])
+
+	all_expr = AllExpr(flags)
+	assert_type(all_expr, AllExpr[FlagsCtx])
+
+	flags_ctx = FlagsCtx(flags=[True, False, True])
+	assert_type(any_expr.eval(flags_ctx), Const[bool])
+	assert_type(any_expr.unwrap(flags_ctx), bool)
+	assert_type(all_expr.eval(flags_ctx), Const[bool])
+	assert_type(all_expr.unwrap(flags_ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_min_max_expr_result_types() -> None:
+	"""Verify MinExpr and MaxExpr preserve element type."""
+	values = Var[SizedIterable[int], ValuesCtx]("values")
+
+	min_expr = MinExpr(values)
+	assert_type(min_expr, MinExpr[int, ValuesCtx])
+
+	max_expr = MaxExpr(values)
+	assert_type(max_expr, MaxExpr[int, ValuesCtx])
+
+	values_ctx = ValuesCtx(values=[3, 1, 4, 1, 5])
+	assert_type(min_expr.eval(values_ctx), Const[int])
+	assert_type(min_expr.unwrap(values_ctx), int)
+	assert_type(max_expr.eval(values_ctx), Const[int])
+	assert_type(max_expr.unwrap(values_ctx), int)
+
+
+def test_foldl_expr_result_types() -> None:
+	"""Verify FoldLExpr evaluation works correctly."""
+	values = Var[SizedIterable[int], ValuesCtx]("values")
+
+	sum_fold = FoldLExpr(Add, values)
+	product_fold = FoldLExpr(Mul, values, initial=1)
+
+	values_ctx = ValuesCtx(values=[1, 2, 3, 4])
+	assert sum_fold.unwrap(values_ctx) == 10
+	assert product_fold.unwrap(values_ctx) == 24
+
+
+@pytest.mark.mypy_testing
+def test_predicate_result_types() -> None:
+	"""Verify Predicate returns bool."""
+	x = Var[int, PredicateCtx]("x")
+
+	pred = Predicate("x is positive", x > 0)
+	assert_type(pred, Predicate[PredicateCtx])
+
+	pred_ctx = PredicateCtx(x=5)
+	assert_type(pred.eval(pred_ctx), Const[bool])
+	assert_type(pred.unwrap(pred_ctx), bool)
+
+	bound_pred = pred.bind(pred_ctx)
+	assert_type(bound_pred, BoundExpr[bool, PredicateCtx, bool])
+
+
+class PartialXCtx(NamedTuple):
+	x: int
+
+
+class PartialYCtx(NamedTuple):
+	y: int
+
+
+class PartialFullCtx(NamedTuple):
+	x: int
+	y: int
+
+
+@pytest.mark.mypy_testing
+def test_partial_preserves_result_type_int() -> None:
+	"""Verify partial application preserves int result type."""
+	x = Var[int, Any]("x")
+	y = Var[int, Any]("y")
+
+	expr = x + y
+	assert_type(expr, Add[int, Any])
+
+	partial_expr = expr.partial(PartialXCtx(x=5))
+	assert_type(partial_expr, Expr[int, Any, int])
+
+	result = partial_expr.unwrap(PartialYCtx(y=10))
+	assert_type(result, int)
+	assert result == 15
+
+
+@pytest.mark.mypy_testing
+def test_partial_preserves_result_type_bool() -> None:
+	"""Verify partial application preserves bool result type for comparisons."""
+	x = Var[int, Any]("x")
+	threshold = Const("threshold", 10)
+
+	expr = x > threshold
+	assert_type(expr, Gt[int, Any])
+
+	partial_expr = expr.partial(PartialXCtx(x=15))
+	assert_type(partial_expr, Expr[int, Any, bool])
+
+	class EmptyCtx(NamedTuple):
+		pass
+
+	result = partial_expr.unwrap(EmptyCtx())
+	assert_type(result, bool)
+	assert result is True
+
+
+@pytest.mark.mypy_testing
+def test_bind_preserves_result_type_int() -> None:
+	"""Verify bind preserves int result type."""
+	x = Var[int, PartialFullCtx]("x")
+	y = Var[int, PartialFullCtx]("y")
+
+	expr = x * y
+	assert_type(expr, Mul[int, PartialFullCtx])
+
+	bound = expr.bind(PartialFullCtx(x=3, y=4))
+	assert_type(bound, BoundExpr[int, PartialFullCtx, int])
+
+	result = bound.unwrap()
+	assert_type(result, int)
+	assert result == 12
+
+
+@pytest.mark.mypy_testing
+def test_bind_preserves_result_type_bool() -> None:
+	"""Verify bind preserves bool result type for comparisons."""
+	x = Var[int, PartialFullCtx]("x")
+	y = Var[int, PartialFullCtx]("y")
+
+	expr = x > y
+	assert_type(expr, Gt[int, PartialFullCtx])
+
+	bound = expr.bind(PartialFullCtx(x=5, y=3))
+	assert_type(bound, BoundExpr[int, PartialFullCtx, bool])
+
+	result = bound.unwrap()
+	assert_type(result, bool)
+	assert result is True
+
+
+@pytest.mark.mypy_testing
+def test_foldl_partial_preserves_type() -> None:
+	"""Verify FoldLExpr.partial preserves element type."""
+
+	class FoldPartialCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], FoldPartialCtx]("values")
+
+	fold_expr = FoldLExpr(Add, values)
+	assert_type(fold_expr, FoldLExpr[int, FoldPartialCtx])
+
+	partial_fold = fold_expr.partial(FoldPartialCtx(values=[1, 2, 3]))
+	assert_type(partial_fold, Expr[int, Any, int])
+
+	class EmptyCtx(NamedTuple):
+		pass
+
+	result = partial_fold.unwrap(EmptyCtx())
+	assert_type(result, int)
+	assert result == 6

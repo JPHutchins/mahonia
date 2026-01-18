@@ -188,10 +188,13 @@ from typing import (
 )
 
 T = TypeVar("T")
-"""The type of the expression's value."""
+"""The type of the expression's operands."""
 
 U = TypeVar("U")
 """A generic type parameter for mapped values."""
+
+R = TypeVar("R")
+"""The type returned by eval() and unwrap()."""
 
 
 class ContextProtocol(Protocol):
@@ -292,12 +295,16 @@ class EvalError(Exception):
 	pass
 
 
+R_Eval = TypeVar("R_Eval")
+"""Result type for the Eval protocol (no default, since T is not in scope)."""
+
+
 @runtime_checkable
-class Eval(Protocol[T, S_contra]):
+class Eval(Protocol[R_Eval, S_contra]):
 	"""Protocol for objects that can evaluate themselves with a context.
 
 	This protocol defines the interface for expression evaluation. All Mahonia
-	expressions implement this protocol.
+	expressions implement this protocol. R_Eval is the result type returned by eval().
 
 	>>> from typing import NamedTuple
 	>>> class Ctx(NamedTuple):
@@ -310,7 +317,7 @@ class Eval(Protocol[T, S_contra]):
 	42
 	"""
 
-	def eval(self, ctx: S_contra) -> "Const[T]": ...
+	def eval(self, ctx: S_contra) -> "Const[R_Eval]": ...
 
 
 @runtime_checkable
@@ -336,11 +343,16 @@ class ToString(Protocol[S_contra]):
 
 
 @runtime_checkable
-class Expr(Protocol[T, S]):
+class Expr(Protocol[T, S, R]):
 	"""Base class for all Mahonia expressions.
 
 	Provides core evaluation, serialization, and binding functionality.
 	Users typically work with concrete expression types like Var, Const, Add, etc.
+
+	Type parameters:
+	- T: The operand type (for binary operations, the type of left/right)
+	- S: The context type (bound by ContextProtocol)
+	- R: The result type from eval() and unwrap(). Defaults to T for backward compat.
 
 	>>> from typing import NamedTuple
 	>>> class Ctx(NamedTuple):
@@ -355,17 +367,17 @@ class Expr(Protocol[T, S]):
 	10
 	"""
 
-	def eval(self, ctx: S) -> "Const[T]": ...
+	def eval(self, ctx: S) -> "Const[R]": ...
 
 	def to_string(self, ctx: S | None = None) -> str: ...
 
-	def __call__(self, ctx: S) -> "Const[T]":
+	def __call__(self, ctx: S) -> "Const[R]":
 		return self.eval(ctx)
 
-	def to_func(self) -> "Func[T, S]":
+	def to_func(self) -> "Func[R, S]":
 		return Func(_extract_vars((), self), self)
 
-	def map(self, container: "Expr[SizedIterable[Any], Any]") -> "MapExpr[Any, T, Any]":
+	def map(self, container: "Expr[SizedIterable[Any], Any, Any]") -> "MapExpr[Any, R, Any]":
 		"""Apply this expression as a function to each element in a container.
 
 		This is shorthand for: self.to_func() -> MapExpr(func, container)
@@ -384,13 +396,13 @@ class Expr(Protocol[T, S]):
 		func = self.to_func()
 		return MapExpr(func, container)
 
-	def unwrap(self, ctx: S) -> T:
+	def unwrap(self, ctx: S) -> R:
 		return self.eval(ctx).value
 
-	def bind(self, ctx: S) -> "BoundExpr[T, S]":
+	def bind(self, ctx: S) -> "BoundExpr[T, S, R]":
 		return BoundExpr(self, ctx)
 
-	def partial(self, ctx: Any) -> "Expr[T, Any]":
+	def partial(self, ctx: Any) -> "Expr[T, Any, R]":
 		"""Partially apply a context, resolving variables that exist in it.
 
 		Variables whose names exist as attributes in ctx are replaced with Const.
@@ -417,7 +429,7 @@ class Expr(Protocol[T, S]):
 
 
 def _extract_vars(
-	vars: tuple["Var[Any, Any]", ...], expr: "Expr[Any, Any]"
+	vars: tuple["Var[Any, Any]", ...], expr: "Expr[Any, Any, Any]"
 ) -> tuple["Var[Any, Any]", ...]:
 	"""Extract all unique variables from an expression, preserving order."""
 	match expr:
@@ -453,8 +465,8 @@ def _extract_vars(
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Func(Generic[T, S]):
-	args: tuple[Expr[T, S], ...]
-	expr: Expr[T, S]
+	args: tuple[Expr[Any, S, Any], ...]
+	expr: Expr[Any, S, T]
 
 	def to_string(self, ctx: S | None = None) -> str:
 		if ctx is None:
@@ -476,10 +488,11 @@ class Func(Generic[T, S]):
 
 
 @runtime_checkable
-class BoolExpr(Expr[TSupportsLogic, S], Protocol[TSupportsLogic, S]):
+class BoolExpr(Expr[T, S, bool], Protocol[T, S]):
 	"""Base class for boolean expressions that support logical operations.
 
 	Extends Expr with support for logical operators like & (and), | (or), and ~ (not).
+	T is the operand type, S is the context type, and the result is always bool.
 
 	>>> from typing import NamedTuple
 	>>> class Ctx(NamedTuple):
@@ -495,46 +508,48 @@ class BoolExpr(Expr[TSupportsLogic, S], Protocol[TSupportsLogic, S]):
 	True
 	"""
 
-	def eval(self, ctx: S) -> "Const[TSupportsLogic]": ...  # type: ignore[override]
+	def eval(self, ctx: S) -> "Const[bool]": ...
 
 
-class UnaryOperationOverloads(Expr[bool, S]):
+class UnaryOperationOverloads(Expr[bool, S, bool]):
 	def __invert__(self) -> "Not[S]":
 		return Not(self)
 
 
-class BooleanBinaryOperationOverloads(BoolExpr[TSupportsLogic, S]):
-	def __and__(self, other: BoolExpr[TSupportsLogic, S]) -> "And[TSupportsLogic, S]":
-		return And(self, other)
+class BooleanBinaryOperationOverloads(Generic[T, S]):
+	def __and__(self, other: "Expr[Any, S, Any]") -> "And[bool, S]":
+		return And(self, other)  # type: ignore[arg-type]
 
-	def __rand__(self, other: TSupportsLogic) -> "And[TSupportsLogic, S]":
+	def __rand__(self, other: bool) -> "And[bool, S]":
 		return And(Const(None, other), self)  # type: ignore[arg-type]
 
-	def __or__(self, other: BoolExpr[TSupportsLogic, S]) -> "Or[TSupportsLogic, S]":
-		return Or(self, other)
+	def __or__(self, other: "Expr[Any, S, Any]") -> "Or[bool, S]":
+		return Or(self, other)  # type: ignore[arg-type]
 
-	def __ror__(self, other: TSupportsLogic) -> "Or[TSupportsLogic, S]":
+	def __ror__(self, other: bool) -> "Or[bool, S]":
 		return Or(Const(None, other), self)  # type: ignore[arg-type]
 
 	def __invert__(self) -> "Not[S]":
-		return Not(self)
+		return Not(self)  # type: ignore[arg-type]
 
 
-class BinaryOperationOverloads(Expr[T, S]):
+class BinaryOperationOverloads(Expr[T, S, T]):
 	@overload  # type: ignore[override]
 	def __eq__(
 		self, other: "ConstTolerance[TSupportsArithmetic]"
 	) -> "Approximately[TSupportsArithmetic, S]": ...
 
 	@overload  # type: ignore[override]
-	def __eq__(self, other: Expr[TSupportsEquality, S]) -> "Eq[TSupportsEquality, S]": ...
+	def __eq__(
+		self, other: Expr[TSupportsEquality, S, TSupportsEquality]
+	) -> "Eq[TSupportsEquality, S]": ...
 
 	@overload  # type: ignore[override]
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
 	def __eq__(  # type: ignore[misc]
 		self,
-		other: Expr[TSupportsEquality, S]
+		other: Expr[TSupportsEquality, S, TSupportsEquality]
 		| TSupportsEquality
 		| "ConstTolerance[TSupportsArithmetic]",
 	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S]":
@@ -546,12 +561,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 			return Eq(self, Const(None, other))  # type: ignore[arg-type]
 
 	@overload  # type: ignore[override]
-	def __ne__(self, other: Expr[T, S]) -> "Ne[T, S]": ...
+	def __ne__(self, other: Expr[T, S, T]) -> "Ne[T, S]": ...
 
 	@overload  # type: ignore[override]
 	def __ne__(self, other: T) -> "Ne[T, S]": ...
 
-	def __ne__(self, other: Expr[T, S] | T) -> "Ne[T, S]":  # type: ignore[override]
+	def __ne__(self, other: Expr[T, S, T] | T) -> "Ne[T, S]":  # type: ignore[override]
 		if isinstance(other, Expr):
 			return Ne(self, other)  # type: ignore[arg-type]
 		else:
@@ -561,10 +576,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __lt__(self, other: TSupportsComparison) -> "Lt[TSupportsComparison, S]": ...
 
 	@overload
-	def __lt__(self, other: Expr[TSupportsComparison, S]) -> "Lt[TSupportsComparison, S]": ...
+	def __lt__(
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
+	) -> "Lt[TSupportsComparison, S]": ...
 
 	def __lt__(
-		self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Lt[TSupportsComparison, S]":
 		if isinstance(other, Expr):
 			return Lt(self, other)  # type: ignore[arg-type]
@@ -575,10 +592,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __le__(self, other: TSupportsComparison) -> "Le[TSupportsComparison, S]": ...
 
 	@overload
-	def __le__(self, other: Expr[TSupportsComparison, S]) -> "Le[TSupportsComparison, S]": ...
+	def __le__(
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
+	) -> "Le[TSupportsComparison, S]": ...
 
 	def __le__(
-		self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Le[TSupportsComparison, S]":
 		if isinstance(other, Expr):
 			return Le(self, other)  # type: ignore[arg-type]
@@ -589,10 +608,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison,S]": ...
 
 	@overload
-	def __gt__(self, other: Expr[TSupportsComparison, S]) -> "Gt[TSupportsComparison, S]": ...
+	def __gt__(
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
+	) -> "Gt[TSupportsComparison, S]": ...
 
 	def __gt__(
-		self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Gt[TSupportsComparison, S]":
 		if isinstance(other, Expr):
 			return Gt(self, other)  # type: ignore[arg-type]
@@ -603,10 +624,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __ge__(self, other: TSupportsComparison) -> "Ge[TSupportsComparison, S]": ...
 
 	@overload
-	def __ge__(self, other: Expr[TSupportsComparison, S]) -> "Ge[TSupportsComparison, S]": ...
+	def __ge__(
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
+	) -> "Ge[TSupportsComparison, S]": ...
 
 	def __ge__(
-		self, other: Expr[TSupportsComparison, S] | TSupportsComparison
+		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Ge[TSupportsComparison, S]":
 		if isinstance(other, Expr):
 			return Ge(self, other)  # type: ignore[arg-type]
@@ -617,10 +640,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __add__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __add__(self, other: Expr[TSupportsArithmetic, S]) -> "Add[TSupportsArithmetic, S]": ...
+	def __add__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Add[TSupportsArithmetic, S]": ...
 
 	def __add__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Add[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Add(self, other)  # type: ignore[arg-type]
@@ -631,10 +656,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __radd__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __radd__(self, other: Expr[TSupportsArithmetic, S]) -> "Add[TSupportsArithmetic, S]": ...
+	def __radd__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Add[TSupportsArithmetic, S]": ...
 
 	def __radd__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Add[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Add(other, self)  # type: ignore[arg-type]
@@ -645,10 +672,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __sub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __sub__(self, other: Expr[TSupportsArithmetic, S]) -> "Sub[TSupportsArithmetic, S]": ...
+	def __sub__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Sub[TSupportsArithmetic, S]": ...
 
 	def __sub__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Sub[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Sub(self, other)  # type: ignore[arg-type]
@@ -659,10 +688,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __rsub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __rsub__(self, other: Expr[TSupportsArithmetic, S]) -> "Sub[TSupportsArithmetic, S]": ...
+	def __rsub__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Sub[TSupportsArithmetic, S]": ...
 
 	def __rsub__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Sub[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Sub(other, self)  # type: ignore[arg-type]
@@ -673,10 +704,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __mul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __mul__(self, other: Expr[TSupportsArithmetic, S]) -> "Mul[TSupportsArithmetic, S]": ...
+	def __mul__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Mul[TSupportsArithmetic, S]": ...
 
 	def __mul__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Mul[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Mul(self, other)  # type: ignore[arg-type]
@@ -687,10 +720,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __rmul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __rmul__(self, other: Expr[TSupportsArithmetic, S]) -> "Mul[TSupportsArithmetic, S]": ...
+	def __rmul__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Mul[TSupportsArithmetic, S]": ...
 
 	def __rmul__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Mul[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Mul(other, self)  # type: ignore[arg-type]
@@ -701,9 +736,9 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __truediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
-	def __truediv__(self, other: Expr[float, S]) -> "Div[float, S]": ...
+	def __truediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
-	def __truediv__(self, other: Expr[float, S] | float) -> "Div[float, S]":
+	def __truediv__(self, other: Expr[float, S, float] | float) -> "Div[float, S]":
 		if isinstance(other, Expr):
 			return Div(self, other)  # type: ignore[arg-type]
 		else:
@@ -713,9 +748,9 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __rtruediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
-	def __rtruediv__(self, other: Expr[float, S]) -> "Div[float, S]": ...
+	def __rtruediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
-	def __rtruediv__(self, other: Expr[float, S] | float) -> "Div[float, S]":
+	def __rtruediv__(self, other: Expr[float, S, float] | float) -> "Div[float, S]":
 		if isinstance(other, Expr):
 			return Div(other, self)  # type: ignore[arg-type]
 		else:
@@ -725,10 +760,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __pow__(self, power: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __pow__(self, power: Expr[TSupportsArithmetic, S]) -> "Pow[TSupportsArithmetic, S]": ...
+	def __pow__(
+		self, power: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Pow[TSupportsArithmetic, S]": ...
 
 	def __pow__(
-		self, power: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, power: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Pow[TSupportsArithmetic, S]":
 		if isinstance(power, Expr):
 			return Pow(self, power)  # type: ignore[arg-type]
@@ -739,10 +776,12 @@ class BinaryOperationOverloads(Expr[T, S]):
 	def __rpow__(self, other: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
 
 	@overload
-	def __rpow__(self, other: Expr[TSupportsArithmetic, S]) -> "Pow[TSupportsArithmetic, S]": ...
+	def __rpow__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Pow[TSupportsArithmetic, S]": ...
 
 	def __rpow__(
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Pow[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Pow(other, self)  # type: ignore[arg-type]
@@ -752,9 +791,9 @@ class BinaryOperationOverloads(Expr[T, S]):
 
 @dataclass(frozen=True, eq=False, slots=True)
 class BoundExpr(
-	BinaryOperationOverloads[T, Any],
-	BooleanBinaryOperationOverloads[T, Any],  # type: ignore[type-var]
-	Generic[T, S],
+	BinaryOperationOverloads[R, Any],
+	BooleanBinaryOperationOverloads[R, Any],
+	Generic[T, S, R],
 ):
 	"""An immutable expression bound to a specific context.
 
@@ -777,39 +816,39 @@ class BoundExpr(
 	True
 	"""
 
-	expr: Expr[T, S]
+	expr: Expr[T, S, R]
 	ctx: S
 
-	def eval(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
+	def eval(self, ctx: Any) -> "Const[R]":  # noqa: ARG002
 		return Const(None, self.expr.unwrap(self.ctx))
 
-	def __call__(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
+	def __call__(self, ctx: Any) -> "Const[R]":  # noqa: ARG002
 		return self.eval(ctx)
 
 	def to_string(self, ctx: Any | None = None) -> str:  # noqa: ARG002
 		return self.expr.to_string(self.ctx)
 
-	def partial(self, ctx: Any) -> Expr[T, Any]:  # noqa: ARG002
-		return self
+	def partial(self, ctx: Any) -> "BoundExpr[R, Any, R]":  # noqa: ARG002
+		return self  # type: ignore[return-value]
 
-	def unwrap(self, ctx: Any = None) -> T:  # noqa: ARG002
+	def unwrap(self, ctx: Any = None) -> R:  # noqa: ARG002
 		return self.expr.unwrap(self.ctx)
 
 	def __str__(self) -> str:
 		return self.expr.to_string(self.ctx)
 
-	def bind(self, ctx: Any) -> "BoundExpr[T, S]":  # noqa: ARG002
-		return self
+	def bind(self, ctx: Any) -> "BoundExpr[R, Any, R]":  # noqa: ARG002
+		return self  # type: ignore[return-value]
 
-	def to_func(self) -> "Func[T, Any]":
+	def to_func(self) -> "Func[R, Any]":
 		return Func((), self)
 
-	def map(self, container: Expr[SizedIterable[Any], Any]) -> "MapExpr[Any, T, Any]":
+	def map(self, container: Expr[SizedIterable[Any], Any, Any]) -> "MapExpr[Any, R, Any]":
 		return MapExpr(self.to_func(), container)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):  # type: ignore[type-var]
+class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T, Any]):
 	"""A constant that evaluates to itself.
 
 	>>> MY_CONST = Const("My Const", 42)
@@ -839,10 +878,10 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 	name: str | None
 	value: T
 
-	def eval(self, ctx: Any) -> "Const[T]":
+	def eval(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
 		return self
 
-	def to_string(self, ctx: Any | None = None) -> str:
+	def to_string(self, ctx: Any | None = None) -> str:  # noqa: ARG002
 		return f"{self.name}:{self.value}" if self.name else str(self.value)
 
 	def partial(self, ctx: Any) -> "Const[T]":  # noqa: ARG002
@@ -850,7 +889,7 @@ class Const(BinaryOperationOverloads[T, Any], BooleanBinaryOperationOverloads[T,
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):  # type: ignore[type-var]
+class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S]):
 	"""A variable that evaluates to the named attribute of the context.
 
 	>>> from typing import NamedTuple
@@ -894,7 +933,7 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 		else:
 			return f"{self.name}:{self.eval(ctx).value}"
 
-	def partial(self, ctx: Any) -> "Expr[T, Any]":
+	def partial(self, ctx: Any) -> "Expr[T, Any, T]":
 		if hasattr(ctx, self.name):
 			return Const(self.name, getattr(ctx, self.name))
 		return self
@@ -902,7 +941,7 @@ class Var(BinaryOperationOverloads[T, S], BooleanBinaryOperationOverloads[T, S])
 
 @dataclass(frozen=True, eq=False, slots=True)
 class UnaryOpEval(Eval[bool, S]):
-	left: Expr[Any, S]
+	left: Expr[Any, S, Any]
 
 
 class UnaryOpToString(ToString[S], UnaryOpEval[S]):
@@ -924,23 +963,23 @@ class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperation
 	def eval(self, ctx: S) -> Const[bool]:
 		return Const(None, not self.left.eval(ctx).value)
 
-	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+	def partial(self, ctx: Any) -> "Expr[bool, Any, bool]":
 		return Not(self.left.partial(ctx))
 
 
-class BinaryOpProtocol(Expr[T, S], Protocol[T, S]):
-	left: Expr[T, S]
-	right: Expr[T, S]
+class BinaryOpProtocol(Expr[T, S, R], Protocol[T, S, R]):
+	left: Expr[T, S, T]
+	right: Expr[T, S, T]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class BinaryOp(ToString[S], BinaryOpProtocol[T, S], Generic[T, S]):
+class BinaryOp(ToString[S], BinaryOpProtocol[T, S, R], Generic[T, S, R]):
 	op: ClassVar[str] = " ? "
 	template: ClassVar[str] = "({left}{op}{right})"
 	template_eval: ClassVar[str] = "({left}{op}{right} -> {out})"
 
-	left: Expr[T, S]
-	right: Expr[T, S]
+	left: Expr[T, S, T]
+	right: Expr[T, S, T]
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.left.to_string(ctx)
@@ -952,17 +991,17 @@ class BinaryOp(ToString[S], BinaryOpProtocol[T, S], Generic[T, S]):
 				left=left, op=self.op, right=right, out=self.eval(ctx).value
 			)
 
-	def partial(self, ctx: Any) -> "Expr[T, Any]":
+	def partial(self, ctx: Any) -> "Expr[T, Any, R]":
 		return type(self)(self.left.partial(ctx), self.right.partial(ctx))
 
 
-class SymmetricalBinaryOpProtocol(BinaryOpProtocol[T, S], Protocol[T, S]):
-	op_func: Callable[[Expr[T, S], Expr[T, S]], Expr[T, S]]
+class SymmetricalBinaryOpProtocol(BinaryOpProtocol[T, S, T], Protocol[T, S]):
+	op_func: Callable[[Expr[T, S, T], Expr[T, S, T]], Expr[T, S, T]]
 	identity_element: T
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Foldable(SymmetricalBinaryOpProtocol[T, S], BinaryOp[T, S]): ...
+class Foldable(SymmetricalBinaryOpProtocol[T, S], BinaryOp[T, S, T]): ...
 
 
 class And(
@@ -970,8 +1009,8 @@ class And(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " & "
-	op_func: Final[ClassVar] = operator.and_  # type: ignore[misc]
-	identity_element: Final[ClassVar] = True  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.and_  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = True  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
@@ -982,184 +1021,166 @@ class Or(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " | "
-	op_func: Final[ClassVar] = operator.or_  # type: ignore[misc]
-	identity_element: Final[ClassVar] = False  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.or_  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = False  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
 
 
-class Eq(
-	BinaryOp[TSupportsEquality, S],
+class Eq(  # type: ignore[misc]
+	BinaryOp[TSupportsEquality, S, bool],
 	BinaryOperationOverloads[TSupportsEquality, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " == "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Ne(
-	BinaryOp[TSupportsEquality, S],
+class Ne(  # type: ignore[misc]
+	BinaryOp[TSupportsEquality, S, bool],
 	BinaryOperationOverloads[TSupportsEquality, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " != "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Lt(
-	BinaryOp[TSupportsComparison, S],
+class Lt(  # type: ignore[misc]
+	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " < "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Le(
-	BinaryOp[TSupportsComparison, S],
+class Le(  # type: ignore[misc]
+	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " <= "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Gt(
-	BinaryOp[TSupportsComparison, S],
+class Gt(  # type: ignore[misc]
+	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " > "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Ge(
-	BinaryOp[TSupportsComparison, S],
+class Ge(  # type: ignore[misc]
+	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " >= "
 
 	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
 		return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
 
-	def unwrap(self, ctx: S) -> bool:  # type: ignore[override]
-		return self.eval(ctx).value
 
-
-class Min(
+class Min(  # type: ignore[misc]
 	Foldable[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 ):
 	op: ClassVar[str] = "min"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: Final[ClassVar] = min  # type: ignore[misc]
-	identity_element: Final[ClassVar] = float("inf")  # type: ignore[misc]
+	op_func: Final[ClassVar] = min  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = float("inf")  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsComparison]:
 		return Const(None, min(self.left.eval(ctx).value, self.right.eval(ctx).value))
 
 
-class Max(
+class Max(  # type: ignore[misc]
 	Foldable[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 ):
 	op: ClassVar[str] = "max"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: Final[ClassVar] = max  # type: ignore[misc]
-	identity_element: Final[ClassVar] = float("-inf")  # type: ignore[misc]
+	op_func: Final[ClassVar] = max  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = float("-inf")  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsComparison]:
 		return Const(None, max(self.left.eval(ctx).value, self.right.eval(ctx).value))
 
 
-class Add(
+class Add(  # type: ignore[misc]
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " + "
-	op_func: Final[ClassVar] = operator.add  # type: ignore[misc]
-	identity_element: Final[ClassVar] = 0  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.add  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = 0  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
 
 
-class Sub(
+class Sub(  # type: ignore[misc]
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " - "
-	op_func: Final[ClassVar] = operator.sub  # type: ignore[misc]
-	identity_element: Final[ClassVar] = 0  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.sub  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = 0  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
 
 
-class Mul(
+class Mul(  # type: ignore[misc]
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " * "
-	op_func: Final[ClassVar] = operator.mul  # type: ignore[misc]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.mul  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
 
 
-class Div(
+class Div(  # type: ignore[misc]
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " / "
-	op_func: Final[ClassVar] = operator.truediv  # type: ignore[misc]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.truediv  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Pow(
+class Pow(  # type: ignore[misc]
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = "^"
-	op_func: Final[ClassVar] = operator.pow  # type: ignore[misc]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc]
+	op_func: Final[ClassVar] = operator.pow  # type: ignore[misc,assignment]
+	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
 
-	left: Expr[TSupportsArithmetic, S]
-	right: Expr[TSupportsArithmetic, S]
+	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	right: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value ** self.right.eval(ctx).value)
@@ -1210,14 +1231,14 @@ class ConstTolerance(
 
 	@overload  # type: ignore[override]
 	def __eq__(
-		self, other: Expr[TSupportsArithmetic, S]
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Approximately[TSupportsArithmetic, S]": ...
 
 	@overload  # type: ignore[override]
 	def __eq__(self, other: TSupportsArithmetic) -> "Approximately[TSupportsArithmetic, Any]": ...
 
 	def __eq__(  # type: ignore[misc]
-		self, other: Expr[TSupportsArithmetic, S] | TSupportsArithmetic
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Approximately[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
 			return Approximately(other, self)  # type: ignore
@@ -1295,9 +1316,8 @@ class Percent(ConstTolerance[TSupportsArithmetic]):
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Approximately(
-	BinaryOp[TSupportsArithmetic, S],
-	BinaryOperationOverloads[TSupportsArithmetic, S],
-	BooleanBinaryOperationOverloads[Any, S],
+	BinaryOp[TSupportsArithmetic, S, bool],
+	BooleanBinaryOperationOverloads[bool, S],
 ):
 	"""Approximate equality comparison with tolerance.
 
@@ -1323,15 +1343,15 @@ class Approximately(
 
 	op: ClassVar[str] = " ≈ "
 
-	left: Expr[TSupportsArithmetic, S]
+	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	right: ConstTolerance[TSupportsArithmetic]  # type: ignore[assignment]
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:
 		return Const(
 			None, abs(self.left.eval(ctx).value - self.right.value) <= self.right.max_abs_error
 		)
 
-	def partial(self, ctx: Any) -> "Approximately[TSupportsArithmetic, Any]":
+	def partial(self, ctx: Any) -> "Expr[TSupportsArithmetic, Any, bool]":
 		return Approximately(self.left.partial(ctx), self.right)
 
 
@@ -1375,10 +1395,19 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 	"""
 
 	name: str | None
-	expr: BoolExpr[bool, S]
+	expr: Expr[Any, S, bool]
 
 	def eval(self, ctx: S) -> Const[bool]:
 		return Const(self.name, self.expr.eval(ctx).value)
+
+	def __call__(self, ctx: S) -> Const[bool]:
+		return self.eval(ctx)
+
+	def unwrap(self, ctx: S) -> bool:
+		return self.eval(ctx).value
+
+	def bind(self, ctx: S) -> "BoundExpr[bool, S, bool]":
+		return BoundExpr(self, ctx)
 
 	def to_string(self, ctx: S | None = None) -> str:
 		result: Final = (
@@ -1391,8 +1420,14 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 	def partial(self, ctx: Any) -> "Predicate[Any]":
 		return Predicate(self.name, self.expr.partial(ctx))  # type: ignore[arg-type]
 
+	def to_func(self) -> "Func[bool, S]":
+		return Func(_extract_vars((), self), self)  # type: ignore[arg-type]
 
-def format_iterable_var(expr: Expr[SizedIterable[Any], S], ctx: S | None) -> str:
+	def map(self, container: "Expr[SizedIterable[Any], Any, Any]") -> "MapExpr[Any, bool, Any]":
+		return MapExpr(self.to_func(), container)  # type: ignore[arg-type]
+
+
+def format_iterable_var(expr: Expr[SizedIterable[Any], S, Any], ctx: S | None) -> str:
 	"""Format an iterable variable with compact container display.
 
 	>>> from typing import NamedTuple
@@ -1466,8 +1501,8 @@ class Contains(
 	template: ClassVar[str] = "({left}{op}{right})"
 	template_eval: ClassVar[str] = "({left}{op}{right} -> {out})"
 
-	element: Expr[T, S]
-	container: Expr[SizedIterable[T], S]
+	element: Expr[T, S, T]
+	container: Expr[SizedIterable[T], S, SizedIterable[T]]
 
 	def eval(self, ctx: S) -> Const[bool]:
 		return Const(None, self.element.unwrap(ctx) in self.container.unwrap(ctx))
@@ -1485,7 +1520,7 @@ class Contains(
 				left=left, op=self.op, right=right, out=self.eval(ctx).value
 			)
 
-	def partial(self, ctx: Any) -> "Expr[bool, Any]":
+	def partial(self, ctx: Any) -> "Expr[bool, Any, bool]":
 		return Contains(self.element.partial(ctx), self.container.partial(ctx))
 
 
@@ -1501,7 +1536,7 @@ class MapExpr(
 	template_eval: ClassVar[str] = "({op} {func} {container} -> {out})"
 
 	func: "Func[U, Any]"
-	container: Expr[SizedIterable[T], S]
+	container: Expr[SizedIterable[T], S, SizedIterable[T]]
 
 	def eval(self, ctx: S) -> "Const[SizedIterable[U]]":
 		container_values = self.container.unwrap(ctx)
@@ -1531,7 +1566,7 @@ class MapExpr(
 				op=self.op, func=func_str, container=container_str, out=out_str
 			)
 
-	def partial(self, ctx: Any) -> "Expr[SizedIterable[U], Any]":
+	def partial(self, ctx: Any) -> "Expr[SizedIterable[U], Any, SizedIterable[U]]":
 		partial_func = Func(self.func.args, self.func.expr.partial(ctx))
 		return MapExpr(partial_func, self.container.partial(ctx))
 
@@ -1541,9 +1576,35 @@ class FoldLExpr(
 	BinaryOperationOverloads[T, S],
 	Generic[T, S],
 ):
-	op_cls: type[Foldable[T, S]]
-	container: Expr[SizedIterable[T], S]
+	op_cls: type[Foldable[Any, Any]]
+	container: Expr[SizedIterable[T], S, SizedIterable[T]]
 	initial: T | None = None
+
+	@overload
+	def __init__(
+		self,
+		op_cls: type[Foldable[Any, Any]],
+		container: Expr[SizedIterable[T], S, SizedIterable[T]],
+		initial: None = None,
+	) -> None: ...
+
+	@overload
+	def __init__(
+		self,
+		op_cls: type[Foldable[Any, Any]],
+		container: Expr[SizedIterable[T], S, SizedIterable[T]],
+		initial: T = ...,
+	) -> None: ...
+
+	def __init__(
+		self,
+		op_cls: type[Foldable[Any, Any]],
+		container: Expr[SizedIterable[T], S, SizedIterable[T]],
+		initial: T | None = None,
+	) -> None:
+		object.__setattr__(self, "op_cls", op_cls)
+		object.__setattr__(self, "container", container)
+		object.__setattr__(self, "initial", initial)
 
 	def eval(self, ctx: S) -> Const[T]:
 		result_value: T = self.initial if self.initial is not None else self.op_cls.identity_element  # type: ignore[assignment]
@@ -1580,7 +1641,7 @@ class FoldLExpr(
 
 		return f" {op} ".join(serialize(i) for i in items)
 
-	def partial(self, ctx: Any) -> "Expr[T, Any]":
+	def partial(self, ctx: Any) -> "Expr[T, Any, T]":
 		return FoldLExpr(self.op_cls, self.container.partial(ctx), self.initial)
 
 
@@ -1625,7 +1686,7 @@ class AnyExpr(
 	template: ClassVar[str] = "({op} {left})"
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
-	container: Expr[SizedIterable[Any], S]
+	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
 	_foldl: FoldLExpr[bool, S] = field(init=False)
 
 	def __post_init__(self) -> None:
@@ -1693,7 +1754,7 @@ class AllExpr(
 	template: ClassVar[str] = "({op} {left})"
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
-	container: Expr[SizedIterable[Any], S]
+	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
 	_foldl: FoldLExpr[bool, S] = field(init=False)
 
 	def __post_init__(self) -> None:
@@ -1744,7 +1805,7 @@ class MinExpr(
 	template: ClassVar[str] = "({op} {left})"
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
-	container: Expr[SizedIterable[TSupportsComparison], S]
+	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
 	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)
 
 	def __post_init__(self) -> None:
@@ -1795,7 +1856,7 @@ class MaxExpr(
 	template: ClassVar[str] = "({op} {left})"
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
-	container: Expr[SizedIterable[TSupportsComparison], S]
+	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
 	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)
 
 	def __post_init__(self) -> None:

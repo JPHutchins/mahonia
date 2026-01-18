@@ -5,6 +5,8 @@
 
 from typing import Any, NamedTuple, assert_type
 
+import pytest
+
 from mahonia import (
 	Add,
 	AllExpr,
@@ -501,9 +503,9 @@ def test_foldl_add_expr() -> None:
 	class FoldCtx(NamedTuple):
 		x: int
 		y: int
-		values: list[Expr[int, XYCtx]]
+		values: list[Expr[int, XYCtx, int]]
 
-	values = Var[SizedIterable[Expr[int, XYCtx]], FoldCtx]("values")
+	values = Var[SizedIterable[Expr[int, XYCtx, int]], FoldCtx]("values")
 
 	foldl_expr = FoldLExpr(Add, values)
 
@@ -560,13 +562,13 @@ def test_foldl_partial_preserves_structure() -> None:
 	class FoldCtx(NamedTuple):
 		x: int
 		y: int
-		values: list[Expr[int, XYCtx]]
+		values: list[Expr[int, XYCtx, int]]
 
-	values = Var[SizedIterable[Expr[int, XYCtx]], FoldCtx]("values")
+	values = Var[SizedIterable[Expr[int, XYCtx, int]], FoldCtx]("values")
 	foldl_expr = FoldLExpr(Add, values)
 
 	class ValuesOnlyCtx(NamedTuple):
-		values: list[Expr[int, XYCtx]]
+		values: list[Expr[int, XYCtx, int]]
 
 	partial_ctx = ValuesOnlyCtx(values=[expr_1, expr_2])
 	partial_expr = foldl_expr.partial(partial_ctx)
@@ -599,9 +601,9 @@ def test_foldl_with_bound_expr() -> None:
 	bound_3 = (x - y).bind(ctx3)
 
 	class BoundFoldCtx(NamedTuple):
-		bounds: list[BoundExpr[int, XYCtx]]
+		bounds: list[BoundExpr[int, XYCtx, int]]
 
-	bounds = Var[SizedIterable[BoundExpr[int, XYCtx]], BoundFoldCtx]("bounds")
+	bounds = Var[SizedIterable[BoundExpr[int, XYCtx, int]], BoundFoldCtx]("bounds")
 	foldl_expr = FoldLExpr(Add, bounds)
 
 	ctx = BoundFoldCtx(bounds=[bound_1, bound_2, bound_3])
@@ -619,7 +621,7 @@ def test_foldl_bound_expr_composition() -> None:
 	foldl_sum = FoldLExpr(Add, values)
 
 	ctx = SumCtx(values=[1, 2, 3, 4])
-	bound_sum: BoundExpr[int, SumCtx] = foldl_sum.bind(ctx)
+	bound_sum: BoundExpr[int, SumCtx, int] = foldl_sum.bind(ctx)
 
 	assert bound_sum.unwrap() == 10
 
@@ -658,7 +660,7 @@ def test_foldl_partial_then_bind() -> None:
 	class OffsetCtx(NamedTuple):
 		offset: int
 
-	bound: BoundExpr[int, OffsetCtx] = partial_expr.bind(OffsetCtx(offset=5))
+	bound: BoundExpr[int, OffsetCtx, int] = partial_expr.bind(OffsetCtx(offset=5))
 
 	assert bound.unwrap() == 65  # 10 + 20 + 30 + 5
 	assert bound.to_string() == (
@@ -778,9 +780,9 @@ def test_foldl_bound_predicates() -> None:
 	power_ok = Predicate("Power OK", power < 15.0)
 
 	class ValidationCtx(NamedTuple):
-		tests: list[BoundExpr[bool, Measurement]]
+		tests: list[BoundExpr[bool, Measurement, bool]]
 
-	tests = Var[SizedIterable[BoundExpr[bool, Measurement]], ValidationCtx]("tests")
+	tests = Var[SizedIterable[BoundExpr[bool, Measurement, bool]], ValidationCtx]("tests")
 	all_pass = FoldLExpr(And, tests)
 
 	assert all_pass.to_string() == "(foldl & tests)"
@@ -936,3 +938,242 @@ def test_min_max_composition() -> None:
 
 	ctx_low = ContainerCtx(values=[1, 2, 3])
 	assert max_below_threshold.unwrap(ctx_low) is True
+
+
+class FoldLCtx(NamedTuple):
+	ints: list[int]
+	floats: list[float]
+	bools: list[bool]
+
+
+@pytest.mark.mypy_testing
+def test_foldl_add_type_preservation() -> None:
+	"""Verify FoldLExpr with Add preserves int type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+
+	fold_add = FoldLExpr(Add, ints)
+	assert_type(fold_add, FoldLExpr[int, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[1, 2, 3], floats=[], bools=[])
+	result = fold_add.eval(ctx)
+	assert_type(result, Const[int])
+	assert_type(fold_add.unwrap(ctx), int)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_mul_type_preservation() -> None:
+	"""Verify FoldLExpr with Mul preserves int type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+
+	fold_mul = FoldLExpr(Mul, ints)
+	assert_type(fold_mul, FoldLExpr[int, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[2, 3, 4], floats=[], bools=[])
+	result = fold_mul.eval(ctx)
+	assert_type(result, Const[int])
+
+
+@pytest.mark.mypy_testing
+def test_foldl_and_type_preservation() -> None:
+	"""Verify FoldLExpr with And preserves bool type."""
+	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
+
+	fold_and = FoldLExpr(And, bools)
+	assert_type(fold_and, FoldLExpr[bool, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[], bools=[True, True, False])
+	result = fold_and.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(fold_and.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_or_type_preservation() -> None:
+	"""Verify FoldLExpr with Or preserves bool type."""
+	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
+
+	fold_or = FoldLExpr(Or, bools)
+	assert_type(fold_or, FoldLExpr[bool, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[], bools=[False, False, True])
+	result = fold_or.eval(ctx)
+	assert_type(result, Const[bool])
+
+
+@pytest.mark.mypy_testing
+def test_foldl_min_type_preservation() -> None:
+	"""Verify FoldLExpr with Min preserves float type."""
+	floats = Var[SizedIterable[float], FoldLCtx]("floats")
+
+	fold_min = FoldLExpr(Min, floats)
+	assert_type(fold_min, FoldLExpr[float, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[3.5, 1.2, 4.8], bools=[])
+	result = fold_min.eval(ctx)
+	assert_type(result, Const[float])
+	assert_type(fold_min.unwrap(ctx), float)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_max_type_preservation() -> None:
+	"""Verify FoldLExpr with Max preserves float type."""
+	floats = Var[SizedIterable[float], FoldLCtx]("floats")
+
+	fold_max = FoldLExpr(Max, floats)
+	assert_type(fold_max, FoldLExpr[float, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[3.5, 1.2, 4.8], bools=[])
+	result = fold_max.eval(ctx)
+	assert_type(result, Const[float])
+
+
+@pytest.mark.mypy_testing
+def test_foldl_with_initial_value_type() -> None:
+	"""Verify FoldLExpr with initial value preserves type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+
+	fold_with_init = FoldLExpr(Add, ints, 100)
+	assert_type(fold_with_init, FoldLExpr[int, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[1, 2, 3], floats=[], bools=[])
+	result = fold_with_init.eval(ctx)
+	assert_type(result, Const[int])
+
+
+@pytest.mark.mypy_testing
+def test_minexpr_type_preservation() -> None:
+	"""Verify MinExpr preserves element type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+
+	min_expr = MinExpr(ints)
+	assert_type(min_expr, MinExpr[int, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[5, 2, 8], floats=[], bools=[])
+	result = min_expr.eval(ctx)
+	assert_type(result, Const[int])
+	assert_type(min_expr.unwrap(ctx), int)
+
+
+@pytest.mark.mypy_testing
+def test_maxexpr_type_preservation() -> None:
+	"""Verify MaxExpr preserves element type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+
+	max_expr = MaxExpr(ints)
+	assert_type(max_expr, MaxExpr[int, FoldLCtx])
+
+	ctx = FoldLCtx(ints=[5, 2, 8], floats=[], bools=[])
+	result = max_expr.eval(ctx)
+	assert_type(result, Const[int])
+	assert_type(max_expr.unwrap(ctx), int)
+
+
+@pytest.mark.mypy_testing
+def test_anyexpr_type_preservation() -> None:
+	"""Verify AnyExpr returns bool type."""
+	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
+
+	any_expr = AnyExpr(bools)
+	assert_type(any_expr, AnyExpr[FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[], bools=[False, True, False])
+	result = any_expr.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(any_expr.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_allexpr_type_preservation() -> None:
+	"""Verify AllExpr returns bool type."""
+	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
+
+	all_expr = AllExpr(bools)
+	assert_type(all_expr, AllExpr[FoldLCtx])
+
+	ctx = FoldLCtx(ints=[], floats=[], bools=[True, True, True])
+	result = all_expr.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(all_expr.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_contains_type_preservation() -> None:
+	"""Verify Contains returns bool type."""
+	ints = Var[SizedIterable[int], FoldLCtx]("ints")
+	target = Const("target", 5)
+
+	contains_expr = Contains(target, ints)
+	assert_type(contains_expr, Contains[int, Any])
+
+	ctx = FoldLCtx(ints=[1, 5, 10], floats=[], bools=[])
+	result = contains_expr.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(contains_expr.unwrap(ctx), bool)
+
+
+class MapComposeCtx(NamedTuple):
+	nums: list[int]
+
+
+class ElemCtx(NamedTuple):
+	n: int
+
+
+@pytest.mark.mypy_testing
+def test_anyexpr_with_mapexpr_composition() -> None:
+	"""Verify AnyExpr composed with MapExpr preserves bool type."""
+	from mahonia import MapExpr
+
+	n = Var[int, ElemCtx]("n")
+	nums = Var[SizedIterable[int], MapComposeCtx]("nums")
+
+	mapped = (n > 5).map(nums)
+	assert_type(mapped, MapExpr[Any, bool, Any])
+
+	any_mapped = AnyExpr(mapped)
+	assert_type(any_mapped, AnyExpr[Any])
+
+	ctx = MapComposeCtx(nums=[1, 10, 3])
+	result = any_mapped.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(any_mapped.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_allexpr_with_mapexpr_composition() -> None:
+	"""Verify AllExpr composed with MapExpr preserves bool type."""
+	from mahonia import MapExpr
+
+	n = Var[int, ElemCtx]("n")
+	nums = Var[SizedIterable[int], MapComposeCtx]("nums")
+
+	mapped = (n > 0).map(nums)
+	assert_type(mapped, MapExpr[Any, bool, Any])
+
+	all_mapped = AllExpr(mapped)
+	assert_type(all_mapped, AllExpr[Any])
+
+	ctx = MapComposeCtx(nums=[1, 2, 3])
+	result = all_mapped.eval(ctx)
+	assert_type(result, Const[bool])
+	assert_type(all_mapped.unwrap(ctx), bool)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_with_mapexpr_composition() -> None:
+	"""Verify FoldLExpr composed with MapExpr preserves element type."""
+	from mahonia import MapExpr
+
+	n = Var[int, ElemCtx]("n")
+	nums = Var[SizedIterable[int], MapComposeCtx]("nums")
+
+	mapped = (n * 2).map(nums)
+	assert_type(mapped, MapExpr[Any, int, Any])
+
+	fold_mapped = FoldLExpr(Add, mapped)
+	assert_type(fold_mapped, FoldLExpr[int, Any])
+
+	ctx = MapComposeCtx(nums=[1, 2, 3])
+	result = fold_mapped.eval(ctx)
+	assert_type(result, Const[int])
+	assert_type(fold_mapped.unwrap(ctx), int)

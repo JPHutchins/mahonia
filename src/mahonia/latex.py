@@ -103,7 +103,7 @@ class LatexCtx(NamedTuple, Generic[S]):
 	show: Show = Show.VALUES | Show.WORK
 
 
-def latex(expr: Expr[Any, S] | Func[Any, S], ctx: LatexCtx[S] | None = None) -> str:
+def latex(expr: Expr[Any, S, Any] | Func[Any, S], ctx: LatexCtx[S] | None = None) -> str:
 	"""Convert a mahonia expression to LaTeX mathematical notation.
 
 	Examples:
@@ -191,7 +191,7 @@ def _format_with_result(structure: str, result: Const[Any]) -> str:
 	return f"({structure} \\rightarrow {result_latex})"
 
 
-def _latex_expr_structure(expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
+def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
 	"""Convert expression structure to LaTeX, optionally showing variable values."""
 	match expr:
 		case Var(name=name):
@@ -420,7 +420,7 @@ def _latex_var(name: str) -> str:
 	}.get(name.lower(), name)
 
 
-PRECEDENCE: Final[dict[type[Expr[Any, Any]], int]] = {
+PRECEDENCE: Final[dict[type[Expr[Any, Any, Any]], int]] = {
 	Or: 1,
 	And: 2,
 	Not: 3,
@@ -445,7 +445,7 @@ PRECEDENCE: Final[dict[type[Expr[Any, Any]], int]] = {
 }
 
 
-def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
+def _needs_parentheses(operand: Expr[Any, Any, Any], parent: Expr[Any, Any, Any]) -> bool:
 	"""Determine if an operand needs parentheses in the context of its parent operation."""
 
 	if isinstance(
@@ -468,7 +468,9 @@ def _needs_parentheses(operand: Expr[Any, Any], parent: Expr[Any, Any]) -> bool:
 	return False
 
 
-def _format_statistical_operand(stat_expr: Expr[Any, Any], latex_ctx: LatexCtx[Any] | None) -> str:
+def _format_statistical_operand(
+	stat_expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | None
+) -> str:
 	match latex_ctx:
 		case LatexCtx(ctx, show) if show & Show.VALUES:
 			if hasattr(stat_expr, "left"):
