@@ -14,6 +14,10 @@ from mahonia import (
 	Contains,
 	Expr,
 	FoldLExpr,
+	Max,
+	MaxExpr,
+	Min,
+	MinExpr,
 	Mul,
 	Or,
 	SizedIterable,
@@ -812,3 +816,123 @@ def test_foldl_bound_predicates() -> None:
 		"Temp OK: True ((temperature:25.0 > 20.0 -> True) & (temperature:25.0 < 80.0 -> True) -> True) & "
 		"Power OK: True (power:10.0 < 15.0 -> True)) -> False)"
 	)
+
+
+def test_min_expr() -> None:
+	"""Test MinExpr operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	min_expr = MinExpr(values)
+
+	assert min_expr.to_string() == "min(values)"
+
+	ctx = ContainerCtx(values=[3, 1, 4, 1, 5, 9])
+	assert min_expr.unwrap(ctx) == 1
+	assert min_expr.to_string(ctx) == "min(values:6[3,..9] -> 1)"
+
+
+def test_max_expr() -> None:
+	"""Test MaxExpr operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	max_expr = MaxExpr(values)
+
+	assert max_expr.to_string() == "max(values)"
+
+	ctx = ContainerCtx(values=[3, 1, 4, 1, 5, 9])
+	assert max_expr.unwrap(ctx) == 9
+	assert max_expr.to_string(ctx) == "max(values:6[3,..9] -> 9)"
+
+
+def test_foldl_min() -> None:
+	"""Test FoldLExpr with Min operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[float]
+
+	values = Var[SizedIterable[float], ContainerCtx]("values")
+	foldl_expr = FoldLExpr(Min, values)
+
+	assert foldl_expr.to_string() == "(foldl min values)"
+
+	ctx = ContainerCtx(values=[3.5, 1.2, 4.8])
+	assert foldl_expr.unwrap(ctx) == 1.2
+
+
+def test_foldl_max() -> None:
+	"""Test FoldLExpr with Max operation."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[float]
+
+	values = Var[SizedIterable[float], ContainerCtx]("values")
+	foldl_expr = FoldLExpr(Max, values)
+
+	assert foldl_expr.to_string() == "(foldl max values)"
+
+	ctx = ContainerCtx(values=[3.5, 1.2, 4.8])
+	assert foldl_expr.unwrap(ctx) == 4.8
+
+
+def test_minexpr_maxexpr_single_element() -> None:
+	"""Test Min/Max with single element."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+
+	ctx = ContainerCtx(values=[42])
+	assert MinExpr(values).unwrap(ctx) == 42
+	assert MaxExpr(values).unwrap(ctx) == 42
+	assert FoldLExpr(Min, values).unwrap(ctx) == 42
+	assert FoldLExpr(Max, values).unwrap(ctx) == 42
+
+
+def test_min_max_with_floats() -> None:
+	"""Test Min/Max with float values."""
+
+	class ContainerCtx(NamedTuple):
+		temps: list[float]
+
+	temps = Var[SizedIterable[float], ContainerCtx]("temps")
+
+	ctx = ContainerCtx(temps=[23.5, 19.2, 25.8, 21.0])
+	assert MinExpr(temps).unwrap(ctx) == 19.2
+	assert MaxExpr(temps).unwrap(ctx) == 25.8
+
+
+def test_min_max_types() -> None:
+	"""Test that MinExpr and MaxExpr have correct types."""
+	values = Var[SizedIterable[int], ContainerData]("values")
+
+	min_expr = MinExpr(values)
+	assert_type(min_expr, MinExpr[int, ContainerData])
+
+	max_expr = MaxExpr(values)
+	assert_type(max_expr, MaxExpr[int, ContainerData])
+
+
+def test_min_max_composition() -> None:
+	"""Test Min/Max in expression composition."""
+
+	class ContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], ContainerCtx]("values")
+	threshold = Const("threshold", 5)
+
+	min_above_threshold = MinExpr(values) > threshold
+	max_below_threshold = MaxExpr(values) < threshold
+
+	ctx_high = ContainerCtx(values=[6, 7, 8])
+	assert min_above_threshold.unwrap(ctx_high) is True
+
+	ctx_low = ContainerCtx(values=[1, 2, 3])
+	assert max_below_threshold.unwrap(ctx_low) is True

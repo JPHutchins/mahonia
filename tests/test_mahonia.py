@@ -19,7 +19,9 @@ from mahonia import (
 	Gt,
 	Le,
 	Lt,
+	Max,
 	MergeContextProtocol,
+	Min,
 	Mul,
 	Ne,
 	Not,
@@ -1411,3 +1413,83 @@ def test_bound_expr_arithmetic_composition() -> None:
 	assert (bound - 3).unwrap(()) == 7
 	assert (bound * 2).unwrap(()) == 20
 	assert (bound / 2).unwrap(()) == 5.0
+
+
+def test_min_binary_op() -> None:
+	"""Test Min binary operation."""
+
+	class Ctx(NamedTuple):
+		a: int
+		b: int
+
+	a = Var[int, Ctx]("a")
+	b = Var[int, Ctx]("b")
+
+	min_expr = Min(a, b)
+	assert min_expr.to_string() == "(min a b)"
+
+	ctx = Ctx(a=5, b=3)
+	assert min_expr.unwrap(ctx) == 3
+	assert min_expr.to_string(ctx) == "(min a:5 b:3 -> 3)"
+
+	ctx2 = Ctx(a=2, b=7)
+	assert min_expr.unwrap(ctx2) == 2
+
+
+def test_max_binary_op() -> None:
+	"""Test Max binary operation."""
+
+	class Ctx(NamedTuple):
+		a: int
+		b: int
+
+	a = Var[int, Ctx]("a")
+	b = Var[int, Ctx]("b")
+
+	max_expr = Max(a, b)
+	assert max_expr.to_string() == "(max a b)"
+
+	ctx = Ctx(a=5, b=3)
+	assert max_expr.unwrap(ctx) == 5
+	assert max_expr.to_string(ctx) == "(max a:5 b:3 -> 5)"
+
+	ctx2 = Ctx(a=2, b=7)
+	assert max_expr.unwrap(ctx2) == 7
+
+
+def test_min_max_with_const() -> None:
+	"""Test Min/Max with Const values."""
+
+	class Ctx(NamedTuple):
+		x: float
+
+	x = Var[float, Ctx]("x")
+	threshold = Const("threshold", 10.0)
+
+	clamped_above = Max(x, threshold)
+	clamped_below = Min(x, threshold)
+
+	ctx_low = Ctx(x=5.0)
+	assert clamped_above.unwrap(ctx_low) == 10.0
+	assert clamped_below.unwrap(ctx_low) == 5.0
+
+	ctx_high = Ctx(x=15.0)
+	assert clamped_above.unwrap(ctx_high) == 15.0
+	assert clamped_below.unwrap(ctx_high) == 10.0
+
+
+def test_min_max_chained() -> None:
+	"""Test chaining Min/Max operations (clamp pattern)."""
+
+	class Ctx(NamedTuple):
+		x: float
+
+	x = Var[float, Ctx]("x")
+	lower = Const("lower", 0.0)
+	upper = Const("upper", 100.0)
+
+	clamped = Min(Max(x, lower), upper)
+
+	assert clamped.unwrap(Ctx(x=-10.0)) == 0.0
+	assert clamped.unwrap(Ctx(x=50.0)) == 50.0
+	assert clamped.unwrap(Ctx(x=150.0)) == 100.0
