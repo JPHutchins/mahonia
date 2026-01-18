@@ -168,7 +168,7 @@ True
 """
 
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import get_close_matches
 from types import SimpleNamespace
 from typing import (
@@ -432,7 +432,7 @@ def _extract_vars(
 		case Contains(element, container):
 			vars = _extract_vars(vars, element)
 			vars = _extract_vars(vars, container)
-		case AnyExpr(container) | AllExpr(container):
+		case AnyExpr(container) | AllExpr(container) | FoldLExpr(container=container):
 			vars = _extract_vars(vars, container)
 		case MapExpr(func, container):
 			# Extract variables from both the function and container
@@ -1456,134 +1456,6 @@ class Contains(
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class AnyExpr(
-	BinaryOperationOverloads[bool, S],
-	BooleanBinaryOperationOverloads[bool, S],
-):
-	"""True if any element in the container is truthy.
-
-	>>> from typing import NamedTuple
-	>>> class Ctx(NamedTuple):
-	... 	values: list[bool]
-	>>> values = Var[list[bool], Ctx]("values")
-	>>> any_expr = AnyExpr(values)
-	>>> any_expr.to_string()
-	'any(values)'
-	>>> any_expr.unwrap(Ctx(values=[False, True, False]))
-	True
-	>>> any_expr.unwrap(Ctx(values=[False, False, False]))
-	False
-	>>> any_expr.to_string(Ctx(values=[False, True, False]))
-	'any(values:3[False,..False] -> True)'
-
-	With complex expressions like MapExpr, shows the full evaluation trace:
-
-	>>> class NumCtx(NamedTuple):
-	... 	nums: list[int]
-	>>> nums = Var[list[int], NumCtx]("nums")
-	>>> n = Var[int, NumCtx]("n")
-	>>> gt_five = (n > 5).map(nums)
-	>>> any_gt_five = AnyExpr(gt_five)
-	>>> any_gt_five.to_string()
-	'any((map n -> (n > 5) nums))'
-	>>> any_gt_five.to_string(NumCtx(nums=[3, 7, 2]))
-	'any((map n -> (n > 5) nums:3[3,..2] -> 3[False,..False]) -> True)'
-	>>> any_gt_five.to_string(NumCtx(nums=[1, 2, 3]))
-	'any((map n -> (n > 5) nums:3[1,..3] -> 3[False,..False]) -> False)'
-	"""
-
-	op: ClassVar[str] = "any"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
-
-	container: Expr[SizedIterable[Any], S]
-
-	def eval(self, ctx: S) -> Const[bool]:
-		return Const(None, any(self.container.unwrap(ctx)))
-
-	def unwrap(self, ctx: S) -> bool:
-		return self.eval(ctx).value
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
-
-	def partial(self, ctx: Any) -> "Expr[bool, Any]":
-		return AnyExpr(self.container.partial(ctx))
-
-
-@dataclass(frozen=True, eq=False, slots=True)
-class AllExpr(
-	BinaryOperationOverloads[bool, S],
-	BooleanBinaryOperationOverloads[bool, S],
-):
-	"""True if all elements in the container are truthy.
-
-	>>> from typing import NamedTuple
-	>>> class Ctx(NamedTuple):
-	... 	values: list[bool]
-	>>> values = Var[list[bool], Ctx]("values")
-	>>> all_expr = AllExpr(values)
-	>>> all_expr.to_string()
-	'all(values)'
-	>>> all_expr.unwrap(Ctx(values=[True, True, True]))
-	True
-	>>> all_expr.unwrap(Ctx(values=[True, False, True]))
-	False
-	>>> all_expr.to_string(Ctx(values=[True, False, True]))
-	'all(values:3[True,..True] -> False)'
-
-	With complex expressions like MapExpr, shows the full evaluation trace:
-
-	>>> class NumCtx(NamedTuple):
-	... 	nums: list[int]
-	>>> nums = Var[list[int], NumCtx]("nums")
-	>>> n = Var[int, NumCtx]("n")
-	>>> lt_ten = (n < 10).map(nums)
-	>>> all_lt_ten = AllExpr(lt_ten)
-	>>> all_lt_ten.to_string()
-	'all((map n -> (n < 10) nums))'
-	>>> all_lt_ten.to_string(NumCtx(nums=[3, 7, 2]))
-	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)'
-	>>> all_lt_ten.to_string(NumCtx(nums=[3, 15, 2]))
-	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> False)'
-	"""
-
-	op: ClassVar[str] = "all"
-	template: ClassVar[str] = "{op}({left})"
-	template_eval: ClassVar[str] = "{op}({left} -> {out})"
-
-	container: Expr[SizedIterable[Any], S]
-
-	def eval(self, ctx: S) -> Const[bool]:
-		return Const(None, all(self.container.unwrap(ctx)))
-
-	def unwrap(self, ctx: S) -> bool:
-		return self.eval(ctx).value
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
-
-	def partial(self, ctx: Any) -> "Expr[bool, Any]":
-		return AllExpr(self.container.partial(ctx))
-
-
-@dataclass(frozen=True, eq=False, slots=True)
 class MapExpr(
 	BinaryOperationOverloads[SizedIterable[U], S],
 	Generic[T, U, S],
@@ -1675,3 +1547,139 @@ class FoldLExpr(
 
 	def partial(self, ctx: Any) -> "Expr[T, Any]":
 		return FoldLExpr(self.op_cls, self.container.partial(ctx), self.initial)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class AnyExpr(
+	BinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[bool, S],
+):
+	"""True if any element in the container is truthy.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[bool]
+	>>> values = Var[list[bool], Ctx]("values")
+	>>> any_expr = AnyExpr(values)
+	>>> any_expr.to_string()
+	'any(values)'
+	>>> any_expr.unwrap(Ctx(values=[False, True, False]))
+	True
+	>>> any_expr.unwrap(Ctx(values=[False, False, False]))
+	False
+	>>> any_expr.to_string(Ctx(values=[False, True, False]))
+	'any(values:3[False,..False] -> True)'
+
+	With complex expressions like MapExpr, shows the full evaluation trace:
+
+	>>> class NumCtx(NamedTuple):
+	... 	nums: list[int]
+	>>> nums = Var[list[int], NumCtx]("nums")
+	>>> n = Var[int, NumCtx]("n")
+	>>> gt_five = (n > 5).map(nums)
+	>>> any_gt_five = AnyExpr(gt_five)
+	>>> any_gt_five.to_string()
+	'any((map n -> (n > 5) nums))'
+	>>> any_gt_five.to_string(NumCtx(nums=[3, 7, 2]))
+	'any((map n -> (n > 5) nums:3[3,..2] -> 3[False,..False]) -> True)'
+	>>> any_gt_five.to_string(NumCtx(nums=[1, 2, 3]))
+	'any((map n -> (n > 5) nums:3[1,..3] -> 3[False,..False]) -> False)'
+	"""
+
+	op: ClassVar[str] = "any"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+
+	container: Expr[SizedIterable[Any], S]
+	_foldl: FoldLExpr[bool, S] = field(init=False)
+
+	def __post_init__(self) -> None:
+		object.__setattr__(self, "_foldl", FoldLExpr(Or, self.container))
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return self._foldl.eval(ctx)
+
+	def unwrap(self, ctx: S) -> bool:
+		return self._foldl.unwrap(ctx)
+
+	def to_string(self, ctx: S | None = None) -> str:
+		if ctx is None:
+			left = format_iterable_var(self.container, ctx)
+			return self.template.format(op=self.op, left=left)
+		else:
+			if isinstance(self.container, (Var, Const)):
+				left = format_iterable_var(self.container, ctx)
+			else:
+				left = self.container.to_string(ctx)
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+	def partial(self, ctx: Any) -> "AnyExpr[Any]":
+		return AnyExpr(self.container.partial(ctx))
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class AllExpr(
+	BinaryOperationOverloads[bool, S],
+	BooleanBinaryOperationOverloads[bool, S],
+):
+	"""True if all elements in the container are truthy.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[bool]
+	>>> values = Var[list[bool], Ctx]("values")
+	>>> all_expr = AllExpr(values)
+	>>> all_expr.to_string()
+	'all(values)'
+	>>> all_expr.unwrap(Ctx(values=[True, True, True]))
+	True
+	>>> all_expr.unwrap(Ctx(values=[True, False, True]))
+	False
+	>>> all_expr.to_string(Ctx(values=[True, False, True]))
+	'all(values:3[True,..True] -> False)'
+
+	With complex expressions like MapExpr, shows the full evaluation trace:
+
+	>>> class NumCtx(NamedTuple):
+	... 	nums: list[int]
+	>>> nums = Var[list[int], NumCtx]("nums")
+	>>> n = Var[int, NumCtx]("n")
+	>>> lt_ten = (n < 10).map(nums)
+	>>> all_lt_ten = AllExpr(lt_ten)
+	>>> all_lt_ten.to_string()
+	'all((map n -> (n < 10) nums))'
+	>>> all_lt_ten.to_string(NumCtx(nums=[3, 7, 2]))
+	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> True)'
+	>>> all_lt_ten.to_string(NumCtx(nums=[3, 15, 2]))
+	'all((map n -> (n < 10) nums:3[3,..2] -> 3[True,..True]) -> False)'
+	"""
+
+	op: ClassVar[str] = "all"
+	template: ClassVar[str] = "{op}({left})"
+	template_eval: ClassVar[str] = "{op}({left} -> {out})"
+
+	container: Expr[SizedIterable[Any], S]
+	_foldl: FoldLExpr[bool, S] = field(init=False)
+
+	def __post_init__(self) -> None:
+		object.__setattr__(self, "_foldl", FoldLExpr(And, self.container))
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return self._foldl.eval(ctx)
+
+	def unwrap(self, ctx: S) -> bool:
+		return self._foldl.unwrap(ctx)
+
+	def to_string(self, ctx: S | None = None) -> str:
+		if ctx is None:
+			left = format_iterable_var(self.container, ctx)
+			return self.template.format(op=self.op, left=left)
+		else:
+			if isinstance(self.container, (Var, Const)):
+				left = format_iterable_var(self.container, ctx)
+			else:
+				left = self.container.to_string(ctx)
+			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+	def partial(self, ctx: Any) -> "AllExpr[Any]":
+		return AllExpr(self.container.partial(ctx))
