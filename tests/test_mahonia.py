@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 from dataclasses import dataclass
-from typing import Any, Final, NamedTuple, assert_type
+from typing import Any, Callable, Final, NamedTuple, assert_type
 
 import pytest
 
@@ -12,18 +12,22 @@ from mahonia import (
 	And,
 	AnyExpr,
 	Approximately,
+	BoolVar,
 	BoundExpr,
 	Const,
 	Contains,
 	Div,
 	Eq,
 	Expr,
+	FloatVar,
 	FoldLExpr,
 	Func,
 	Ge,
 	Gt,
 	IfExpr,
+	IntVar,
 	Le,
+	ListVar,
 	Lt,
 	MapExpr,
 	Max,
@@ -40,9 +44,11 @@ from mahonia import (
 	Pow,
 	Predicate,
 	SizedIterable,
+	StrVar,
 	Sub,
 	TSupportsComparison,
 	Var,
+	context_vars,
 	merge,
 )
 
@@ -2026,3 +2032,280 @@ def test_if_expr_type_preservation() -> None:
 	result = if_expr.eval(ctx)
 	assert_type(result, Const[int])
 	assert_type(if_expr.unwrap(ctx), int)
+
+
+def test_context_vars_basic() -> None:
+	"""Test context_vars creates context class and matching vars."""
+	TestCtx, x, y = context_vars(("x", int), ("y", float))
+
+	assert x.name == "x"
+	assert_type(x, Var[int, tuple[int, float]])
+	assert y.name == "y"
+	assert_type(y, Var[float, tuple[int, float]])
+	assert_type(TestCtx, Callable[[int, float], tuple[int, float]])
+
+	expr = x + y
+	assert expr.to_string() == "(x + y)"
+
+	test_ctx = TestCtx(1, 2.5)
+	assert_type(test_ctx, tuple[int, float])
+	assert expr.unwrap(test_ctx) == 3.5
+	assert_type(expr.unwrap(test_ctx), float)
+	assert expr.to_string(test_ctx) == "(x:1 + y:2.5 -> 3.5)"
+
+
+def test_context_vars_single_field() -> None:
+	"""Test context_vars with a single field."""
+	SingleCtx, value = context_vars(("value", int))
+
+	assert value.name == "value"
+	assert_type(value, Var[int, tuple[int]])
+	assert_type(SingleCtx, Callable[[int], tuple[int]])
+	expr = value * 2
+	single_ctx = SingleCtx(21)
+	assert_type(single_ctx, tuple[int])
+	assert expr.unwrap(single_ctx) == 42
+
+
+def test_context_vars_with_predicates() -> None:
+	"""Test context_vars with predicate expressions."""
+	Measurements, voltage, current = context_vars(("voltage", float), ("current", float))
+
+	power = voltage * current
+	is_safe = (voltage < 50) & (current < 10)
+
+	measurement_ctx = Measurements(12.0, 2.0)
+	assert power.unwrap(measurement_ctx) == 24.0
+	assert is_safe.unwrap(measurement_ctx) is True
+
+	ctx_unsafe = Measurements(100.0, 5.0)
+	assert is_safe.unwrap(ctx_unsafe) is False
+
+
+def test_context_vars_with_approximation() -> None:
+	"""Test context_vars with approximate comparisons."""
+	SensorCtx, reading = context_vars(("reading", float))
+
+	target = PlusMinus("Target", 5.0, 0.1)
+	check = Approximately(reading, target)
+
+	ctx_pass = SensorCtx(5.05)
+	assert check.unwrap(ctx_pass) is True
+
+	ctx_fail = SensorCtx(5.2)
+	assert check.unwrap(ctx_fail) is False
+
+
+@pytest.mark.mypy_testing
+def test_context_vars_type_inference() -> None:
+	"""Test that context_vars preserves Var and context types for type checker."""
+	Ctx, x, y = context_vars(("x", float), ("y", int))
+
+	assert_type(Ctx, Callable[[float, int], tuple[float, int]])
+	assert_type(x, Var[float, tuple[float, int]])
+	assert_type(y, Var[int, tuple[float, int]])
+
+	ctx = Ctx(1.5, 42)
+	assert_type(ctx, tuple[float, int])
+
+	expr = x + 1.0
+	assert_type(expr, Add[float, tuple[float, int]])
+
+
+def test_type_alias_float_var() -> None:
+	"""Test FloatVar type alias."""
+
+	class TempCtx(NamedTuple):
+		temperature: float
+
+	temp: FloatVar[TempCtx] = Var("temperature")
+	assert temp.name == "temperature"
+	assert temp.unwrap(TempCtx(temperature=25.5)) == 25.5
+
+
+def test_type_alias_int_var() -> None:
+	"""Test IntVar type alias."""
+
+	class CountCtx(NamedTuple):
+		count_val: int
+
+	count_var: IntVar[CountCtx] = Var("count_val")
+	assert count_var.name == "count_val"
+	assert count_var.unwrap(CountCtx(count_val=42)) == 42
+
+
+def test_type_alias_bool_var() -> None:
+	"""Test BoolVar type alias."""
+
+	class FlagCtx(NamedTuple):
+		flag: bool
+
+	flag_var: BoolVar[FlagCtx] = Var("flag")
+	assert flag_var.name == "flag"
+	assert flag_var.unwrap(FlagCtx(flag=True)) is True
+
+
+def test_type_alias_str_var() -> None:
+	"""Test StrVar type alias."""
+
+	class NameCtx(NamedTuple):
+		name: str
+
+	name_var: StrVar[NameCtx] = Var("name")
+	assert name_var.name == "name"
+	assert name_var.unwrap(NameCtx(name="test")) == "test"
+
+
+def test_type_alias_list_var() -> None:
+	"""Test ListVar type alias."""
+
+	class ValuesCtx(NamedTuple):
+		values: list[int]
+
+	values_var: ListVar[int, ValuesCtx] = Var("values")
+	assert values_var.name == "values"
+	assert values_var.unwrap(ValuesCtx(values=[1, 2, 3])) == [1, 2, 3]
+
+
+def test_type_aliases_in_expressions() -> None:
+	"""Test type aliases work in expression composition."""
+
+	class CompositeCtx(NamedTuple):
+		x: float
+		y: float
+		items: list[int]
+
+	x: FloatVar[CompositeCtx] = Var("x")
+	y: FloatVar[CompositeCtx] = Var("y")
+	items: ListVar[int, CompositeCtx] = Var("items")
+
+	sum_expr = x + y
+	composite_ctx = CompositeCtx(x=1.5, y=2.5, items=[1, 2, 3])
+
+	assert sum_expr.unwrap(composite_ctx) == 4.0
+
+	contains_expr = Contains(Const(None, 2), items)
+	assert contains_expr.unwrap(composite_ctx) is True
+
+
+def test_context_vars_manufacturing_example() -> None:
+	"""Test context_vars with a realistic manufacturing test scenario."""
+	Measurement, voltage, current, temp = context_vars(
+		("voltage", float),
+		("current", float),
+		("temp", float),
+	)
+
+	power = voltage * current
+	voltage_ok = Approximately(voltage, PlusMinus("V_nom", 12.0, 0.5))
+	current_ok = (current > 0.1) & (current < 2.0)
+	temp_ok = (temp > 0) & (temp < 85)
+	all_pass = voltage_ok & current_ok & temp_ok
+
+	good = Measurement(12.1, 0.5, 25.0)
+	assert power.unwrap(good) == pytest.approx(6.05)
+	assert voltage_ok.unwrap(good) is True
+	assert current_ok.unwrap(good) is True
+	assert temp_ok.unwrap(good) is True
+	assert all_pass.unwrap(good) is True
+
+	bad_voltage = Measurement(15.0, 0.5, 25.0)
+	assert all_pass.unwrap(bad_voltage) is False
+	assert voltage_ok.unwrap(bad_voltage) is False
+
+
+def test_context_vars_with_max_min() -> None:
+	"""Test context_vars with MaxExpr and MinExpr operations."""
+
+	class DataCtx(NamedTuple):
+		samples: list[float]
+
+	samples = Var[SizedIterable[float], DataCtx]("samples")
+	sample_max = MaxExpr(samples)
+	sample_min = MinExpr(samples)
+
+	ctx = DataCtx(samples=[1.0, 2.0, 3.0, 4.0, 5.0])
+
+	assert sample_max.unwrap(ctx) == 5.0
+	assert sample_min.unwrap(ctx) == 1.0
+
+
+def test_context_vars_with_conditionals() -> None:
+	"""Test context_vars with IfExpr conditional logic."""
+	StatusCtx, value, threshold = context_vars(("value", int), ("threshold", int))
+
+	status = IfExpr(value > threshold, Const("status", "HIGH"), Const("status", "LOW"))
+
+	high_ctx = StatusCtx(100, 50)
+	assert status.unwrap(high_ctx) == "HIGH"
+
+	low_ctx = StatusCtx(30, 50)
+	assert status.unwrap(low_ctx) == "LOW"
+
+
+def test_context_vars_with_any_all() -> None:
+	"""Test context_vars with AnyExpr and AllExpr on boolean containers."""
+
+	class ChecksCtx(NamedTuple):
+		flags: list[bool]
+
+	flags = Var[SizedIterable[bool], ChecksCtx]("flags")
+	any_true = AnyExpr(flags)
+	all_true = AllExpr(flags)
+
+	all_pass_ctx = ChecksCtx(flags=[True, True, True])
+	assert any_true.unwrap(all_pass_ctx) is True
+	assert all_true.unwrap(all_pass_ctx) is True
+
+	mixed_ctx = ChecksCtx(flags=[True, False, True])
+	assert any_true.unwrap(mixed_ctx) is True
+	assert all_true.unwrap(mixed_ctx) is False
+
+	all_fail_ctx = ChecksCtx(flags=[False, False, False])
+	assert any_true.unwrap(all_fail_ctx) is False
+	assert all_true.unwrap(all_fail_ctx) is False
+
+
+def test_context_vars_complex_expression_composition() -> None:
+	"""Test composing multiple expressions from context_vars."""
+	SensorCtx, v1, v2, v3, v4 = context_vars(
+		("v1", float),
+		("v2", float),
+		("v3", float),
+		("v4", float),
+	)
+
+	avg = (v1 + v2 + v3 + v4) / 4
+	spread = Max(v1, Max(v2, Max(v3, v4))) - Min(v1, Min(v2, Min(v3, v4)))
+	balanced = spread < 1.0
+
+	ctx = SensorCtx(10.0, 10.2, 10.1, 10.3)
+	assert avg.unwrap(ctx) == pytest.approx(10.15)
+	assert spread.unwrap(ctx) == pytest.approx(0.3)
+	assert balanced.unwrap(ctx) is True
+
+	unbalanced_ctx = SensorCtx(5.0, 10.0, 15.0, 20.0)
+	assert spread.unwrap(unbalanced_ctx) == 15.0
+	assert balanced.unwrap(unbalanced_ctx) is False
+
+
+def test_context_vars_to_string_output() -> None:
+	"""Test that context_vars expressions produce good string representations."""
+	TestCtx, x, y = context_vars(("x", int), ("y", int))
+
+	expr = (x + y) * 2
+	assert expr.to_string() == "((x + y) * 2)"
+
+	ctx = TestCtx(3, 4)
+	assert expr.to_string(ctx) == "((x:3 + y:4 -> 7) * 2 -> 14)"
+
+
+def test_context_vars_bound_expr() -> None:
+	"""Test binding context_vars expressions for repeated evaluation."""
+	ConfigCtx, base, multiplier = context_vars(("base", float), ("multiplier", float))
+
+	formula = base * multiplier
+
+	bound = formula.bind(ConfigCtx(100.0, 1.5))
+	assert bound.unwrap() == 150.0
+	assert str(bound) == "(base:100.0 * multiplier:1.5 -> 150.0)"
