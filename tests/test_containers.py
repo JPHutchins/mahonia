@@ -15,6 +15,7 @@ from mahonia import (
 	Const,
 	Contains,
 	Expr,
+	FilterExpr,
 	FoldLExpr,
 	Max,
 	MaxExpr,
@@ -1177,3 +1178,161 @@ def test_foldl_with_mapexpr_composition() -> None:
 	result = fold_mapped.eval(ctx)
 	assert_type(result, Const[int])
 	assert_type(fold_mapped.unwrap(ctx), int)
+
+
+def test_filter_expr_basic() -> None:
+	"""Test basic FilterExpr operation."""
+
+	class FilterCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], FilterCtx]("values")
+	x = Var[int, FilterCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	assert filter_expr.to_string() == "(filter x -> (x > 0) values)"
+
+	ctx = FilterCtx(values=[-1, 2, -3, 4, 5])
+	assert filter_expr.unwrap(ctx) == (2, 4, 5)
+	assert filter_expr.to_string(ctx) == "(filter x -> (x > 0) values:5[-1,..5] -> 3[2,..5])"
+
+
+def test_filter_expr_with_complex_predicate() -> None:
+	"""Test FilterExpr with a more complex predicate."""
+
+	class RangeCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], RangeCtx]("values")
+	x = Var[int, RangeCtx]("x")
+	in_range = ((x > 0) & (x < 10)).to_func()
+
+	filter_expr = FilterExpr(in_range, values)
+
+	ctx = RangeCtx(values=[-5, 0, 3, 7, 15, 8])
+	assert filter_expr.unwrap(ctx) == (3, 7, 8)
+
+
+def test_filter_expr_empty_result() -> None:
+	"""Test FilterExpr when no elements match."""
+
+	class EmptyCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], EmptyCtx]("values")
+	x = Var[int, EmptyCtx]("x")
+	is_negative = (x < 0).to_func()
+
+	filter_expr = FilterExpr(is_negative, values)
+
+	ctx = EmptyCtx(values=[1, 2, 3, 4, 5])
+	assert filter_expr.unwrap(ctx) == ()
+
+
+def test_filter_expr_all_match() -> None:
+	"""Test FilterExpr when all elements match."""
+
+	class AllMatchCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], AllMatchCtx]("values")
+	x = Var[int, AllMatchCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	ctx = AllMatchCtx(values=[1, 2, 3, 4, 5])
+	assert filter_expr.unwrap(ctx) == (1, 2, 3, 4, 5)
+
+
+def test_filter_expr_empty_container() -> None:
+	"""Test FilterExpr with empty container."""
+
+	class EmptyContainerCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], EmptyContainerCtx]("values")
+	x = Var[int, EmptyContainerCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	ctx = EmptyContainerCtx(values=[])
+	assert filter_expr.unwrap(ctx) == ()
+
+
+def test_filter_expr_with_floats() -> None:
+	"""Test FilterExpr with float values."""
+
+	class FloatCtx(NamedTuple):
+		measurements: list[float]
+
+	measurements = Var[SizedIterable[float], FloatCtx]("measurements")
+	m = Var[float, FloatCtx]("m")
+	is_valid = ((m > 0.0) & (m < 100.0)).to_func()
+
+	filter_expr = FilterExpr(is_valid, measurements)
+
+	ctx = FloatCtx(measurements=[-1.5, 50.2, 150.0, 25.8, 0.0])
+	assert filter_expr.unwrap(ctx) == (50.2, 25.8)
+
+
+def test_filter_expr_composition_with_foldl() -> None:
+	"""Test FilterExpr composed with FoldLExpr."""
+
+	class SumFilterCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], SumFilterCtx]("values")
+	x = Var[int, SumFilterCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+	sum_expr = FoldLExpr(Add, filter_expr)
+
+	ctx = SumFilterCtx(values=[-1, 2, -3, 4, 5])
+	assert sum_expr.unwrap(ctx) == 11
+
+
+def test_filter_expr_partial() -> None:
+	"""Test FilterExpr partial application."""
+
+	class PartialCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], PartialCtx]("values")
+	x = Var[int, PartialCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	partial_ctx = PartialCtx(values=[1, -2, 3, -4, 5])
+	partial_expr = filter_expr.partial(partial_ctx)
+
+	assert partial_expr.to_string() == "(filter x -> (x > 0) values:[1, -2, 3, -4, 5])"
+
+	class EmptyCtx(NamedTuple):
+		pass
+
+	assert partial_expr.unwrap(EmptyCtx()) == (1, 3, 5)
+
+
+@pytest.mark.mypy_testing
+def test_filter_expr_type_preservation() -> None:
+	"""Verify FilterExpr preserves element type."""
+
+	class TypeCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], TypeCtx]("values")
+	x = Var[int, TypeCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+	assert_type(filter_expr, FilterExpr[int, TypeCtx])
+
+	ctx = TypeCtx(values=[1, 2, 3])
+	result = filter_expr.eval(ctx)
+	assert_type(result, Const[SizedIterable[int]])

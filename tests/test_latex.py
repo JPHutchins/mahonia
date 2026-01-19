@@ -6,14 +6,17 @@ from typing import NamedTuple
 from mahonia import (
 	Approximately,
 	Const,
+	FilterExpr,
 	Func,
+	IfExpr,
 	Percent,
 	PlusMinus,
 	Predicate,
+	SizedIterable,
 	Var,
 )
 from mahonia.latex import LatexCtx, Show, latex
-from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
+from mahonia.stats import Count, Mean, Median, Percentile, Range, StdDev
 
 
 class Ctx(NamedTuple):
@@ -1206,3 +1209,121 @@ def test_func_with_constants() -> None:
 	offset = Const("offset", 10)
 	func = (x + offset).to_func()
 	assert latex(func) == "\\lambda x.x + offset"
+
+
+def test_filter_expr_latex() -> None:
+	"""Test FilterExpr LaTeX formatting."""
+
+	class FilterCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], FilterCtx]("values")
+	x = Var[int, FilterCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	result = latex(filter_expr)
+	assert "\\{ x \\in values :" in result
+	assert "x > 0" in result
+
+
+def test_filter_expr_latex_with_context() -> None:
+	"""Test FilterExpr LaTeX formatting with context - no context evaluation."""
+
+	class FilterCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], FilterCtx]("values")
+	x = Var[int, FilterCtx]("x")
+	is_positive = (x > 0).to_func()
+
+	filter_expr = FilterExpr(is_positive, values)
+
+	result = latex(filter_expr)
+	assert "\\{ x \\in values :" in result
+	assert "x > 0" in result
+
+
+def test_filter_expr_latex_complex_predicate() -> None:
+	"""Test FilterExpr LaTeX with complex predicate."""
+
+	class RangeCtx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], RangeCtx]("values")
+	x = Var[int, RangeCtx]("x")
+	in_range = ((x > 0) & (x < 10)).to_func()
+
+	filter_expr = FilterExpr(in_range, values)
+
+	result = latex(filter_expr)
+	assert "x > 0" in result
+	assert "\\land" in result
+	assert "x < 10" in result
+
+
+def test_if_expr_latex() -> None:
+	"""Test IfExpr LaTeX formatting."""
+
+	class IfCtx(NamedTuple):
+		x: int
+
+	x = Var[int, IfCtx]("x")
+	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+
+	result = latex(if_expr)
+	assert "\\begin{cases}" in result
+	assert "\\end{cases}" in result
+	assert "\\text{if }" in result
+	assert "\\text{otherwise}" in result
+	assert "high" in result
+	assert "low" in result
+
+
+def test_if_expr_latex_with_context() -> None:
+	"""Test IfExpr LaTeX formatting with context."""
+
+	class IfCtx(NamedTuple):
+		x: int
+
+	x = Var[int, IfCtx]("x")
+	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+
+	if_ctx = IfCtx(x=10)
+	result = latex(if_expr, LatexCtx(if_ctx, Show.VALUES | Show.WORK))
+	assert "\\rightarrow 100" in result
+
+
+def test_if_expr_latex_with_expressions() -> None:
+	"""Test IfExpr LaTeX with expressions in branches."""
+
+	class ExprCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, ExprCtx]("x")
+	y = Var[int, ExprCtx]("y")
+
+	if_expr = IfExpr(x > y, x + y, x * y)
+
+	result = latex(if_expr)
+	assert "x + y" in result
+	assert "x \\cdot y" in result
+
+
+def test_if_expr_latex_greek_variables() -> None:
+	"""Test IfExpr LaTeX with Greek letter variables."""
+
+	class GreekCtx(NamedTuple):
+		alpha: float
+		beta: float
+
+	alpha = Var[float, GreekCtx]("alpha")
+	beta = Var[float, GreekCtx]("beta")
+
+	if_expr = IfExpr(alpha > beta, alpha, beta)
+
+	result = latex(if_expr)
+	assert "\\alpha" in result
+	assert "\\beta" in result

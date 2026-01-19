@@ -444,6 +444,10 @@ def _extract_vars(
 		case Contains(element, container):
 			vars = _extract_vars(vars, element)
 			vars = _extract_vars(vars, container)
+		case IfExpr(condition, then_expr, else_expr):
+			vars = _extract_vars(vars, condition)
+			vars = _extract_vars(vars, then_expr)
+			vars = _extract_vars(vars, else_expr)
 		case (
 			AnyExpr(container)
 			| AllExpr(container)
@@ -453,8 +457,12 @@ def _extract_vars(
 		):
 			vars = _extract_vars(vars, container)
 		case MapExpr(func, container):
-			# Extract variables from both the function and container
 			for arg in func.args:
+				if isinstance(arg, Var) and id(arg) not in (id(var) for var in vars):
+					vars += (arg,)
+			vars = _extract_vars(vars, container)
+		case FilterExpr(predicate, container):
+			for arg in predicate.args:
 				if isinstance(arg, Var) and id(arg) not in (id(var) for var in vars):
 					vars += (arg,)
 			vars = _extract_vars(vars, container)
@@ -1830,6 +1838,121 @@ class MinExpr(
 
 	def partial(self, ctx: Any) -> "MinExpr[TSupportsComparison, Any]":
 		return MinExpr(self.container.partial(ctx))
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class FilterExpr(
+	BinaryOperationOverloads[SizedIterable[T], S],
+	Generic[T, S],
+):
+	"""Filter container elements by predicate.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	values: list[int]
+	>>> values = Var[SizedIterable[int], Ctx]("values")
+	>>> x = Var[int, Ctx]("x")
+	>>> is_positive = (x > 0).to_func()
+	>>> filter_expr = FilterExpr(is_positive, values)
+	>>> filter_expr.to_string()
+	'(filter x -> (x > 0) values)'
+	>>> filter_expr.unwrap(Ctx(values=[-1, 2, -3, 4, 5]))
+	(2, 4, 5)
+	>>> filter_expr.to_string(Ctx(values=[-1, 2, -3, 4, 5]))
+	'(filter x -> (x > 0) values:5[-1,..5] -> 3[2,..5])'
+	"""
+
+	op: ClassVar[str] = "filter"
+	template: ClassVar[str] = "({op} {func} {container})"
+	template_eval: ClassVar[str] = "({op} {func} {container} -> {out})"
+
+	predicate: Func[bool, Any]
+	container: Expr[SizedIterable[T], S, SizedIterable[T]]
+
+	def eval(self, ctx: S) -> Const[SizedIterable[T]]:
+		predicate_results = MapExpr(self.predicate, self.container).unwrap(ctx)
+		return Const(
+			None,
+			tuple(
+				value
+				for value, keep in zip(self.container.unwrap(ctx), predicate_results, strict=True)
+				if keep
+			),
+		)
+
+	def unwrap(self, ctx: S) -> SizedIterable[T]:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		func_str = self.predicate.to_string()
+		if ctx is None:
+			container_str = self.container.to_string()
+			return self.template.format(op=self.op, func=func_str, container=container_str)
+		else:
+			container_str = format_iterable_var(self.container, ctx)
+			result_value = self.eval(ctx).value
+			result_expr = Const(None, result_value)
+			out_str = format_iterable_var(result_expr, ctx)
+			return self.template_eval.format(
+				op=self.op, func=func_str, container=container_str, out=out_str
+			)
+
+	def partial(self, ctx: Any) -> "Expr[SizedIterable[T], Any, SizedIterable[T]]":
+		partial_func = Func(self.predicate.args, self.predicate.expr.partial(ctx))
+		return FilterExpr(partial_func, self.container.partial(ctx))
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class IfExpr(
+	BinaryOperationOverloads[T, S],
+	BooleanBinaryOperationOverloads[T, S],
+	Generic[T, S],
+):
+	"""Conditional expression: if condition then expr1 else expr2.
+
+	>>> from typing import NamedTuple
+	>>> class Ctx(NamedTuple):
+	... 	x: int
+	>>> x = Var[int, Ctx]("x")
+	>>> if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+	>>> if_expr.to_string()
+	'(if (x > 5) then high:100 else low:0)'
+	>>> if_expr.unwrap(Ctx(x=10))
+	100
+	>>> if_expr.unwrap(Ctx(x=3))
+	0
+	>>> if_expr.to_string(Ctx(x=10))
+	'(if (x:10 > 5 -> True) then high:100 else low:0 -> 100)'
+	>>> if_expr.to_string(Ctx(x=3))
+	'(if (x:3 > 5 -> False) then high:100 else low:0 -> 0)'
+	"""
+
+	condition: Expr[Any, S, bool]
+	then_expr: Expr[T, S, T]
+	else_expr: Expr[T, S, T]
+
+	def eval(self, ctx: S) -> Const[T]:
+		if self.condition.eval(ctx).value:
+			return self.then_expr.eval(ctx)
+		return self.else_expr.eval(ctx)
+
+	def unwrap(self, ctx: S) -> T:
+		return self.eval(ctx).value
+
+	def to_string(self, ctx: S | None = None) -> str:
+		cond_str: Final = self.condition.to_string(ctx)
+		then_str: Final = self.then_expr.to_string(ctx)
+		else_str: Final = self.else_expr.to_string(ctx)
+		if ctx is None:
+			return f"(if {cond_str} then {then_str} else {else_str})"
+		return f"(if {cond_str} then {then_str} else {else_str} -> {self.eval(ctx).value})"
+
+	def partial(self, ctx: Any) -> "Expr[T, Any, T]":
+		return IfExpr(
+			self.condition.partial(ctx),
+			self.then_expr.partial(ctx),
+			self.else_expr.partial(ctx),
+		)
 
 
 @dataclass(frozen=True, eq=False, slots=True)

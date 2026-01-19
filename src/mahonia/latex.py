@@ -34,9 +34,11 @@ from mahonia import (
 	Div,
 	Eq,
 	Expr,
+	FilterExpr,
 	Func,
 	Ge,
 	Gt,
+	IfExpr,
 	Le,
 	Lt,
 	Mul,
@@ -365,6 +367,24 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 					return f"(\\forall x \\in {operand_formatted}: x \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\forall x \\in {operand_formatted}: x"
+		case FilterExpr():
+			container = _latex_expr_structure(expr.container, latex_ctx)
+			pred = _latex_func(expr.predicate, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					result_value = expr.eval(ctx).value
+					return f"(\\{{ x \\in {container} : {pred} \\}} \\rightarrow {_latex_value(len(result_value))} \\text{{ elements}})"
+				case _:
+					return f"\\{{ x \\in {container} : {pred} \\}}"
+		case IfExpr():
+			cond = _latex_expr_structure(expr.condition, latex_ctx)
+			then = _latex_expr_structure(expr.then_expr, latex_ctx)
+			else_ = _latex_expr_structure(expr.else_expr, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"(\\begin{{cases}} {then} & \\text{{if }} {cond} \\\\ {else_} & \\text{{otherwise}} \\end{{cases}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"\\begin{{cases}} {then} & \\text{{if }} {cond} \\\\ {else_} & \\text{{otherwise}} \\end{{cases}}"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 

@@ -22,6 +22,7 @@ from mahonia import (
 	Func,
 	Ge,
 	Gt,
+	IfExpr,
 	Le,
 	Lt,
 	MapExpr,
@@ -1831,3 +1832,197 @@ def test_foldl_partial_preserves_type() -> None:
 	result = partial_fold.unwrap(EmptyCtx())
 	assert_type(result, int)
 	assert result == 6
+
+
+def test_if_expr_basic() -> None:
+	"""Test basic IfExpr operation."""
+
+	class IfCtx(NamedTuple):
+		x: int
+
+	x = Var[int, IfCtx]("x")
+	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+
+	assert if_expr.to_string() == "(if (x > 5) then high:100 else low:0)"
+
+	ctx_high = IfCtx(x=10)
+	assert if_expr.unwrap(ctx_high) == 100
+	assert if_expr.to_string(ctx_high) == "(if (x:10 > 5 -> True) then high:100 else low:0 -> 100)"
+
+	ctx_low = IfCtx(x=3)
+	assert if_expr.unwrap(ctx_low) == 0
+	assert if_expr.to_string(ctx_low) == "(if (x:3 > 5 -> False) then high:100 else low:0 -> 0)"
+
+
+def test_if_expr_with_variables() -> None:
+	"""Test IfExpr with variables in branches."""
+
+	class BranchCtx(NamedTuple):
+		x: int
+		y: int
+		z: int
+
+	x = Var[int, BranchCtx]("x")
+	y = Var[int, BranchCtx]("y")
+	z = Var[int, BranchCtx]("z")
+
+	if_expr = IfExpr(x > 0, y, z)
+
+	ctx_positive = BranchCtx(x=5, y=10, z=20)
+	assert if_expr.unwrap(ctx_positive) == 10
+
+	ctx_negative = BranchCtx(x=-5, y=10, z=20)
+	assert if_expr.unwrap(ctx_negative) == 20
+
+
+def test_if_expr_with_expressions_in_branches() -> None:
+	"""Test IfExpr with expressions in branches."""
+
+	class ExprCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, ExprCtx]("x")
+	y = Var[int, ExprCtx]("y")
+
+	if_expr = IfExpr(x > y, x + y, x * y)
+
+	ctx = ExprCtx(x=10, y=5)
+	assert if_expr.unwrap(ctx) == 15
+
+	ctx2 = ExprCtx(x=3, y=5)
+	assert if_expr.unwrap(ctx2) == 15
+
+
+def test_if_expr_nested() -> None:
+	"""Test nested IfExpr."""
+
+	class NestedCtx(NamedTuple):
+		x: int
+
+	x = Var[int, NestedCtx]("x")
+
+	nested = IfExpr(
+		x > 10,
+		Const("large", "large"),
+		IfExpr(x > 5, Const("medium", "medium"), Const("small", "small")),
+	)
+
+	assert nested.unwrap(NestedCtx(x=15)) == "large"
+	assert nested.unwrap(NestedCtx(x=7)) == "medium"
+	assert nested.unwrap(NestedCtx(x=3)) == "small"
+
+
+def test_if_expr_with_boolean_result() -> None:
+	"""Test IfExpr that returns boolean values."""
+
+	class BoolCtx(NamedTuple):
+		x: int
+
+	x = Var[int, BoolCtx]("x")
+
+	if_expr = IfExpr(x > 0, Const("positive", True), Const("non_positive", False))
+
+	assert if_expr.unwrap(BoolCtx(x=5)) is True
+	assert if_expr.unwrap(BoolCtx(x=-5)) is False
+
+
+def test_if_expr_partial() -> None:
+	"""Test IfExpr partial application."""
+
+	class PartialIfCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, PartialIfCtx]("x")
+	y = Var[int, PartialIfCtx]("y")
+
+	if_expr = IfExpr(x > 0, y * 2, y * 3)
+
+	class XOnlyCtx(NamedTuple):
+		x: int
+
+	partial_expr = if_expr.partial(XOnlyCtx(x=5))
+	assert partial_expr.to_string() == "(if (x:5 > 0) then (y * 2) else (y * 3))"
+
+	class YOnlyCtx(NamedTuple):
+		y: int
+
+	assert partial_expr.unwrap(YOnlyCtx(y=10)) == 20
+
+
+def test_if_expr_composition() -> None:
+	"""Test IfExpr in expression composition."""
+
+	class ComposeCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, ComposeCtx]("x")
+	y = Var[int, ComposeCtx]("y")
+
+	if_expr = IfExpr(x > 0, x, Const("zero", 0))
+	composed = if_expr + y
+
+	ctx = ComposeCtx(x=5, y=10)
+	assert composed.unwrap(ctx) == 15
+
+	ctx2 = ComposeCtx(x=-5, y=10)
+	assert composed.unwrap(ctx2) == 10
+
+
+def test_if_expr_with_complex_condition() -> None:
+	"""Test IfExpr with complex condition."""
+
+	class ComplexCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, ComplexCtx]("x")
+	y = Var[int, ComplexCtx]("y")
+
+	if_expr = IfExpr((x > 0) & (y > 0), x + y, Const("invalid", -1))
+
+	ctx = ComplexCtx(x=5, y=10)
+	assert if_expr.unwrap(ctx) == 15
+
+	ctx2 = ComplexCtx(x=-5, y=10)
+	assert if_expr.unwrap(ctx2) == -1
+
+	ctx3 = ComplexCtx(x=5, y=-10)
+	assert if_expr.unwrap(ctx3) == -1
+
+
+def test_if_expr_extract_vars() -> None:
+	"""Test that _extract_vars handles IfExpr correctly."""
+
+	class VarsCtx(NamedTuple):
+		x: int
+		y: int
+		z: int
+
+	x = Var[int, VarsCtx]("x")
+	y = Var[int, VarsCtx]("y")
+	z = Var[int, VarsCtx]("z")
+
+	if_expr = IfExpr(x > 0, y, z)
+	func = if_expr.to_func()
+
+	assert len(func.args) == 3
+
+
+@pytest.mark.mypy_testing
+def test_if_expr_type_preservation() -> None:
+	"""Verify IfExpr preserves result type."""
+
+	class TypeCtx(NamedTuple):
+		x: int
+
+	x = Var[int, TypeCtx]("x")
+	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+	assert_type(if_expr, IfExpr[int, Any])
+
+	ctx = TypeCtx(x=10)
+	result = if_expr.eval(ctx)
+	assert_type(result, Const[int])
+	assert_type(if_expr.unwrap(ctx), int)
