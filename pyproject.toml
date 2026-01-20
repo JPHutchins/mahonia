@@ -24,7 +24,17 @@ dev = [
 "pytest>=8.4.0",
 "pytest-mypy-testing>=0.1.3",
 "ruff>=0.12.0",
+"taskipy>=1",
 ]
+
+[tool.taskipy.tasks]
+format = "ruff format ."
+lint = "ruff check ."
+typecheck = "task _mypy && task _pyright"
+_mypy = "mypy ."
+_pyright = "pyright src examples tests"
+test = "pytest --doctest-modules"
+all = "task format && task lint && task typecheck && task test"
 
 [tool.ruff]
 line-length = 100
@@ -35,14 +45,17 @@ extend-select = ["I"]
 [tool.ruff.format]
 indent-style = "tab"
 
-[tool.hatch.envs.default.scripts]
-format = "ruff format ."
-lint = ["ruff check .", "mypy ."]
-test = "pytest --doctest-modules"
-all = ["format", "lint", "test"]
-
 [tool.hatch.version]
 source = "vcs"
+
+[tool.mypy]
+strict = true
+warn_unused_ignores = true
+
+[tool.pyright]
+typeCheckingMode = "strict"
+include = ["src", "examples", "tests"]
+exclude = [".venv", "**/__pycache__"]
 
 [tool.uv.workspace]
 members = ["examples/manufacturing_tests"]

@@ -509,9 +509,11 @@ def test_foldl_add_expr() -> None:
 	values = Var[SizedIterable[Expr[int, XYCtx, int]], FoldCtx]("values")
 
 	foldl_expr = FoldLExpr(Add, values)
+	assert_type(foldl_expr, FoldLExpr[Expr[Any, Any, int], FoldCtx, int])
 
 	assert foldl_expr.to_string() == "(foldl + values)"
 	ctx = FoldCtx(x=5, y=8, values=[expr_1, expr_2, expr_3, expr_4])
+	assert_type(foldl_expr.unwrap(ctx), int)
 	assert foldl_expr.unwrap(ctx) == 363
 	assert foldl_expr.to_string(ctx) == (
 		"(foldl + values:4 -> ((x:5 + y:8 -> 13) + (x:5 * x:5 -> 25) + (x:5 * y:8 -> 40) "
@@ -579,6 +581,7 @@ def test_foldl_partial_preserves_structure() -> None:
 		y: int
 
 	result = partial_expr.unwrap(XYOnlyCtx(x=5, y=3))
+	assert_type(result, int)
 	assert result == (5 + 3) + (5 * 3)  # 8 + 15 = 23
 
 
@@ -785,6 +788,12 @@ def test_foldl_bound_predicates() -> None:
 
 	tests = Var[SizedIterable[BoundExpr[bool, Measurement, bool]], ValidationCtx]("tests")
 	all_pass = FoldLExpr(And, tests)
+	assert_type(
+		all_pass,
+		FoldLExpr[
+			BoundExpr[bool, Measurement, bool], ValidationCtx, BoundExpr[bool, Measurement, bool]
+		],
+	)
 
 	assert all_pass.to_string() == "(foldl & tests)"
 
@@ -795,7 +804,8 @@ def test_foldl_bound_predicates() -> None:
 		],
 	)
 
-	assert all_pass.unwrap(passing_ctx) is True
+	assert_type(all_pass.unwrap(passing_ctx), BoundExpr[bool, Measurement, bool])
+	assert all_pass.unwrap(passing_ctx) is True  # type: ignore[comparison-overlap]
 	assert all_pass.to_string(passing_ctx) == (
 		"(foldl & tests:4 -> ("
 		"Voltage OK: True (voltage:5.02 ≈ target:5.0 ± 0.1 -> True) & "
@@ -811,7 +821,7 @@ def test_foldl_bound_predicates() -> None:
 		],
 	)
 
-	assert all_pass.unwrap(failing_ctx) is False
+	assert all_pass.unwrap(failing_ctx) is False  # type: ignore[comparison-overlap]
 	assert all_pass.to_string(failing_ctx) == (
 		"(foldl & tests:4 -> ("
 		"Voltage OK: False (voltage:5.5 ≈ target:5.0 ± 0.1 -> False) & "
@@ -953,7 +963,7 @@ def test_foldl_add_type_preservation() -> None:
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
 
 	fold_add = FoldLExpr(Add, ints)
-	assert_type(fold_add, FoldLExpr[int, FoldLCtx])
+	assert_type(fold_add, FoldLExpr[int, FoldLCtx, int])
 
 	ctx = FoldLCtx(ints=[1, 2, 3], floats=[], bools=[])
 	result = fold_add.eval(ctx)
@@ -967,7 +977,7 @@ def test_foldl_mul_type_preservation() -> None:
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
 
 	fold_mul = FoldLExpr(Mul, ints)
-	assert_type(fold_mul, FoldLExpr[int, FoldLCtx])
+	assert_type(fold_mul, FoldLExpr[int, FoldLCtx, int])
 
 	ctx = FoldLCtx(ints=[2, 3, 4], floats=[], bools=[])
 	result = fold_mul.eval(ctx)
@@ -980,7 +990,7 @@ def test_foldl_and_type_preservation() -> None:
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
 
 	fold_and = FoldLExpr(And, bools)
-	assert_type(fold_and, FoldLExpr[bool, FoldLCtx])
+	assert_type(fold_and, FoldLExpr[bool, FoldLCtx, bool])
 
 	ctx = FoldLCtx(ints=[], floats=[], bools=[True, True, False])
 	result = fold_and.eval(ctx)
@@ -994,7 +1004,7 @@ def test_foldl_or_type_preservation() -> None:
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
 
 	fold_or = FoldLExpr(Or, bools)
-	assert_type(fold_or, FoldLExpr[bool, FoldLCtx])
+	assert_type(fold_or, FoldLExpr[bool, FoldLCtx, bool])
 
 	ctx = FoldLCtx(ints=[], floats=[], bools=[False, False, True])
 	result = fold_or.eval(ctx)
@@ -1007,7 +1017,7 @@ def test_foldl_min_type_preservation() -> None:
 	floats = Var[SizedIterable[float], FoldLCtx]("floats")
 
 	fold_min = FoldLExpr(Min, floats)
-	assert_type(fold_min, FoldLExpr[float, FoldLCtx])
+	assert_type(fold_min, FoldLExpr[float, FoldLCtx, float])
 
 	ctx = FoldLCtx(ints=[], floats=[3.5, 1.2, 4.8], bools=[])
 	result = fold_min.eval(ctx)
@@ -1021,7 +1031,7 @@ def test_foldl_max_type_preservation() -> None:
 	floats = Var[SizedIterable[float], FoldLCtx]("floats")
 
 	fold_max = FoldLExpr(Max, floats)
-	assert_type(fold_max, FoldLExpr[float, FoldLCtx])
+	assert_type(fold_max, FoldLExpr[float, FoldLCtx, float])
 
 	ctx = FoldLCtx(ints=[], floats=[3.5, 1.2, 4.8], bools=[])
 	result = fold_max.eval(ctx)
@@ -1034,7 +1044,7 @@ def test_foldl_with_initial_value_type() -> None:
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
 
 	fold_with_init = FoldLExpr(Add, ints, 100)
-	assert_type(fold_with_init, FoldLExpr[int, FoldLCtx])
+	assert_type(fold_with_init, FoldLExpr[int, FoldLCtx, int])
 
 	ctx = FoldLCtx(ints=[1, 2, 3], floats=[], bools=[])
 	result = fold_with_init.eval(ctx)
@@ -1172,7 +1182,7 @@ def test_foldl_with_mapexpr_composition() -> None:
 	assert_type(mapped, MapExpr[Any, int, Any])
 
 	fold_mapped = FoldLExpr(Add, mapped)
-	assert_type(fold_mapped, FoldLExpr[int, Any])
+	assert_type(fold_mapped, FoldLExpr[int, Any, int])
 
 	ctx = MapComposeCtx(nums=[1, 2, 3])
 	result = fold_mapped.eval(ctx)
@@ -1336,3 +1346,167 @@ def test_filter_expr_type_preservation() -> None:
 	ctx = TypeCtx(values=[1, 2, 3])
 	result = filter_expr.eval(ctx)
 	assert_type(result, Const[SizedIterable[int]])
+
+
+@pytest.mark.mypy_testing
+def test_foldl_expr_unwrap_returns_R_not_T() -> None:
+	"""Critical test: verify FoldLExpr unwrap returns R (result type), not T (element type).
+
+	This is the key fix - when folding over Expr[T, S, R] elements, unwrap should
+	return R (the inner result type) not T (which would be Expr[T, S, R] itself).
+	"""
+
+	class InnerCtx(NamedTuple):
+		a: int
+		b: int
+
+	a = Var[int, InnerCtx]("a")
+	b = Var[int, InnerCtx]("b")
+	expr1 = a + b
+	expr2 = a * b
+
+	class OuterCtx(NamedTuple):
+		a: int
+		b: int
+		exprs: list[Expr[int, InnerCtx, int]]
+
+	exprs = Var[SizedIterable[Expr[int, InnerCtx, int]], OuterCtx]("exprs")
+	fold = FoldLExpr(Add, exprs)
+
+	assert_type(fold, FoldLExpr[Expr[Any, Any, int], OuterCtx, int])
+	assert_type(fold.eval(OuterCtx(a=2, b=3, exprs=[expr1, expr2])), Const[int])
+	assert_type(fold.unwrap(OuterCtx(a=2, b=3, exprs=[expr1, expr2])), int)
+
+	ctx = OuterCtx(a=2, b=3, exprs=[expr1, expr2])
+	assert fold.unwrap(ctx) == (2 + 3) + (2 * 3)  # 5 + 6 = 11
+
+
+@pytest.mark.mypy_testing
+def test_foldl_plain_int_type_identity() -> None:
+	"""Verify FoldLExpr[int, S, int] - plain values have T == R."""
+
+	class Ctx(NamedTuple):
+		nums: list[int]
+
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	fold = FoldLExpr(Add, nums)
+
+	assert_type(fold, FoldLExpr[int, Ctx, int])
+	assert_type(fold.eval(Ctx(nums=[1, 2, 3])), Const[int])
+	assert_type(fold.unwrap(Ctx(nums=[1, 2, 3])), int)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_plain_float_type_identity() -> None:
+	"""Verify FoldLExpr[float, S, float] - plain floats have T == R."""
+
+	class Ctx(NamedTuple):
+		vals: list[float]
+
+	vals = Var[SizedIterable[float], Ctx]("vals")
+	fold = FoldLExpr(Add, vals)
+
+	assert_type(fold, FoldLExpr[float, Ctx, float])
+	assert_type(fold.eval(Ctx(vals=[1.0, 2.0])), Const[float])
+	assert_type(fold.unwrap(Ctx(vals=[1.0, 2.0])), float)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_plain_bool_type_identity() -> None:
+	"""Verify FoldLExpr[bool, S, bool] - plain bools have T == R."""
+
+	class Ctx(NamedTuple):
+		flags: list[bool]
+
+	flags = Var[SizedIterable[bool], Ctx]("flags")
+	fold_and = FoldLExpr(And, flags)
+	fold_or = FoldLExpr(Or, flags)
+
+	assert_type(fold_and, FoldLExpr[bool, Ctx, bool])
+	assert_type(fold_or, FoldLExpr[bool, Ctx, bool])
+	assert_type(fold_and.unwrap(Ctx(flags=[True, True])), bool)
+	assert_type(fold_or.unwrap(Ctx(flags=[False, True])), bool)
+
+
+@pytest.mark.mypy_testing
+def test_foldl_with_initial_preserves_result_type() -> None:
+	"""Verify FoldLExpr with initial value preserves result type correctly."""
+
+	class Ctx(NamedTuple):
+		nums: list[int]
+
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	fold_with_init = FoldLExpr(Add, nums, 100)
+
+	assert_type(fold_with_init, FoldLExpr[int, Ctx, int])
+	assert_type(fold_with_init.eval(Ctx(nums=[1, 2])), Const[int])
+	assert_type(fold_with_init.unwrap(Ctx(nums=[1, 2])), int)
+
+	assert fold_with_init.unwrap(Ctx(nums=[1, 2, 3])) == 106
+
+
+@pytest.mark.mypy_testing
+def test_foldl_filter_composition_types() -> None:
+	"""Verify FoldLExpr composed with FilterExpr preserves types."""
+
+	class Ctx(NamedTuple):
+		nums: list[int]
+
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	x = Var[int, Ctx]("x")
+	positive = (x > 0).to_func()
+
+	filtered = FilterExpr(positive, nums)
+	assert_type(filtered, FilterExpr[int, Ctx])
+
+	fold_sum = FoldLExpr(Add, filtered)
+	assert_type(fold_sum, FoldLExpr[int, Ctx, int])
+	assert_type(fold_sum.unwrap(Ctx(nums=[-1, 2, -3, 4])), int)
+
+	ctx = Ctx(nums=[-1, 2, -3, 4])
+	assert fold_sum.unwrap(ctx) == 6
+
+
+@pytest.mark.mypy_testing
+def test_foldl_partial_preserves_result_type() -> None:
+	"""Verify FoldLExpr.partial preserves the result type R."""
+
+	class Ctx(NamedTuple):
+		nums: list[int]
+
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	fold = FoldLExpr(Add, nums)
+
+	partial = fold.partial(Ctx(nums=[1, 2, 3]))
+	assert_type(partial, Expr[int, Any, int])
+
+	class Empty(NamedTuple):
+		pass
+
+	assert_type(partial.unwrap(Empty()), int)
+	assert partial.unwrap(Empty()) == 6
+
+
+@pytest.mark.mypy_testing
+def test_foldl_mul_with_expr_elements() -> None:
+	"""Verify FoldLExpr[Expr[int,...], S, int] with Mul operation."""
+
+	class InnerCtx(NamedTuple):
+		x: int
+
+	x = Var[int, InnerCtx]("x")
+	doubled = x * 2
+	tripled = x * 3
+
+	class OuterCtx(NamedTuple):
+		x: int
+		factors: list[Expr[int, InnerCtx, int]]
+
+	factors = Var[SizedIterable[Expr[int, InnerCtx, int]], OuterCtx]("factors")
+	fold_mul = FoldLExpr(Mul, factors)
+
+	assert_type(fold_mul, FoldLExpr[Expr[Any, Any, int], OuterCtx, int])
+	assert_type(fold_mul.unwrap(OuterCtx(x=5, factors=[doubled, tripled])), int)
+
+	ctx = OuterCtx(x=5, factors=[doubled, tripled])
+	assert fold_mul.unwrap(ctx) == (5 * 2) * (5 * 3)  # 10 * 15 = 150

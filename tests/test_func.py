@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, assert_type
 
 import pytest
 
-from mahonia import Const, Expr, Func, Var, _extract_vars
+from mahonia import Const, Expr, Func, Var, _extract_vars  # pyright: ignore[reportPrivateUsage]
 
 
 class FuncCtx(NamedTuple):

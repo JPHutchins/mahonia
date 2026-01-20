@@ -195,7 +195,7 @@ def test_process_control_scenario() -> None:
 	assert isinstance(result, bool)
 
 	# Verify individual components
-	assert batch_avg.unwrap(ctx) == pytest.approx(4.99875, abs=0.0001)
+	assert batch_avg.unwrap(ctx) == pytest.approx(4.99875, abs=0.0001)  # pyright: ignore[reportUnknownMemberType]
 	assert part_count.unwrap(ctx) == 8
 
 	result_str = process_ok.to_string(ctx)

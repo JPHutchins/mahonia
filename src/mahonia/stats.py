@@ -24,14 +24,16 @@ from mahonia import (
 	Eval,
 	Expr,
 	S,
-	SizedIterable,
 	ToString,
 	UnaryOpToString,
 	format_iterable_var,
 )
+from mahonia import (
+	SizedIterable as SizedIterable,
+)
 
 if TYPE_CHECKING:
-	from statistics import _NumberT
+	from statistics import _NumberT  # pyright: ignore[reportPrivateUsage]
 else:
 	from statistics import Decimal, Fraction
 
@@ -282,7 +284,7 @@ class Count(UnaryOpToString[S], BinaryOperationOverloads[int, S], Generic[S]):
 		return Const(None, len(self.left.unwrap(ctx)))
 
 	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = format_iterable_var(self.left, ctx)  # type: ignore[arg-type]
+		left: Final = format_iterable_var(self.left, ctx)
 		if ctx is None:
 			return self.template.format(op=self.op, left=left)
 		else:

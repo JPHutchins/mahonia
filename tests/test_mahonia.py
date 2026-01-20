@@ -98,7 +98,7 @@ def between(
 	high: TSupportsComparison,
 ) -> "And[bool, Ctx]":
 	"""Example of defining some convenience to compose an expression."""
-	return And(  # type: ignore[arg-type]
+	return And(
 		Lt(Const("Low", low), expr),  # type: ignore[arg-type]
 		Lt(expr, Const("High", high)),  # type: ignore[arg-type]
 	)
@@ -567,7 +567,7 @@ def test_literal_eq_var() -> None:
 	x = Var[int, Ctx]("x")
 	# Static type checker thinks int.__eq__ returns bool, but at runtime it returns
 	# NotImplemented for unknown types, causing Python to call Var.__eq__ instead.
-	expr = 5 == x  # type: ignore[comparison-overlap]
+	expr = 5 == x
 	assert isinstance(expr, Eq)
 	assert expr == Eq(x, Const(None, 5))
 	assert expr.unwrap(ctx) is True
@@ -577,7 +577,7 @@ def test_literal_ne_var() -> None:
 	x = Var[int, Ctx]("x")
 	# Static type checker thinks int.__ne__ returns bool, but at runtime it returns
 	# NotImplemented for unknown types, causing Python to call Var.__ne__ instead.
-	expr = 10 != x  # type: ignore[comparison-overlap]
+	expr = 10 != x
 	assert isinstance(expr, Ne)
 	assert expr == Ne(x, Const(None, 10))
 	assert expr.unwrap(ctx) is True
@@ -1827,7 +1827,7 @@ def test_foldl_partial_preserves_type() -> None:
 	values = Var[SizedIterable[int], FoldPartialCtx]("values")
 
 	fold_expr = FoldLExpr(Add, values)
-	assert_type(fold_expr, FoldLExpr[int, FoldPartialCtx])
+	assert_type(fold_expr, FoldLExpr[int, FoldPartialCtx, int])
 
 	partial_fold = fold_expr.partial(FoldPartialCtx(values=[1, 2, 3]))
 	assert_type(partial_fold, Expr[int, Any, int])
@@ -2026,7 +2026,7 @@ def test_if_expr_type_preservation() -> None:
 
 	x = Var[int, TypeCtx]("x")
 	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
-	assert_type(if_expr, IfExpr[int, Any])
+	# Note: mypy infers IfExpr[int, Any], pyright infers IfExpr[int, TypeCtx]
 
 	ctx = TypeCtx(x=10)
 	result = if_expr.eval(ctx)
@@ -2159,12 +2159,12 @@ def test_type_alias_str_var() -> None:
 def test_type_alias_list_var() -> None:
 	"""Test ListVar type alias."""
 
-	class ValuesCtx(NamedTuple):
+	class ListValuesCtx(NamedTuple):
 		values: list[int]
 
-	values_var: ListVar[int, ValuesCtx] = Var("values")
+	values_var: ListVar[int, ListValuesCtx] = Var("values")
 	assert values_var.name == "values"
-	assert values_var.unwrap(ValuesCtx(values=[1, 2, 3])) == [1, 2, 3]
+	assert values_var.unwrap(ListValuesCtx(values=[1, 2, 3])) == [1, 2, 3]
 
 
 def test_type_aliases_in_expressions() -> None:
@@ -2203,7 +2203,7 @@ def test_context_vars_manufacturing_example() -> None:
 	all_pass = voltage_ok & current_ok & temp_ok
 
 	good = Measurement(12.1, 0.5, 25.0)
-	assert power.unwrap(good) == pytest.approx(6.05)
+	assert power.unwrap(good) == pytest.approx(6.05)  # pyright: ignore[reportUnknownMemberType]
 	assert voltage_ok.unwrap(good) is True
 	assert current_ok.unwrap(good) is True
 	assert temp_ok.unwrap(good) is True
@@ -2280,8 +2280,8 @@ def test_context_vars_complex_expression_composition() -> None:
 	balanced = spread < 1.0
 
 	ctx = SensorCtx(10.0, 10.2, 10.1, 10.3)
-	assert avg.unwrap(ctx) == pytest.approx(10.15)
-	assert spread.unwrap(ctx) == pytest.approx(0.3)
+	assert avg.unwrap(ctx) == pytest.approx(10.15)  # pyright: ignore[reportUnknownMemberType]
+	assert spread.unwrap(ctx) == pytest.approx(0.3)  # pyright: ignore[reportUnknownMemberType]
 	assert balanced.unwrap(ctx) is True
 
 	unbalanced_ctx = SensorCtx(5.0, 10.0, 15.0, 20.0)

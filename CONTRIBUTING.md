@@ -13,14 +13,14 @@ Contributions and bug reports are welcome!
 
 ### Formatting
 ```
-uv run hatch run format
+uv run task format
 ```
 > [!NOTE]
 > VSCode is setup to do this for you on save - feel free to add more editors.
 
 ### Linting
 ```
-uv run hatch run lint
+uv run task lint
 ```
 > [!NOTE]
 > VSCode is setup to to run these LSPs in the background - feel free to add more
@@ -28,10 +28,10 @@ uv run hatch run lint
 
 ### Tests
 ```
-uv run hatch run test
+uv run task test
 ```
 
 ### All
 ```
-uv run hatch run all
+uv run task all
 ```

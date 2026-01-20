@@ -9,5 +9,6 @@
 	"python.analysis.typeCheckingMode": "strict",
 	"flake8.enabled": false,
 	"ruff.enable": true,
-	"ruff.lint.enable": true
+	"ruff.lint.enable": true,
+	"mypy-type-checker.importStrategy": "fromEnvironment"
 }

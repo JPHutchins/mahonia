@@ -186,7 +186,7 @@ def _latex_value(value: Any) -> str:
 def _format_with_result(structure: str, result: Const[Any]) -> str:
 	"""Format structure with result arrow notation."""
 	result_latex = (
-		_latex_expr_structure(result)
+		_latex_expr_structure(result)  # pyright: ignore[reportUnknownArgumentType]
 		if isinstance(result, (PlusMinus, Percent))
 		else _latex_value(result.value)
 	)
@@ -203,10 +203,10 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 					return f"{_latex_var(name)}:{evaluated.value}"
 				case _:
 					return _latex_var(name)
-		case PlusMinus(name=name, value=value, plus_minus=pm):
-			return f"{_latex_var(name) if name else str(value)} \\pm {pm}"
-		case Percent(name=name, value=value, percent=pct):
-			return f"{_latex_var(name) if name else str(value)} \\pm {pct}\\%"
+		case PlusMinus(name=name, value=value, plus_minus=pm):  # pyright: ignore[reportUnknownVariableType]
+			return f"{_latex_var(name) if name else str(value)} \\pm {pm}"  # pyright: ignore[reportUnknownArgumentType]
+		case Percent(name=name, value=value, percent=pct):  # pyright: ignore[reportUnknownVariableType]
+			return f"{_latex_var(name) if name else str(value)} \\pm {pct}\\%"  # pyright: ignore[reportUnknownArgumentType]
 		case Const(name=name, value=value) if name:
 			match latex_ctx:
 				case LatexCtx(_, show) if show & Show.VALUES:
@@ -346,8 +346,8 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 				case _:
 					return f"|{operand_formatted}|"
 		case Contains():
-			element_formatted = _latex_expr_structure(expr.element, latex_ctx)
-			container_formatted = _latex_expr_structure(expr.container, latex_ctx)
+			element_formatted = _latex_expr_structure(expr.element, latex_ctx)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+			container_formatted = _latex_expr_structure(expr.container, latex_ctx)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
 					return f"({element_formatted} \\in {container_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
@@ -368,12 +368,12 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 				case _:
 					return f"\\forall x \\in {operand_formatted}: x"
 		case FilterExpr():
-			container = _latex_expr_structure(expr.container, latex_ctx)
+			container = _latex_expr_structure(expr.container, latex_ctx)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 			pred = _latex_func(expr.predicate, latex_ctx)
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					result_value = expr.eval(ctx).value
-					return f"(\\{{ x \\in {container} : {pred} \\}} \\rightarrow {_latex_value(len(result_value))} \\text{{ elements}})"
+					result_value = expr.eval(ctx).value  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+					return f"(\\{{ x \\in {container} : {pred} \\}} \\rightarrow {_latex_value(len(result_value))} \\text{{ elements}})"  # pyright: ignore[reportUnknownArgumentType]
 				case _:
 					return f"\\{{ x \\in {container} : {pred} \\}}"
 		case IfExpr():

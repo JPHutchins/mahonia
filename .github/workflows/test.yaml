@@ -21,9 +21,11 @@ jobs:
 
       - run: uv sync --locked --all-extras --all-packages --dev --python ${{ matrix.python-version }}
 
-      - run: uv run hatch run lint
+      - run: uv run task lint
 
-      - run: uv run hatch run test
+      - run: uv run task typecheck
+
+      - run: uv run task test
 
       - name: Check LaTeX examples are up to date
         run: |

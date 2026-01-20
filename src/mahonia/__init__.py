@@ -431,7 +431,12 @@ class Expr(Protocol[T, S, R]):
 def _extract_vars(
 	vars: tuple["Var[Any, Any]", ...], expr: "Expr[Any, Any, Any]"
 ) -> tuple["Var[Any, Any]", ...]:
-	"""Extract all unique variables from an expression, preserving order."""
+	"""Extract all unique variables from an expression, preserving order.
+
+	Note: pyright ignores on pattern match cases below are necessary because pattern
+	matching on generic dataclasses loses type parameter information. This is a known
+	pyright limitation with structural pattern matching on Generic types.
+	"""
 	match expr:
 		case Var() as v:
 			if id(v) not in (id(var) for var in vars):
@@ -439,11 +444,11 @@ def _extract_vars(
 		case BinaryOp(left, right):
 			vars = _extract_vars(vars, left)
 			vars = _extract_vars(vars, right)
-		case UnaryOpEval(left):
-			vars = _extract_vars(vars, left)
-		case Contains(element, container):
-			vars = _extract_vars(vars, element)
-			vars = _extract_vars(vars, container)
+		case UnaryOpEval(left=left):  # pyright: ignore[reportUnnecessaryComparison, reportUnknownVariableType]
+			vars = _extract_vars(vars, left)  # pyright: ignore[reportUnknownArgumentType]
+		case Contains(element=element, container=container):  # pyright: ignore[reportUnknownVariableType]
+			vars = _extract_vars(vars, element)  # pyright: ignore[reportUnknownArgumentType]
+			vars = _extract_vars(vars, container)  # pyright: ignore[reportUnknownArgumentType]
 		case IfExpr(condition, then_expr, else_expr):
 			vars = _extract_vars(vars, condition)
 			vars = _extract_vars(vars, then_expr)
@@ -453,19 +458,19 @@ def _extract_vars(
 			| AllExpr(container)
 			| MinExpr(container)
 			| MaxExpr(container)
-			| FoldLExpr(container=container)
+			| FoldLExpr(container=container)  # pyright: ignore[reportUnknownVariableType]
 		):
-			vars = _extract_vars(vars, container)
-		case MapExpr(func, container):
+			vars = _extract_vars(vars, container)  # pyright: ignore[reportUnknownArgumentType]
+		case MapExpr(func=func, container=container):  # pyright: ignore[reportUnknownVariableType]
 			for arg in func.args:
 				if isinstance(arg, Var) and id(arg) not in (id(var) for var in vars):
 					vars += (arg,)
-			vars = _extract_vars(vars, container)
-		case FilterExpr(predicate, container):
+			vars = _extract_vars(vars, container)  # pyright: ignore[reportUnknownArgumentType]
+		case FilterExpr(predicate=predicate, container=container):  # pyright: ignore[reportUnknownVariableType]
 			for arg in predicate.args:
 				if isinstance(arg, Var) and id(arg) not in (id(var) for var in vars):
 					vars += (arg,)
-			vars = _extract_vars(vars, container)
+			vars = _extract_vars(vars, container)  # pyright: ignore[reportUnknownArgumentType]
 		case _:
 			pass
 	return vars
@@ -547,15 +552,15 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 		self, other: "ConstTolerance[TSupportsArithmetic]"
 	) -> "Approximately[TSupportsArithmetic, S]": ...
 
-	@overload  # type: ignore[override]
+	@overload
 	def __eq__(
 		self, other: Expr[TSupportsEquality, S, TSupportsEquality]
 	) -> "Eq[TSupportsEquality, S]": ...
 
-	@overload  # type: ignore[override]
+	@overload
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
-	def __eq__(  # type: ignore[misc]
+	def __eq__(  # pyright: ignore[reportIncompatibleMethodOverride]
 		self,
 		other: Expr[TSupportsEquality, S, TSupportsEquality]
 		| TSupportsEquality
@@ -571,12 +576,12 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	@overload  # type: ignore[override]
 	def __ne__(self, other: Expr[T, S, T]) -> "Ne[T, S]": ...
 
-	@overload  # type: ignore[override]
+	@overload
 	def __ne__(self, other: T) -> "Ne[T, S]": ...
 
-	def __ne__(self, other: Expr[T, S, T] | T) -> "Ne[T, S]":  # type: ignore[override]
+	def __ne__(self, other: Expr[T, S, T] | T) -> "Ne[T, S]":  # pyright: ignore[reportIncompatibleMethodOverride]
 		if isinstance(other, Expr):
-			return Ne(self, other)  # type: ignore[arg-type]
+			return Ne(self, other)  # pyright: ignore[reportUnknownArgumentType]
 		else:
 			return Ne(self, Const[T](None, other))
 
@@ -1036,73 +1041,73 @@ class Or(
 		return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
 
 
-class Eq(  # type: ignore[misc]
+class Eq(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsEquality, S, bool],
 	BinaryOperationOverloads[TSupportsEquality, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " == "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
 
 
-class Ne(  # type: ignore[misc]
+class Ne(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsEquality, S, bool],
 	BinaryOperationOverloads[TSupportsEquality, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " != "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
 
 
-class Lt(  # type: ignore[misc]
+class Lt(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " < "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
 
 
-class Le(  # type: ignore[misc]
+class Le(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " <= "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
 
 
-class Gt(  # type: ignore[misc]
+class Gt(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " > "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
 
 
-class Ge(  # type: ignore[misc]
+class Ge(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
 	BinaryOperationOverloads[TSupportsComparison, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " >= "
 
-	def eval(self, ctx: S) -> Const[bool]:  # type: ignore[override]
+	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
 
 
-class Min(  # type: ignore[misc]
+class Min(
 	Foldable[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 ):
@@ -1116,7 +1121,7 @@ class Min(  # type: ignore[misc]
 		return Const(None, min(self.left.eval(ctx).value, self.right.eval(ctx).value))
 
 
-class Max(  # type: ignore[misc]
+class Max(
 	Foldable[TSupportsComparison, S],
 	BinaryOperationOverloads[TSupportsComparison, S],
 ):
@@ -1130,7 +1135,7 @@ class Max(  # type: ignore[misc]
 		return Const(None, max(self.left.eval(ctx).value, self.right.eval(ctx).value))
 
 
-class Add(  # type: ignore[misc]
+class Add(
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1142,7 +1147,7 @@ class Add(  # type: ignore[misc]
 		return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
 
 
-class Sub(  # type: ignore[misc]
+class Sub(
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1154,7 +1159,7 @@ class Sub(  # type: ignore[misc]
 		return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
 
 
-class Mul(  # type: ignore[misc]
+class Mul(
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1166,7 +1171,7 @@ class Mul(  # type: ignore[misc]
 		return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
 
 
-class Div(  # type: ignore[misc]
+class Div(
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1179,7 +1184,7 @@ class Div(  # type: ignore[misc]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class Pow(  # type: ignore[misc]
+class Pow(
 	Foldable[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1242,16 +1247,16 @@ class ConstTolerance(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Approximately[TSupportsArithmetic, S]": ...
 
-	@overload  # type: ignore[override]
+	@overload
 	def __eq__(self, other: TSupportsArithmetic) -> "Approximately[TSupportsArithmetic, Any]": ...
 
-	def __eq__(  # type: ignore[misc]
+	def __eq__(  # pyright: ignore[reportIncompatibleMethodOverride]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Approximately[TSupportsArithmetic, S]":
 		if isinstance(other, Expr):
-			return Approximately(other, self)  # type: ignore
+			return Approximately(other, self)
 		else:
-			return Approximately(Const(None, other), self)  # type: ignore
+			return Approximately(Const(None, other), self)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1315,7 +1320,7 @@ class Percent(ConstTolerance[TSupportsArithmetic]):
 
 	@property
 	def max_abs_error(self) -> TSupportsArithmetic:
-		return self.value * self.percent / 100.0
+		return self.value * self.percent / 100.0  # type: ignore[no-any-return]
 
 	@property
 	def tolerance_string(self) -> str:
@@ -1426,13 +1431,13 @@ class Predicate(BooleanBinaryOperationOverloads[bool, S]):
 		return f"{self.name}: {result}" if self.name else result
 
 	def partial(self, ctx: Any) -> "Predicate[Any]":
-		return Predicate(self.name, self.expr.partial(ctx))  # type: ignore[arg-type]
+		return Predicate(self.name, self.expr.partial(ctx))
 
 	def to_func(self) -> "Func[bool, S]":
-		return Func(_extract_vars((), self), self)  # type: ignore[arg-type]
+		return Func(_extract_vars((), self), self)
 
 	def map(self, container: "Expr[SizedIterable[Any], Any, Any]") -> "MapExpr[Any, bool, Any]":
-		return MapExpr(self.to_func(), container)  # type: ignore[arg-type]
+		return MapExpr(self.to_func(), container)
 
 
 def format_iterable_var(expr: Expr[SizedIterable[Any], S, Any], ctx: S | None) -> str:
@@ -1548,13 +1553,12 @@ class MapExpr(
 
 	def eval(self, ctx: S) -> "Const[SizedIterable[U]]":
 		container_values = self.container.unwrap(ctx)
-		result = []
+		result: list[U] = []
 		for item in container_values:
-			# Create a temporary context for the function evaluation
 			if self.func.args and hasattr(self.func.args[0], "name"):
-				arg_name = self.func.args[0].name  # type: ignore[attr-defined]
+				arg_name = self.func.args[0].name  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
 				temp_ctx = type("TempCtx", (), {arg_name: item})()
-				result.append(self.func.expr.unwrap(temp_ctx))
+				result.append(self.func.expr.unwrap(temp_ctx))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 		return Const(None, result)
 
 	def unwrap(self, ctx: S) -> SizedIterable[U]:
@@ -1581,16 +1585,32 @@ class MapExpr(
 
 @dataclass(frozen=True, eq=False, slots=True)
 class FoldLExpr(
-	BinaryOperationOverloads[T, S],
-	Generic[T, S],
+	BinaryOperationOverloads[R, S],
+	Generic[T, S, R],
 ):
 	op_cls: type[Foldable[Any, Any]]
 	container: Expr[SizedIterable[T], S, SizedIterable[T]]
-	initial: T | None = None
+	initial: R | None = None
 
 	@overload
 	def __init__(
-		self,
+		self: "FoldLExpr[Expr[Any, Any, R], S, R]",  # pyright: ignore[reportInvalidTypeVarUse]
+		op_cls: type[Foldable[Any, Any]],
+		container: Expr[SizedIterable[Expr[Any, Any, R]], S, SizedIterable[Expr[Any, Any, R]]],
+		initial: None = None,
+	) -> None: ...
+
+	@overload
+	def __init__(
+		self: "FoldLExpr[Expr[Any, Any, R], S, R]",  # pyright: ignore[reportInvalidTypeVarUse]
+		op_cls: type[Foldable[Any, Any]],
+		container: Expr[SizedIterable[Expr[Any, Any, R]], S, SizedIterable[Expr[Any, Any, R]]],
+		initial: R = ...,
+	) -> None: ...
+
+	@overload
+	def __init__(
+		self: "FoldLExpr[T, S, T]",  # pyright: ignore[reportInvalidTypeVarUse]
 		op_cls: type[Foldable[Any, Any]],
 		container: Expr[SizedIterable[T], S, SizedIterable[T]],
 		initial: None = None,
@@ -1598,7 +1618,7 @@ class FoldLExpr(
 
 	@overload
 	def __init__(
-		self,
+		self: "FoldLExpr[T, S, T]",  # pyright: ignore[reportInvalidTypeVarUse]
 		op_cls: type[Foldable[Any, Any]],
 		container: Expr[SizedIterable[T], S, SizedIterable[T]],
 		initial: T = ...,
@@ -1607,21 +1627,24 @@ class FoldLExpr(
 	def __init__(
 		self,
 		op_cls: type[Foldable[Any, Any]],
-		container: Expr[SizedIterable[T], S, SizedIterable[T]],
-		initial: T | None = None,
+		container: Expr[SizedIterable[Any], S, SizedIterable[Any]],
+		initial: Any | None = None,
 	) -> None:
 		object.__setattr__(self, "op_cls", op_cls)
 		object.__setattr__(self, "container", container)
 		object.__setattr__(self, "initial", initial)
 
-	def eval(self, ctx: S) -> Const[T]:
-		result_value: T = self.initial if self.initial is not None else self.op_cls.identity_element  # type: ignore[assignment]
+	def eval(self, ctx: S) -> Const[R]:
+		result_value: R = self.initial if self.initial is not None else self.op_cls.identity_element  # pyright: ignore[reportGeneralTypeIssues]
 
 		for item in self.container.unwrap(ctx):
-			item_value: T = item.unwrap(ctx) if isinstance(item, Expr) else item  # type: ignore[arg-type,assignment]
-			result_value = self.op_cls.op_func(result_value, item_value)  # type: ignore[arg-type,assignment]
+			item_value: R = item.unwrap(ctx) if isinstance(item, Expr) else item  # type: ignore[assignment]  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAssignmentType]
+			result_value = self.op_cls.op_func(result_value, item_value)  # type: ignore[arg-type, assignment]  # pyright: ignore[reportArgumentType]
 
 		return Const(None, result_value)
+
+	def unwrap(self, ctx: S) -> R:
+		return self.eval(ctx).value
 
 	def to_string(self, ctx: S | None = None) -> str:
 		op_str: Final = self.op_cls.op.strip()
@@ -1644,13 +1667,13 @@ class FoldLExpr(
 	def _format_items(items: list[Any], op: str, ctx: S) -> str:
 		def serialize(item: Any) -> str:
 			if isinstance(item, Expr):
-				return item.to_string(ctx)
+				return item.to_string(ctx)  # pyright: ignore[reportUnknownMemberType]
 			return str(item)
 
 		return f" {op} ".join(serialize(i) for i in items)
 
-	def partial(self, ctx: Any) -> "Expr[T, Any, T]":
-		return FoldLExpr(self.op_cls, self.container.partial(ctx), self.initial)
+	def partial(self, ctx: Any) -> "Expr[R, Any, R]":
+		return FoldLExpr(self.op_cls, self.container.partial(ctx), self.initial)  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1695,7 +1718,7 @@ class AnyExpr(
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
-	_foldl: FoldLExpr[bool, S] = field(init=False)
+	_foldl: FoldLExpr[bool, S, bool] = field(init=False)
 
 	def __post_init__(self) -> None:
 		object.__setattr__(self, "_foldl", FoldLExpr(Or, self.container))
@@ -1763,7 +1786,7 @@ class AllExpr(
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
-	_foldl: FoldLExpr[bool, S] = field(init=False)
+	_foldl: FoldLExpr[bool, S, bool] = field(init=False)
 
 	def __post_init__(self) -> None:
 		object.__setattr__(self, "_foldl", FoldLExpr(And, self.container))
@@ -1814,7 +1837,7 @@ class MinExpr(
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
-	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)
+	_foldl: FoldLExpr[TSupportsComparison, S, TSupportsComparison] = field(init=False)
 
 	def __post_init__(self) -> None:
 		object.__setattr__(self, "_foldl", FoldLExpr(Min, self.container))
@@ -2056,7 +2079,7 @@ def context_vars(*fields: tuple[str, type[Any]]) -> Any:
 	from typing import NamedTuple as NT
 
 	context_class = NT("Ctx", list(fields))  # type: ignore[misc]
-	return (context_class,) + tuple(Var(name) for name, _ in fields)
+	return (context_class,) + tuple(Var(name) for name, _ in fields)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -2084,7 +2107,7 @@ class MaxExpr(
 	template_eval: ClassVar[str] = "({op} {left} -> {out})"
 
 	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
-	_foldl: FoldLExpr[TSupportsComparison, S] = field(init=False)
+	_foldl: FoldLExpr[TSupportsComparison, S, TSupportsComparison] = field(init=False)
 
 	def __post_init__(self) -> None:
 		object.__setattr__(self, "_foldl", FoldLExpr(Max, self.container))

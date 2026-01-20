@@ -9,11 +9,12 @@ for statistical operations, helping catch edge cases and ensure correctness.
 
 import math
 import statistics
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
+from hypothesis.strategies import DrawFn
 
 from mahonia import Approximately, PlusMinus, Predicate, Var
 from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
@@ -26,7 +27,7 @@ class StatsTestCtx(NamedTuple):
 
 # Strategy for generating non-empty lists of floats
 @st.composite
-def non_empty_float_lists(draw):
+def non_empty_float_lists(draw: DrawFn) -> list[float]:
 	"""Generate non-empty lists of finite floats for statistical operations."""
 	return draw(
 		st.lists(
@@ -44,18 +45,18 @@ def non_empty_float_lists(draw):
 
 # Strategy for generating contexts with measurement data
 @st.composite
-def stats_contexts(draw):
+def stats_contexts(draw: DrawFn) -> StatsTestCtx:
 	"""Generate test contexts with measurement data."""
-	measurements = draw(non_empty_float_lists())
-	batch_id = draw(st.text(min_size=1, max_size=10))
+	measurements: list[float] = draw(non_empty_float_lists())
+	batch_id: str = draw(st.text(min_size=1, max_size=10))
 	return StatsTestCtx(measurements=measurements, batch_id=batch_id)
 
 
 # Strategy for generating contexts with at least 2 measurements (needed for stddev)
 @st.composite
-def multi_measurement_contexts(draw):
+def multi_measurement_contexts(draw: DrawFn) -> StatsTestCtx:
 	"""Generate contexts with at least 2 measurements for operations requiring variance."""
-	measurements = draw(
+	measurements: list[float] = draw(
 		st.lists(
 			st.floats(
 				min_value=-1000.0,
@@ -67,7 +68,7 @@ def multi_measurement_contexts(draw):
 			max_size=50,
 		)
 	)
-	batch_id = draw(st.text(min_size=1, max_size=10))
+	batch_id: str = draw(st.text(min_size=1, max_size=10))
 	return StatsTestCtx(measurements=measurements, batch_id=batch_id)
 
 
@@ -75,7 +76,7 @@ class TestStatisticalProperties:
 	"""Test fundamental statistical properties and invariants."""
 
 	@given(stats_contexts())
-	def test_mean_bounds(self, ctx: StatsTestCtx):
+	def test_mean_bounds(self, ctx: StatsTestCtx) -> None:
 		"""Mean should be between min and max values."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		mean_expr = Mean(measurements)
@@ -87,7 +88,7 @@ class TestStatisticalProperties:
 		assert min_val <= result <= max_val
 
 	@given(stats_contexts())
-	def test_median_bounds(self, ctx: StatsTestCtx):
+	def test_median_bounds(self, ctx: StatsTestCtx) -> None:
 		"""Median should be between min and max values."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		median_expr = Median(measurements)
@@ -99,7 +100,7 @@ class TestStatisticalProperties:
 		assert min_val <= result <= max_val
 
 	@given(multi_measurement_contexts())
-	def test_stddev_non_negative(self, ctx: StatsTestCtx):
+	def test_stddev_non_negative(self, ctx: StatsTestCtx) -> None:
 		"""Standard deviation should always be non-negative."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		stddev_expr = StdDev(measurements)
@@ -108,7 +109,7 @@ class TestStatisticalProperties:
 		assert result >= 0.0
 
 	@given(stats_contexts())
-	def test_range_non_negative(self, ctx: StatsTestCtx):
+	def test_range_non_negative(self, ctx: StatsTestCtx) -> None:
 		"""Range should always be non-negative."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		range_expr = Range(measurements)
@@ -117,7 +118,7 @@ class TestStatisticalProperties:
 		assert result >= 0.0
 
 	@given(stats_contexts())
-	def test_count_matches_length(self, ctx: StatsTestCtx):
+	def test_count_matches_length(self, ctx: StatsTestCtx) -> None:
 		"""Count should match the actual length of the iterable."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		count_expr = Count(measurements)
@@ -129,7 +130,7 @@ class TestStatisticalProperties:
 		st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 		stats_contexts(),
 	)
-	def test_percentile_bounds(self, percentile: float, ctx: StatsTestCtx):
+	def test_percentile_bounds(self, percentile: float, ctx: StatsTestCtx) -> None:
 		"""Percentile should be between min and max values."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		percentile_expr = Percentile(percentile, measurements)
@@ -150,7 +151,7 @@ class TestStatisticalInvariance:
 		stats_contexts(),
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 	)
-	def test_mean_translation_invariance(self, ctx: StatsTestCtx, offset: float):
+	def test_mean_translation_invariance(self, ctx: StatsTestCtx, offset: float) -> None:
 		"""Mean(X + c) = Mean(X) + c for constant c."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -170,7 +171,7 @@ class TestStatisticalInvariance:
 		stats_contexts(),
 		st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False),
 	)
-	def test_mean_scale_invariance(self, ctx: StatsTestCtx, scale: float):
+	def test_mean_scale_invariance(self, ctx: StatsTestCtx, scale: float) -> None:
 		"""Mean(c * X) = c * Mean(X) for positive constant c."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -193,7 +194,7 @@ class TestStatisticalInvariance:
 		multi_measurement_contexts(),
 		st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False),
 	)
-	def test_stddev_scale_invariance(self, ctx: StatsTestCtx, scale: float):
+	def test_stddev_scale_invariance(self, ctx: StatsTestCtx, scale: float) -> None:
 		"""StdDev(c * X) = |c| * StdDev(X) for constant c."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -217,7 +218,7 @@ class TestStatisticalInvariance:
 		stats_contexts(),
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 	)
-	def test_median_translation_invariance(self, ctx: StatsTestCtx, offset: float):
+	def test_median_translation_invariance(self, ctx: StatsTestCtx, offset: float) -> None:
 		"""Median(X + c) = Median(X) + c for constant c."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -241,7 +242,7 @@ class TestConstantDataProperties:
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 		st.integers(min_value=1, max_value=20),
 	)
-	def test_constant_data_mean_equals_value(self, value: float, size: int):
+	def test_constant_data_mean_equals_value(self, value: float, size: int) -> None:
 		"""Mean of constant data should equal the constant value."""
 		measurements = [value] * size
 		ctx = StatsTestCtx(measurements, "CONST")
@@ -256,7 +257,7 @@ class TestConstantDataProperties:
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 		st.integers(min_value=1, max_value=20),
 	)
-	def test_constant_data_median_equals_value(self, value: float, size: int):
+	def test_constant_data_median_equals_value(self, value: float, size: int) -> None:
 		"""Median of constant data should equal the constant value."""
 		measurements = [value] * size
 		ctx = StatsTestCtx(measurements, "CONST")
@@ -271,7 +272,7 @@ class TestConstantDataProperties:
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 		st.integers(min_value=2, max_value=20),  # Need at least 2 for stddev
 	)
-	def test_constant_data_stddev_is_zero(self, value: float, size: int):
+	def test_constant_data_stddev_is_zero(self, value: float, size: int) -> None:
 		"""Standard deviation of constant data should be zero."""
 		measurements = [value] * size
 		ctx = StatsTestCtx(measurements, "CONST")
@@ -286,7 +287,7 @@ class TestConstantDataProperties:
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 		st.integers(min_value=1, max_value=20),
 	)
-	def test_constant_data_range_is_zero(self, value: float, size: int):
+	def test_constant_data_range_is_zero(self, value: float, size: int) -> None:
 		"""Range of constant data should be zero."""
 		measurements = [value] * size
 		ctx = StatsTestCtx(measurements, "CONST")
@@ -302,7 +303,7 @@ class TestSingleElementProperties:
 	"""Test statistical operations on single-element data."""
 
 	@given(st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False))
-	def test_single_element_stats_equal_value(self, value: float):
+	def test_single_element_stats_equal_value(self, value: float) -> None:
 		"""For single-element data, mean, median should equal the value."""
 		ctx = StatsTestCtx([value], "SINGLE")
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
@@ -318,7 +319,7 @@ class TestSingleElementProperties:
 		assert count_expr.unwrap(ctx) == 1
 
 	@given(st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False))
-	def test_single_element_percentiles(self, value: float):
+	def test_single_element_percentiles(self, value: float) -> None:
 		"""For single-element data, any percentile should equal the value."""
 		ctx = StatsTestCtx([value], "SINGLE")
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
@@ -334,7 +335,7 @@ class TestArithmeticProperties:
 	"""Test arithmetic operations with statistical functions."""
 
 	@given(stats_contexts())
-	def test_mean_arithmetic_consistency(self, ctx: StatsTestCtx):
+	def test_mean_arithmetic_consistency(self, ctx: StatsTestCtx) -> None:
 		"""Test arithmetic operations with mean expressions."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		mean_expr = Mean(measurements)
@@ -353,7 +354,7 @@ class TestArithmeticProperties:
 		assert abs(mult_result - expected_mult) < 1e-10
 
 	@given(multi_measurement_contexts())
-	def test_statistical_operation_composition(self, ctx: StatsTestCtx):
+	def test_statistical_operation_composition(self, ctx: StatsTestCtx) -> None:
 		"""Test composing different statistical operations."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -379,7 +380,7 @@ class TestStatisticalComparisons:
 	"""Test comparison operations with statistical functions."""
 
 	@given(stats_contexts())
-	def test_mean_with_tolerance_checking(self, ctx: StatsTestCtx):
+	def test_mean_with_tolerance_checking(self, ctx: StatsTestCtx) -> None:
 		"""Test using statistical operations with tolerance specifications."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		mean_expr = Mean(measurements)
@@ -399,7 +400,7 @@ class TestStatisticalComparisons:
 		assert tight_approx.unwrap(ctx) is True
 
 	@given(multi_measurement_contexts())
-	def test_statistical_predicate_composition(self, ctx: StatsTestCtx):
+	def test_statistical_predicate_composition(self, ctx: StatsTestCtx) -> None:
 		"""Test complex predicates using multiple statistical operations."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
@@ -421,18 +422,17 @@ class TestStringRepresentationProperties:
 	"""Test string representation properties of statistical operations."""
 
 	@given(stats_contexts())
-	def test_string_contains_operation_name(self, ctx: StatsTestCtx):
+	def test_string_contains_operation_name(self, ctx: StatsTestCtx) -> None:
 		"""String representation should contain the operation name."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 
-		operations = [
+		operations: list[tuple[Any, str]] = [
 			(Mean(measurements), "mean"),
 			(Median(measurements), "median"),
 			(Range(measurements), "range"),
 			(Count(measurements), "count"),
 		]
 
-		# Only test StdDev if we have enough data
 		if len(ctx.measurements) >= 2:
 			operations.append((StdDev(measurements), "stddev"))
 
@@ -449,7 +449,7 @@ class TestStringRepresentationProperties:
 		stats_contexts(),
 		st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinity=False),
 	)
-	def test_percentile_string_contains_value(self, ctx: StatsTestCtx, percentile: float):
+	def test_percentile_string_contains_value(self, ctx: StatsTestCtx, percentile: float) -> None:
 		"""Percentile string representation should contain the percentile value."""
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
 		percentile_expr = Percentile(percentile, measurements)
@@ -462,7 +462,7 @@ class TestStringRepresentationProperties:
 class TestEdgeCases:
 	"""Test edge cases and boundary conditions."""
 
-	def test_empty_list_handling(self):
+	def test_empty_list_handling(self) -> None:
 		"""Test that empty lists are handled appropriately."""
 		empty_ctx = StatsTestCtx([], "EMPTY")
 		measurements = Var[SizedIterable[float], StatsTestCtx]("measurements")
@@ -483,7 +483,7 @@ class TestEdgeCases:
 			max_size=3,
 		)
 	)
-	def test_extreme_values_handling(self, measurements: list[float]):
+	def test_extreme_values_handling(self, measurements: list[float]) -> None:
 		"""Test handling of extreme but finite values."""
 		ctx = StatsTestCtx(measurements, "EXTREME")
 		measurements_var = Var[SizedIterable[float], StatsTestCtx]("measurements")
@@ -508,7 +508,7 @@ class TestEdgeCases:
 
 	@given(non_empty_float_lists())
 	@settings(suppress_health_check=[HealthCheck.filter_too_much])
-	def test_ordering_invariance(self, measurements: list[float]):
+	def test_ordering_invariance(self, measurements: list[float]) -> None:
 		"""Test that statistical results are invariant to ordering."""
 		# Only test if we have more than one unique value
 		unique_vals = list(set(measurements))
