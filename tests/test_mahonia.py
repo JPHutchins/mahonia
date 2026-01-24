@@ -24,12 +24,12 @@ from mahonia import (
 	Func,
 	Ge,
 	Gt,
-	IfExpr,
 	IntVar,
 	Le,
 	ListVar,
 	Lt,
 	MapExpr,
+	Match,
 	Max,
 	MaxExpr,
 	MergeContextProtocol,
@@ -37,6 +37,7 @@ from mahonia import (
 	MinExpr,
 	Mul,
 	Ne,
+	Neg,
 	Not,
 	Or,
 	Percent,
@@ -280,6 +281,24 @@ def test_not() -> None:
 	assert expr.unwrap(ctx) is False
 	assert expr.to_string() == "(not (x == name:5))"
 	assert expr.to_string(ctx) == "(not (x:5 == name:5 -> True) -> False)"
+
+
+def test_neg() -> None:
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+	expr: Neg[int, Ctx] = -x
+	assert_type(expr, Neg[int, Ctx])
+	assert expr.unwrap(ctx) == -5
+	assert expr.to_string() == "(-x)"
+	assert expr.to_string(ctx) == "(-x:5 -> -5)"
+
+	composed = -x + y
+	assert composed.unwrap(ctx) == 5
+	assert composed.to_string() == "((-x) + y)"
+
+	double_neg: Neg[int, Ctx] = -(-x)
+	assert double_neg.unwrap(ctx) == 5
+	assert double_neg.to_string() == "(-(-x))"
 
 
 def test_nested_arithmetic() -> None:
@@ -1840,28 +1859,30 @@ def test_foldl_partial_preserves_type() -> None:
 	assert result == 6
 
 
-def test_if_expr_basic() -> None:
-	"""Test basic IfExpr operation."""
+def test_match_expr_basic() -> None:
+	"""Test basic MatchExpr operation."""
 
-	class IfCtx(NamedTuple):
+	class MatchCtx(NamedTuple):
 		x: int
 
-	x = Var[int, IfCtx]("x")
-	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+	x = Var[int, MatchCtx]("x")
+	match_expr = Match((x > 5, Const("high", 100)), default=Const("low", 0))
 
-	assert if_expr.to_string() == "(if (x > 5) then high:100 else low:0)"
+	assert match_expr.to_string() == "(match (x > 5 -> high:100) else low:0)"
 
-	ctx_high = IfCtx(x=10)
-	assert if_expr.unwrap(ctx_high) == 100
-	assert if_expr.to_string(ctx_high) == "(if (x:10 > 5 -> True) then high:100 else low:0 -> 100)"
+	ctx_high = MatchCtx(x=10)
+	assert match_expr.unwrap(ctx_high) == 100
+	assert (
+		match_expr.to_string(ctx_high) == "(match (x:10 > 5 -> True -> high:100) else low:0 -> 100)"
+	)
 
-	ctx_low = IfCtx(x=3)
-	assert if_expr.unwrap(ctx_low) == 0
-	assert if_expr.to_string(ctx_low) == "(if (x:3 > 5 -> False) then high:100 else low:0 -> 0)"
+	ctx_low = MatchCtx(x=3)
+	assert match_expr.unwrap(ctx_low) == 0
+	assert match_expr.to_string(ctx_low) == "(match (x:3 > 5 -> False -> high:100) else low:0 -> 0)"
 
 
-def test_if_expr_with_variables() -> None:
-	"""Test IfExpr with variables in branches."""
+def test_match_expr_with_variables() -> None:
+	"""Test MatchExpr with variables in branches."""
 
 	class BranchCtx(NamedTuple):
 		x: int
@@ -1872,17 +1893,17 @@ def test_if_expr_with_variables() -> None:
 	y = Var[int, BranchCtx]("y")
 	z = Var[int, BranchCtx]("z")
 
-	if_expr = IfExpr(x > 0, y, z)
+	match_expr = Match((x > 0, y), default=z)
 
 	ctx_positive = BranchCtx(x=5, y=10, z=20)
-	assert if_expr.unwrap(ctx_positive) == 10
+	assert match_expr.unwrap(ctx_positive) == 10
 
 	ctx_negative = BranchCtx(x=-5, y=10, z=20)
-	assert if_expr.unwrap(ctx_negative) == 20
+	assert match_expr.unwrap(ctx_negative) == 20
 
 
-def test_if_expr_with_expressions_in_branches() -> None:
-	"""Test IfExpr with expressions in branches."""
+def test_match_expr_with_expressions_in_branches() -> None:
+	"""Test MatchExpr with expressions in branches."""
 
 	class ExprCtx(NamedTuple):
 		x: int
@@ -1891,65 +1912,65 @@ def test_if_expr_with_expressions_in_branches() -> None:
 	x = Var[int, ExprCtx]("x")
 	y = Var[int, ExprCtx]("y")
 
-	if_expr = IfExpr(x > y, x + y, x * y)
+	match_expr = Match((x > y, x + y), default=x * y)
 
 	ctx = ExprCtx(x=10, y=5)
-	assert if_expr.unwrap(ctx) == 15
+	assert match_expr.unwrap(ctx) == 15
 
 	ctx2 = ExprCtx(x=3, y=5)
-	assert if_expr.unwrap(ctx2) == 15
+	assert match_expr.unwrap(ctx2) == 15
 
 
-def test_if_expr_nested() -> None:
-	"""Test nested IfExpr."""
+def test_match_expr_multi_branch() -> None:
+	"""Test MatchExpr with multiple branches."""
 
-	class NestedCtx(NamedTuple):
+	class MultiCtx(NamedTuple):
 		x: int
 
-	x = Var[int, NestedCtx]("x")
+	x = Var[int, MultiCtx]("x")
 
-	nested = IfExpr(
-		x > 10,
-		Const("large", "large"),
-		IfExpr(x > 5, Const("medium", "medium"), Const("small", "small")),
+	match_expr = Match(
+		(x > 10, Const("large", "large")),
+		(x > 5, Const("medium", "medium")),
+		default=Const("small", "small"),
 	)
 
-	assert nested.unwrap(NestedCtx(x=15)) == "large"
-	assert nested.unwrap(NestedCtx(x=7)) == "medium"
-	assert nested.unwrap(NestedCtx(x=3)) == "small"
+	assert match_expr.unwrap(MultiCtx(x=15)) == "large"
+	assert match_expr.unwrap(MultiCtx(x=7)) == "medium"
+	assert match_expr.unwrap(MultiCtx(x=3)) == "small"
 
 
-def test_if_expr_with_boolean_result() -> None:
-	"""Test IfExpr that returns boolean values."""
+def test_match_expr_with_boolean_result() -> None:
+	"""Test MatchExpr that returns boolean values."""
 
 	class BoolCtx(NamedTuple):
 		x: int
 
 	x = Var[int, BoolCtx]("x")
 
-	if_expr = IfExpr(x > 0, Const("positive", True), Const("non_positive", False))
+	match_expr = Match((x > 0, Const("positive", True)), default=Const("non_positive", False))
 
-	assert if_expr.unwrap(BoolCtx(x=5)) is True
-	assert if_expr.unwrap(BoolCtx(x=-5)) is False
+	assert match_expr.unwrap(BoolCtx(x=5)) is True
+	assert match_expr.unwrap(BoolCtx(x=-5)) is False
 
 
-def test_if_expr_partial() -> None:
-	"""Test IfExpr partial application."""
+def test_match_expr_partial() -> None:
+	"""Test MatchExpr partial application."""
 
-	class PartialIfCtx(NamedTuple):
+	class PartialMatchCtx(NamedTuple):
 		x: int
 		y: int
 
-	x = Var[int, PartialIfCtx]("x")
-	y = Var[int, PartialIfCtx]("y")
+	x = Var[int, PartialMatchCtx]("x")
+	y = Var[int, PartialMatchCtx]("y")
 
-	if_expr = IfExpr(x > 0, y * 2, y * 3)
+	match_expr = Match((x > 0, y * 2), default=y * 3)
 
 	class XOnlyCtx(NamedTuple):
 		x: int
 
-	partial_expr = if_expr.partial(XOnlyCtx(x=5))
-	assert partial_expr.to_string() == "(if (x:5 > 0) then (y * 2) else (y * 3))"
+	partial_expr = match_expr.partial(XOnlyCtx(x=5))
+	assert partial_expr.to_string() == "(match (x:5 > 0 -> (y * 2)) else (y * 3))"
 
 	class YOnlyCtx(NamedTuple):
 		y: int
@@ -1957,8 +1978,8 @@ def test_if_expr_partial() -> None:
 	assert partial_expr.unwrap(YOnlyCtx(y=10)) == 20
 
 
-def test_if_expr_composition() -> None:
-	"""Test IfExpr in expression composition."""
+def test_match_expr_composition() -> None:
+	"""Test MatchExpr in expression composition."""
 
 	class ComposeCtx(NamedTuple):
 		x: int
@@ -1967,8 +1988,8 @@ def test_if_expr_composition() -> None:
 	x = Var[int, ComposeCtx]("x")
 	y = Var[int, ComposeCtx]("y")
 
-	if_expr = IfExpr(x > 0, x, Const("zero", 0))
-	composed = if_expr + y
+	match_expr = Match((x > 0, x), default=Const("zero", 0))
+	composed = match_expr + y
 
 	ctx = ComposeCtx(x=5, y=10)
 	assert composed.unwrap(ctx) == 15
@@ -1977,8 +1998,8 @@ def test_if_expr_composition() -> None:
 	assert composed.unwrap(ctx2) == 10
 
 
-def test_if_expr_with_complex_condition() -> None:
-	"""Test IfExpr with complex condition."""
+def test_match_expr_with_complex_condition() -> None:
+	"""Test MatchExpr with complex condition."""
 
 	class ComplexCtx(NamedTuple):
 		x: int
@@ -1987,20 +2008,20 @@ def test_if_expr_with_complex_condition() -> None:
 	x = Var[int, ComplexCtx]("x")
 	y = Var[int, ComplexCtx]("y")
 
-	if_expr = IfExpr((x > 0) & (y > 0), x + y, Const("invalid", -1))
+	match_expr = Match(((x > 0) & (y > 0), x + y), default=Const("invalid", -1))
 
 	ctx = ComplexCtx(x=5, y=10)
-	assert if_expr.unwrap(ctx) == 15
+	assert match_expr.unwrap(ctx) == 15
 
 	ctx2 = ComplexCtx(x=-5, y=10)
-	assert if_expr.unwrap(ctx2) == -1
+	assert match_expr.unwrap(ctx2) == -1
 
 	ctx3 = ComplexCtx(x=5, y=-10)
-	assert if_expr.unwrap(ctx3) == -1
+	assert match_expr.unwrap(ctx3) == -1
 
 
-def test_if_expr_extract_vars() -> None:
-	"""Test that _extract_vars handles IfExpr correctly."""
+def test_match_expr_extract_vars() -> None:
+	"""Test that _extract_vars handles MatchExpr correctly."""
 
 	class VarsCtx(NamedTuple):
 		x: int
@@ -2011,27 +2032,26 @@ def test_if_expr_extract_vars() -> None:
 	y = Var[int, VarsCtx]("y")
 	z = Var[int, VarsCtx]("z")
 
-	if_expr = IfExpr(x > 0, y, z)
-	func = if_expr.to_func()
+	match_expr = Match((x > 0, y), default=z)
+	func = match_expr.to_func()
 
 	assert len(func.args) == 3
 
 
 @pytest.mark.mypy_testing
-def test_if_expr_type_preservation() -> None:
-	"""Verify IfExpr preserves result type."""
+def test_match_expr_type_preservation() -> None:
+	"""Verify match() preserves result type."""
 
 	class TypeCtx(NamedTuple):
 		x: int
 
 	x = Var[int, TypeCtx]("x")
-	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
-	# Note: mypy infers IfExpr[int, Any], pyright infers IfExpr[int, TypeCtx]
+	match_expr = Match((x > 5, Const("high", 100)), default=Const("low", 0))
 
 	ctx = TypeCtx(x=10)
-	result = if_expr.eval(ctx)
+	result = match_expr.eval(ctx)
 	assert_type(result, Const[int])
-	assert_type(if_expr.unwrap(ctx), int)
+	assert_type(match_expr.unwrap(ctx), int)
 
 
 def test_context_vars_basic() -> None:
@@ -2231,10 +2251,10 @@ def test_context_vars_with_max_min() -> None:
 
 
 def test_context_vars_with_conditionals() -> None:
-	"""Test context_vars with IfExpr conditional logic."""
+	"""Test context_vars with MatchExpr conditional logic."""
 	StatusCtx, value, threshold = context_vars(("value", int), ("threshold", int))
 
-	status = IfExpr(value > threshold, Const("status", "HIGH"), Const("status", "LOW"))
+	status = Match((value > threshold, Const("status", "HIGH")), default=Const("status", "LOW"))
 
 	high_ctx = StatusCtx(100, 50)
 	assert status.unwrap(high_ctx) == "HIGH"

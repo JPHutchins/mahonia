@@ -8,7 +8,7 @@ from mahonia import (
 	Const,
 	FilterExpr,
 	Func,
-	IfExpr,
+	Match,
 	Percent,
 	PlusMinus,
 	Predicate,
@@ -1263,16 +1263,16 @@ def test_filter_expr_latex_complex_predicate() -> None:
 	assert "x < 10" in result
 
 
-def test_if_expr_latex() -> None:
-	"""Test IfExpr LaTeX formatting."""
+def test_match_expr_latex() -> None:
+	"""Test MatchExpr LaTeX formatting."""
 
-	class IfCtx(NamedTuple):
+	class MatchCtx(NamedTuple):
 		x: int
 
-	x = Var[int, IfCtx]("x")
-	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+	x = Var[int, MatchCtx]("x")
+	match_expr = Match((x > 5, Const("high", 100)), default=Const("low", 0))
 
-	result = latex(if_expr)
+	result = latex(match_expr)
 	assert "\\begin{cases}" in result
 	assert "\\end{cases}" in result
 	assert "\\text{if }" in result
@@ -1281,22 +1281,22 @@ def test_if_expr_latex() -> None:
 	assert "low" in result
 
 
-def test_if_expr_latex_with_context() -> None:
-	"""Test IfExpr LaTeX formatting with context."""
+def test_match_expr_latex_with_context() -> None:
+	"""Test MatchExpr LaTeX formatting with context."""
 
-	class IfCtx(NamedTuple):
+	class MatchCtx(NamedTuple):
 		x: int
 
-	x = Var[int, IfCtx]("x")
-	if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
+	x = Var[int, MatchCtx]("x")
+	match_expr = Match((x > 5, Const("high", 100)), default=Const("low", 0))
 
-	if_ctx = IfCtx(x=10)
-	result = latex(if_expr, LatexCtx(if_ctx, Show.VALUES | Show.WORK))
+	match_ctx = MatchCtx(x=10)
+	result = latex(match_expr, LatexCtx(match_ctx, Show.VALUES | Show.WORK))
 	assert "\\rightarrow 100" in result
 
 
-def test_if_expr_latex_with_expressions() -> None:
-	"""Test IfExpr LaTeX with expressions in branches."""
+def test_match_expr_latex_with_expressions() -> None:
+	"""Test MatchExpr LaTeX with expressions in branches."""
 
 	class ExprCtx(NamedTuple):
 		x: int
@@ -1305,15 +1305,15 @@ def test_if_expr_latex_with_expressions() -> None:
 	x = Var[int, ExprCtx]("x")
 	y = Var[int, ExprCtx]("y")
 
-	if_expr = IfExpr(x > y, x + y, x * y)
+	match_expr = Match((x > y, x + y), default=x * y)
 
-	result = latex(if_expr)
+	result = latex(match_expr)
 	assert "x + y" in result
 	assert "x \\cdot y" in result
 
 
-def test_if_expr_latex_greek_variables() -> None:
-	"""Test IfExpr LaTeX with Greek letter variables."""
+def test_match_expr_latex_greek_variables() -> None:
+	"""Test MatchExpr LaTeX with Greek letter variables."""
 
 	class GreekCtx(NamedTuple):
 		alpha: float
@@ -1322,8 +1322,8 @@ def test_if_expr_latex_greek_variables() -> None:
 	alpha = Var[float, GreekCtx]("alpha")
 	beta = Var[float, GreekCtx]("beta")
 
-	if_expr = IfExpr(alpha > beta, alpha, beta)
+	match_expr = Match((alpha > beta, alpha), default=beta)
 
-	result = latex(if_expr)
+	result = latex(match_expr)
 	assert "\\alpha" in result
 	assert "\\beta" in result

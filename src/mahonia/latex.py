@@ -38,7 +38,6 @@ from mahonia import (
 	Func,
 	Ge,
 	Gt,
-	IfExpr,
 	Le,
 	Lt,
 	Mul,
@@ -54,6 +53,7 @@ from mahonia import (
 	Var,
 	format_iterable_var,
 )
+from mahonia.match import MatchExpr
 from mahonia.stats import Count, Mean, Median, Percentile, Range, StdDev
 
 type BinaryOpExpr = (
@@ -376,15 +376,17 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 					return f"(\\{{ x \\in {container} : {pred} \\}} \\rightarrow {_latex_value(len(result_value))} \\text{{ elements}})"  # pyright: ignore[reportUnknownArgumentType]
 				case _:
 					return f"\\{{ x \\in {container} : {pred} \\}}"
-		case IfExpr():
-			cond = _latex_expr_structure(expr.condition, latex_ctx)
-			then = _latex_expr_structure(expr.then_expr, latex_ctx)
-			else_ = _latex_expr_structure(expr.else_expr, latex_ctx)
+		case MatchExpr():
+			branches_latex = " \\\\ ".join(
+				f"{_latex_expr_structure(val, latex_ctx)} & \\text{{if }} {_latex_expr_structure(cond, latex_ctx)}"
+				for cond, val in expr.branches  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+			)
+			default_latex = _latex_expr_structure(expr.default, latex_ctx)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.WORK:
-					return f"(\\begin{{cases}} {then} & \\text{{if }} {cond} \\\\ {else_} & \\text{{otherwise}} \\end{{cases}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+					return f"(\\begin{{cases}} {branches_latex} \\\\ {default_latex} & \\text{{otherwise}} \\end{{cases}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
-					return f"\\begin{{cases}} {then} & \\text{{if }} {cond} \\\\ {else_} & \\text{{otherwise}} \\end{{cases}}"
+					return f"\\begin{{cases}} {branches_latex} \\\\ {default_latex} & \\text{{otherwise}} \\end{{cases}}"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 

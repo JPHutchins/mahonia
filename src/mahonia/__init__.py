@@ -172,6 +172,7 @@ from dataclasses import dataclass, field
 from difflib import get_close_matches
 from types import SimpleNamespace
 from typing import (
+	TYPE_CHECKING,
 	Any,
 	Callable,
 	ClassVar,
@@ -186,6 +187,9 @@ from typing import (
 	overload,
 	runtime_checkable,
 )
+
+if TYPE_CHECKING:
+	from mahonia.match import Match, MatchExpr
 
 T = TypeVar("T")
 """The type of the expression's operands."""
@@ -255,6 +259,7 @@ class _SupportsArithmetic(Protocol):
 	def __sub__(self, other: Any, /) -> Any: ...
 	def __mul__(self, other: Any, /) -> Any: ...
 	def __truediv__(self, other: Any, /) -> Any: ...
+	def __mod__(self, other: Any, /) -> Any: ...
 	def __abs__(self, /) -> Any: ...
 	def __pow__(self, power: Any, /) -> Any: ...
 
@@ -449,10 +454,11 @@ def _extract_vars(
 		case Contains(element=element, container=container):  # pyright: ignore[reportUnknownVariableType]
 			vars = _extract_vars(vars, element)  # pyright: ignore[reportUnknownArgumentType]
 			vars = _extract_vars(vars, container)  # pyright: ignore[reportUnknownArgumentType]
-		case IfExpr(condition, then_expr, else_expr):
-			vars = _extract_vars(vars, condition)
-			vars = _extract_vars(vars, then_expr)
-			vars = _extract_vars(vars, else_expr)
+		case _ if hasattr(expr, "branches") and hasattr(expr, "default"):
+			for condition, value in expr.branches:  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType, reportAttributeAccessIssue]
+				vars = _extract_vars(vars, condition)  # pyright: ignore[reportUnknownArgumentType]
+				vars = _extract_vars(vars, value)  # pyright: ignore[reportUnknownArgumentType]
+			vars = _extract_vars(vars, expr.default)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
 		case (
 			AnyExpr(container)
 			| AllExpr(container)
@@ -801,6 +807,41 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 		else:
 			return Pow(Const(None, other), self)  # type: ignore[arg-type]
 
+	@overload
+	def __mod__(self, other: TSupportsArithmetic) -> "Mod[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __mod__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Mod[TSupportsArithmetic, S]": ...
+
+	def __mod__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
+	) -> "Mod[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Mod(self, other)  # type: ignore[arg-type]
+		else:
+			return Mod(self, Const(None, other))  # type: ignore[arg-type]
+
+	@overload
+	def __rmod__(self, other: TSupportsArithmetic) -> "Mod[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rmod__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	) -> "Mod[TSupportsArithmetic, S]": ...
+
+	def __rmod__(
+		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
+	) -> "Mod[TSupportsArithmetic, S]":
+		if isinstance(other, Expr):
+			return Mod(other, self)  # type: ignore[arg-type]
+		else:
+			return Mod(Const(None, other), self)  # type: ignore[arg-type]
+
+	def __neg__(self) -> "Neg[T, S]":
+		return Neg(self)
+
 
 @dataclass(frozen=True, eq=False, slots=True)
 class BoundExpr(
@@ -978,6 +1019,29 @@ class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperation
 
 	def partial(self, ctx: Any) -> "Expr[bool, Any, bool]":
 		return Not(self.left.partial(ctx))
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Neg(
+	BinaryOperationOverloads[T, S],
+	BooleanBinaryOperationOverloads[T, S],
+):
+	left: Expr[T, S, T]
+	op: ClassVar[str] = "-"
+	template: ClassVar[str] = "({op}{left})"
+	template_eval: ClassVar[str] = "({op}{left} -> {out})"
+
+	def eval(self, ctx: S) -> Const[T]:
+		return Const(None, -self.left.eval(ctx).value)  # type: ignore[operator]
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = self.left.to_string(ctx)
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+	def partial(self, ctx: Any) -> "Neg[T, Any]":
+		return Neg(self.left.partial(ctx))
 
 
 class BinaryOpProtocol(Expr[T, S, R], Protocol[T, S, R]):
@@ -1197,6 +1261,20 @@ class Pow(
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value ** self.right.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Mod(
+	BinaryOp[TSupportsArithmetic, S, TSupportsArithmetic],
+	BinaryOperationOverloads[TSupportsArithmetic, S],
+):
+	op: ClassVar[str] = " % "
+
+	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+	right: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
+
+	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
+		return Const(None, self.left.eval(ctx).value % self.right.eval(ctx).value)
 
 
 class ConstToleranceProtocol(Protocol):
@@ -1925,59 +2003,6 @@ class FilterExpr(
 		return FilterExpr(partial_func, self.container.partial(ctx))
 
 
-@dataclass(frozen=True, eq=False, slots=True)
-class IfExpr(
-	BinaryOperationOverloads[T, S],
-	BooleanBinaryOperationOverloads[T, S],
-	Generic[T, S],
-):
-	"""Conditional expression: if condition then expr1 else expr2.
-
-	>>> from typing import NamedTuple
-	>>> class Ctx(NamedTuple):
-	... 	x: int
-	>>> x = Var[int, Ctx]("x")
-	>>> if_expr = IfExpr(x > 5, Const("high", 100), Const("low", 0))
-	>>> if_expr.to_string()
-	'(if (x > 5) then high:100 else low:0)'
-	>>> if_expr.unwrap(Ctx(x=10))
-	100
-	>>> if_expr.unwrap(Ctx(x=3))
-	0
-	>>> if_expr.to_string(Ctx(x=10))
-	'(if (x:10 > 5 -> True) then high:100 else low:0 -> 100)'
-	>>> if_expr.to_string(Ctx(x=3))
-	'(if (x:3 > 5 -> False) then high:100 else low:0 -> 0)'
-	"""
-
-	condition: Expr[Any, S, bool]
-	then_expr: Expr[T, S, T]
-	else_expr: Expr[T, S, T]
-
-	def eval(self, ctx: S) -> Const[T]:
-		if self.condition.eval(ctx).value:
-			return self.then_expr.eval(ctx)
-		return self.else_expr.eval(ctx)
-
-	def unwrap(self, ctx: S) -> T:
-		return self.eval(ctx).value
-
-	def to_string(self, ctx: S | None = None) -> str:
-		cond_str: Final = self.condition.to_string(ctx)
-		then_str: Final = self.then_expr.to_string(ctx)
-		else_str: Final = self.else_expr.to_string(ctx)
-		if ctx is None:
-			return f"(if {cond_str} then {then_str} else {else_str})"
-		return f"(if {cond_str} then {then_str} else {else_str} -> {self.eval(ctx).value})"
-
-	def partial(self, ctx: Any) -> "Expr[T, Any, T]":
-		return IfExpr(
-			self.condition.partial(ctx),
-			self.then_expr.partial(ctx),
-			self.else_expr.partial(ctx),
-		)
-
-
 type FloatVar[S] = Var[float, S]
 type IntVar[S] = Var[int, S]
 type BoolVar[S] = Var[bool, S]
@@ -2131,3 +2156,11 @@ class MaxExpr(
 
 	def partial(self, ctx: Any) -> "MaxExpr[TSupportsComparison, Any]":
 		return MaxExpr(self.container.partial(ctx))
+
+
+from mahonia.match import Match, MatchExpr  # noqa: E402
+
+__all__ = [
+	"Match",
+	"MatchExpr",
+]
