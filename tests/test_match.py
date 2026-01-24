@@ -1,7 +1,7 @@
 # Copyright (c) 2025 JP Hutchins
 # SPDX-License-Identifier: MIT
 
-from typing import Any, NamedTuple, assert_type
+from typing import NamedTuple, assert_type
 
 import pytest
 
@@ -793,7 +793,7 @@ def test_collatz_step() -> None:
 		((n % 2) == 0, n / 2),
 		default=(n * 3) + 1,
 	)
-	assert_type(collatz_step, MatchExpr[float, CollatzCtx])
+	assert_type(collatz_step, MatchExpr[float | int, CollatzCtx])
 
 	assert collatz_step.unwrap(CollatzCtx(n=16)) == 8
 	assert collatz_step.unwrap(CollatzCtx(n=8)) == 4
@@ -1154,7 +1154,7 @@ def test_match_with_arithmetic_in_both_condition_and_result() -> None:
 		(distance_squared > 25, x + y),
 		default=(x + y) * Const("half", 0.5),
 	)
-	assert_type(scaled_result, MatchExpr[Any, Point2DCtx])
+	assert_type(scaled_result, MatchExpr[int | float, Point2DCtx])
 
 	assert scaled_result.unwrap(Point2DCtx(x=8, y=8)) == 32
 	assert scaled_result.unwrap(Point2DCtx(x=4, y=4)) == 8
@@ -1266,7 +1266,7 @@ def test_maybe_monad_simulation() -> None:
 		(is_just, value * 2),
 		default=0,
 	)
-	assert_type(fmap_double, MatchExpr[Any | int, MaybeCtx])
+	assert_type(fmap_double, MatchExpr[int, MaybeCtx])
 
 	fmap_result_is_just = Match(
 		(is_just & (value > 0), True),
@@ -1398,7 +1398,7 @@ def test_chess_move_validator_complex() -> None:
 
 	rank_diff = Match((to_rank >= from_rank, to_rank - from_rank), default=from_rank - to_rank)
 	file_diff = Match((to_file >= from_file, to_file - from_file), default=from_file - to_file)
-	assert_type(rank_diff, MatchExpr[Any, ChessCtx])
+	assert_type(rank_diff, MatchExpr[int, ChessCtx])
 
 	is_rook_move = (rank_diff == 0) | (file_diff == 0)
 	is_bishop_move = rank_diff == file_diff
@@ -1496,21 +1496,21 @@ def test_fibonacci_selector() -> None:
 			(n == 8, 21),
 			(n == 9, 34),
 			(n == 10, 55),
-			default=-1,
+			default=None,
 		),
 	)
-	assert_type(fib, MatchExpr[int, FibonacciSelectCtx])
+	assert_type(fib, MatchExpr[int | None, FibonacciSelectCtx])
 
 	assert fib.unwrap(FibonacciSelectCtx(n=0)) == 0
 	assert fib.unwrap(FibonacciSelectCtx(n=1)) == 1
 	assert fib.unwrap(FibonacciSelectCtx(n=5)) == 5
 	assert fib.unwrap(FibonacciSelectCtx(n=10)) == 55
-	assert fib.unwrap(FibonacciSelectCtx(n=11)) == -1
+	assert fib.unwrap(FibonacciSelectCtx(n=11)) is None
 
 	assert fib.to_string() == (
 		"(match (n == 0 -> 0) (n == 1 -> 1) (n == 2 -> 1) (n == 3 -> 2) "
 		"(n == 4 -> 3) (n == 5 -> 5) else (match (n == 6 -> 8) (n == 7 -> 13) "
-		"(n == 8 -> 21) (n == 9 -> 34) (n == 10 -> 55) else -1))"
+		"(n == 8 -> 21) (n == 9 -> 34) (n == 10 -> 55) else None))"
 	)
 
 
@@ -1533,7 +1533,7 @@ def test_expression_tree_depth_classification() -> None:
 		(level_3 > 10, level_3 * 2),
 		default=level_3,
 	)
-	assert_type(level_4, MatchExpr[Any | int, FizzBuzzCtx])
+	assert_type(level_4, MatchExpr[int, FizzBuzzCtx])
 
 	level_5 = Match(
 		(level_4 > 100, "huge"),

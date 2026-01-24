@@ -148,6 +148,63 @@ def Match[R1, D, S](
 	branch1: tuple[Expr[Any, S, bool], Const[R1]],
 	/,
 	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	branch2: tuple[Expr[Any, S, bool], Const[R2]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	branch2: tuple[Expr[Any, S, bool], Const[R2]],
+	branch3: tuple[Expr[Any, S, bool], Const[R3]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	branch2: tuple[Expr[Any, S, bool], Const[R2]],
+	branch3: tuple[Expr[Any, S, bool], Const[R3]],
+	branch4: tuple[Expr[Any, S, bool], Const[R4]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	branch2: tuple[Expr[Any, S, bool], Const[R2]],
+	branch3: tuple[Expr[Any, S, bool], Const[R3]],
+	branch4: tuple[Expr[Any, S, bool], Const[R4]],
+	branch5: tuple[Expr[Any, S, bool], Const[R5]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	branch2: tuple[Expr[Any, S, bool], Const[R2]],
+	branch3: tuple[Expr[Any, S, bool], Const[R3]],
+	branch4: tuple[Expr[Any, S, bool], Const[R4]],
+	branch5: tuple[Expr[Any, S, bool], Const[R5]],
+	branch6: tuple[Expr[Any, S, bool], Const[R6]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], Const[R1]],
+	/,
+	*,
 	default: Expr[Any, S, D],
 ) -> MatchExpr[R1 | D, S]: ...
 @overload
@@ -259,6 +316,120 @@ def Match[R1, R2, R3, R4, R5, R6, D, S](
 ) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
 @overload
 def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	branch5: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R5, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	branch5: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R5, S]"],
+	branch6: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R6, S]"],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	branch2: tuple[Expr[Any, S, bool], Expr[Any, S, R2]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	branch2: tuple[Expr[Any, S, bool], Expr[Any, S, R2]],
+	branch3: tuple[Expr[Any, S, bool], Expr[Any, S, R3]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	branch2: tuple[Expr[Any, S, bool], Expr[Any, S, R2]],
+	branch3: tuple[Expr[Any, S, bool], Expr[Any, S, R3]],
+	branch4: tuple[Expr[Any, S, bool], Expr[Any, S, R4]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	branch2: tuple[Expr[Any, S, bool], Expr[Any, S, R2]],
+	branch3: tuple[Expr[Any, S, bool], Expr[Any, S, R3]],
+	branch4: tuple[Expr[Any, S, bool], Expr[Any, S, R4]],
+	branch5: tuple[Expr[Any, S, bool], Expr[Any, S, R5]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
+	branch2: tuple[Expr[Any, S, bool], Expr[Any, S, R2]],
+	branch3: tuple[Expr[Any, S, bool], Expr[Any, S, R3]],
+	branch4: tuple[Expr[Any, S, bool], Expr[Any, S, R4]],
+	branch5: tuple[Expr[Any, S, bool], Expr[Any, S, R5]],
+	branch6: tuple[Expr[Any, S, bool], Expr[Any, S, R6]],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
 	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
 	/,
 	*,
@@ -316,6 +487,63 @@ def Match[R1, R2, R3, R4, R5, R6, D, S](
 ) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
 @overload
 def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	branch5: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R5, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R1, S]"],
+	branch2: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R2, S]"],
+	branch3: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R3, S]"],
+	branch4: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R4, S]"],
+	branch5: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R5, S]"],
+	branch6: tuple[Expr[Any, S, bool], "BinaryOperationOverloads[R6, S]"],
+	/,
+	*,
+	default: D,
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
 	branch1: tuple[Expr[Any, S, bool], Expr[Any, S, R1]],
 	/,
 	*,
@@ -370,6 +598,120 @@ def Match[R1, R2, R3, R4, R5, R6, D, S](
 	/,
 	*,
 	default: D,
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	branch5: tuple[Expr[Any, S, bool], R5],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	branch5: tuple[Expr[Any, S, bool], R5],
+	branch6: tuple[Expr[Any, S, bool], R6],
+	/,
+	*,
+	default: "MatchExpr[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
+@overload
+def Match[R1, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | D, S]: ...
+@overload
+def Match[R1, R2, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | D, S]: ...
+@overload
+def Match[R1, R2, R3, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	branch5: tuple[Expr[Any, S, bool], R5],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
+) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | D, S]: ...
+@overload
+def Match[R1, R2, R3, R4, R5, R6, D, S](
+	branch1: tuple[Expr[Any, S, bool], R1],
+	branch2: tuple[Expr[Any, S, bool], R2],
+	branch3: tuple[Expr[Any, S, bool], R3],
+	branch4: tuple[Expr[Any, S, bool], R4],
+	branch5: tuple[Expr[Any, S, bool], R5],
+	branch6: tuple[Expr[Any, S, bool], R6],
+	/,
+	*,
+	default: "BinaryOperationOverloads[D, S]",
 ) -> MatchExpr[R1 | R2 | R3 | R4 | R5 | R6 | D, S]: ...
 @overload
 def Match[R1, D, S](
