@@ -24,11 +24,13 @@ from enum import Flag, auto
 from typing import Any, Final, Generic, NamedTuple, assert_never
 
 from mahonia import (
+	Abs,
 	Add,
 	AllExpr,
 	And,
 	AnyExpr,
 	Approximately,
+	ClampExpr,
 	Const,
 	Contains,
 	Div,
@@ -42,6 +44,7 @@ from mahonia import (
 	Lt,
 	Mul,
 	Ne,
+	Neg,
 	Not,
 	Or,
 	Percent,
@@ -387,6 +390,32 @@ def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | 
 					return f"(\\begin{{cases}} {branches_latex} \\\\ {default_latex} & \\text{{otherwise}} \\end{{cases}} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
 				case _:
 					return f"\\begin{{cases}} {branches_latex} \\\\ {default_latex} & \\text{{otherwise}} \\end{{cases}}"
+		case Neg():
+			operand = _latex_expr_structure(expr.left, latex_ctx)
+			operand_formatted = f"({operand})" if _needs_parentheses(expr.left, expr) else operand
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return (
+						f"(-{operand_formatted} \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+					)
+				case _:
+					return f"-{operand_formatted}"
+		case Abs():
+			operand = _latex_expr_structure(expr.left, latex_ctx)
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"(\\left|{operand}\\right| \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"\\left|{operand}\\right|"
+		case ClampExpr():
+			operand = _latex_expr_structure(expr.value, latex_ctx)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+			lo = expr.lo  # pyright: ignore[reportUnknownMemberType]
+			hi = expr.hi  # pyright: ignore[reportUnknownMemberType]
+			match latex_ctx:
+				case LatexCtx(ctx, show) if show & Show.WORK:
+					return f"(\\text{{clamp}}_{{{lo}}}^{{{hi}}}({operand}) \\rightarrow {_latex_value(expr.eval(ctx).value)})"
+				case _:
+					return f"\\text{{clamp}}_{{{lo}}}^{{{hi}}}({operand})"
 		case _:
 			return f"\\text{{Unknown: {type(expr).__name__}}}"
 

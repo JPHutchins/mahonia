@@ -7,6 +7,7 @@ from typing import Any, Callable, Final, NamedTuple, assert_type
 import pytest
 
 from mahonia import (
+	Abs,
 	Add,
 	AllExpr,
 	And,
@@ -14,6 +15,7 @@ from mahonia import (
 	Approximately,
 	BoolVar,
 	BoundExpr,
+	Clamp,
 	Const,
 	Contains,
 	Div,
@@ -2329,3 +2331,265 @@ def test_context_vars_bound_expr() -> None:
 	bound = formula.bind(ConfigCtx(100.0, 1.5))
 	assert bound.unwrap() == 150.0
 	assert str(bound) == "(base:100.0 * multiplier:1.5 -> 150.0)"
+
+
+def test_abs() -> None:
+	"""Test Abs unary operation."""
+	x = Var[int, Ctx]("x")
+	abs_x = Abs(x)
+
+	assert abs_x.to_string() == "(abs x)"
+	assert abs_x.unwrap(ctx) == 5
+	assert abs_x.to_string(ctx) == "(abs x:5 -> 5)"
+
+	neg_ctx = Ctx(x=-5, y=10, name="test")
+	assert abs_x.unwrap(neg_ctx) == 5
+	assert abs_x.to_string(neg_ctx) == "(abs x:-5 -> 5)"
+
+	zero_ctx = Ctx(x=0, y=10, name="test")
+	assert abs_x.unwrap(zero_ctx) == 0
+
+
+def test_abs_with_float() -> None:
+	"""Test Abs with float values."""
+
+	class FloatCtx(NamedTuple):
+		x: float
+
+	x = Var[float, FloatCtx]("x")
+	abs_x = Abs(x)
+
+	assert abs_x.unwrap(FloatCtx(x=-3.14)) == 3.14
+	assert abs_x.unwrap(FloatCtx(x=2.71)) == 2.71
+	assert abs_x.to_string(FloatCtx(x=-3.14)) == "(abs x:-3.14 -> 3.14)"
+
+
+@pytest.mark.mypy_testing
+def test_abs_types() -> None:
+	"""Verify Abs type inference."""
+	x = Var[int, Ctx]("x")
+	abs_x = Abs(x)
+
+	assert_type(abs_x, Abs[int, Ctx])
+	assert_type(abs_x.eval(ctx), Const[int])
+	assert_type(abs_x.unwrap(ctx), int)
+
+	f = Var[float, Ctx]("f")
+	abs_f = Abs(f)
+	assert_type(abs_f, Abs[float, Ctx])
+	assert_type(abs_f.unwrap(ctx), float)
+
+
+def test_abs_composition() -> None:
+	"""Test Abs composition with other expressions."""
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	taxicab = Abs(x) + Abs(y)
+	assert taxicab.to_string() == "((abs x) + (abs y))"
+	neg_ctx = Ctx(x=-3, y=-4, name="test")
+	assert taxicab.unwrap(neg_ctx) == 7
+	assert taxicab.to_string(neg_ctx) == "((abs x:-3 -> 3) + (abs y:-4 -> 4) -> 7)"
+
+	doubled = Abs(x) * 2
+	assert doubled.unwrap(neg_ctx) == 6
+	assert doubled.to_string() == "((abs x) * 2)"
+
+	compared = Abs(x) > 2
+	assert compared.unwrap(neg_ctx) is True
+	assert compared.unwrap(Ctx(x=-1, y=0, name="test")) is False
+
+
+def test_abs_nested() -> None:
+	"""Test nested Abs and Abs of expressions."""
+	x = Var[int, Ctx]("x")
+
+	double_abs = Abs(Abs(x))
+	neg_ctx = Ctx(x=-5, y=10, name="test")
+	assert double_abs.unwrap(neg_ctx) == 5
+
+	abs_of_expr = Abs(x - 10)
+	assert abs_of_expr.unwrap(ctx) == 5
+	assert abs_of_expr.to_string() == "(abs (x - 10))"
+	assert abs_of_expr.to_string(ctx) == "(abs (x:5 - 10 -> -5) -> 5)"
+
+
+def test_clamp() -> None:
+	"""Test Clamp operation."""
+
+	class ClampCtx(NamedTuple):
+		x: int
+
+	x = Var[int, ClampCtx]("x")
+	clamped = Clamp(0, 10)(x)
+
+	assert clamped.to_string() == "(clamp 0 10 x)"
+	assert clamped.unwrap(ClampCtx(x=5)) == 5
+	assert clamped.unwrap(ClampCtx(x=-5)) == 0
+	assert clamped.unwrap(ClampCtx(x=15)) == 10
+	assert clamped.to_string(ClampCtx(x=15)) == "(clamp 0 10 x:15 -> 10)"
+	assert clamped.to_string(ClampCtx(x=-5)) == "(clamp 0 10 x:-5 -> 0)"
+
+
+def test_clamp_with_float() -> None:
+	"""Test Clamp with float values."""
+
+	class FloatCtx(NamedTuple):
+		x: float
+
+	x = Var[float, FloatCtx]("x")
+	clamped = Clamp(0.0, 100.0)(x)
+
+	assert clamped.unwrap(FloatCtx(x=50.5)) == 50.5
+	assert clamped.unwrap(FloatCtx(x=-10.5)) == 0.0
+	assert clamped.unwrap(FloatCtx(x=150.5)) == 100.0
+
+
+def test_clamp_edge_cases() -> None:
+	"""Test Clamp at boundary values."""
+
+	class ClampCtx(NamedTuple):
+		x: int
+
+	x = Var[int, ClampCtx]("x")
+	clamped = Clamp(0, 10)(x)
+
+	assert clamped.unwrap(ClampCtx(x=0)) == 0
+	assert clamped.unwrap(ClampCtx(x=10)) == 10
+
+
+@pytest.mark.mypy_testing
+def test_clamp_types() -> None:
+	"""Verify ClampExpr type inference."""
+	from mahonia import ClampExpr
+
+	class ClampCtx(NamedTuple):
+		x: int
+
+	x = Var[int, ClampCtx]("x")
+	clamped = Clamp(0, 10)(x)
+
+	assert_type(clamped, ClampExpr[int, ClampCtx])
+	assert_type(clamped.eval(ClampCtx(x=5)), Const[int])
+	assert_type(clamped.unwrap(ClampCtx(x=5)), int)
+
+
+def test_clamp_composition() -> None:
+	"""Test Clamp composition with other expressions."""
+
+	class ClampCtx(NamedTuple):
+		x: int
+
+	x = Var[int, ClampCtx]("x")
+
+	clamped_doubled = Clamp(0, 10)(x) * 2
+	assert clamped_doubled.to_string() == "((clamp 0 10 x) * 2)"
+	assert clamped_doubled.unwrap(ClampCtx(x=15)) == 20
+	assert clamped_doubled.unwrap(ClampCtx(x=3)) == 6
+
+	clamped_compared = Clamp(0, 10)(x) > 5
+	assert clamped_compared.unwrap(ClampCtx(x=15)) is True
+	assert clamped_compared.unwrap(ClampCtx(x=3)) is False
+
+
+def test_clamp_of_expression() -> None:
+	"""Test Clamp applied to complex expressions."""
+
+	class ClampCtx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, ClampCtx]("x")
+	y = Var[int, ClampCtx]("y")
+
+	clamped_sum = Clamp(0, 100)(x + y)
+	assert clamped_sum.to_string() == "(clamp 0 100 (x + y))"
+	assert clamped_sum.unwrap(ClampCtx(x=30, y=40)) == 70
+	assert clamped_sum.unwrap(ClampCtx(x=60, y=60)) == 100
+	assert clamped_sum.unwrap(ClampCtx(x=-50, y=20)) == 0
+
+
+def test_abs_clamp_combined() -> None:
+	"""Test combining Abs and Clamp."""
+
+	class Ctx(NamedTuple):
+		x: int
+
+	x = Var[int, Ctx]("x")
+
+	clamped_abs = Clamp(5, 10)(Abs(x))
+	assert clamped_abs.to_string() == "(clamp 5 10 (abs x))"
+	assert clamped_abs.unwrap(Ctx(x=-3)) == 5
+	assert clamped_abs.unwrap(Ctx(x=-7)) == 7
+	assert clamped_abs.unwrap(Ctx(x=-15)) == 10
+	assert clamped_abs.unwrap(Ctx(x=8)) == 8
+
+	abs_clamped = Abs(Clamp(-5, 5)(x))
+	assert abs_clamped.unwrap(Ctx(x=-10)) == 5
+	assert abs_clamped.unwrap(Ctx(x=-3)) == 3
+	assert abs_clamped.unwrap(Ctx(x=3)) == 3
+
+
+def test_abs_partial() -> None:
+	"""Test Abs.partial() preserves structure."""
+
+	class FullCtx(NamedTuple):
+		x: int
+		y: int
+
+	class PartialCtx(NamedTuple):
+		x: int
+
+	x = Var[int, FullCtx]("x")
+	y = Var[int, FullCtx]("y")
+
+	expr = Abs(x) + y
+	partial_ctx = PartialCtx(x=-5)
+	partial_expr = expr.partial(partial_ctx)
+
+	assert partial_expr.to_string() == "((abs x:-5) + y)"
+	assert partial_expr.to_string(FullCtx(x=-5, y=3)) == "((abs x:-5 -> 5) + y:3 -> 8)"
+
+
+def test_clamp_partial() -> None:
+	"""Test Clamp.partial() preserves structure."""
+
+	class FullCtx(NamedTuple):
+		x: int
+		y: int
+
+	class PartialCtx(NamedTuple):
+		x: int
+
+	x = Var[int, FullCtx]("x")
+	y = Var[int, FullCtx]("y")
+
+	expr = Clamp(0, 10)(x) + y
+	partial_ctx = PartialCtx(x=15)
+	partial_expr = expr.partial(partial_ctx)
+
+	assert partial_expr.to_string() == "((clamp 0 10 x:15) + y)"
+	assert partial_expr.to_string(FullCtx(x=15, y=5)) == "((clamp 0 10 x:15 -> 10) + y:5 -> 15)"
+
+
+def test_clamp_factory_reuse() -> None:
+	"""Test that Clamp(lo, hi) factory can be reused."""
+
+	class Ctx(NamedTuple):
+		x: int
+		y: int
+
+	x = Var[int, Ctx]("x")
+	y = Var[int, Ctx]("y")
+
+	normalize = Clamp(0, 100)
+	clamped_x = normalize(x)
+	clamped_y = normalize(y)
+
+	ctx = Ctx(x=-10, y=150)
+	assert clamped_x.unwrap(ctx) == 0
+	assert clamped_y.unwrap(ctx) == 100
+
+	assert repr(normalize) == "Clamp(0, 100)"
+	assert clamped_x.to_string() == "(clamp 0 100 x)"
+	assert clamped_y.to_string() == "(clamp 0 100 y)"
