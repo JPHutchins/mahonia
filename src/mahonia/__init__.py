@@ -1011,6 +1011,19 @@ class UnaryOpToString(ToString[S], UnaryOpEval[S]):
 			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
 
+class UnaryToStringMixin(ToString[S], Eval[T, S], Generic[T, S]):
+	left: Expr[T, S, T]
+	op: ClassVar[str]
+	template: ClassVar[str]
+	template_eval: ClassVar[str]
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = self.left.to_string(ctx)
+		if ctx is None:
+			return self.template.format(op=self.op, left=left)
+		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
 class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperationOverloads[bool, S]):
 	op: ClassVar[str] = "not "
 
@@ -1023,6 +1036,7 @@ class Not(UnaryOpToString[S], UnaryOperationOverloads[S], BooleanBinaryOperation
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Neg(
+	UnaryToStringMixin[T, S],
 	BinaryOperationOverloads[T, S],
 	BooleanBinaryOperationOverloads[T, S],
 ):
@@ -1034,18 +1048,13 @@ class Neg(
 	def eval(self, ctx: S) -> Const[T]:
 		return Const(None, -self.left.eval(ctx).value)  # type: ignore[operator]
 
-	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = self.left.to_string(ctx)
-		if ctx is None:
-			return self.template.format(op=self.op, left=left)
-		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
-
 	def partial(self, ctx: Any) -> "Neg[T, Any]":
 		return Neg(self.left.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class Abs(
+	UnaryToStringMixin[TSupportsArithmetic, S],
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 	BooleanBinaryOperationOverloads[TSupportsArithmetic, S],
 ):
@@ -1073,12 +1082,6 @@ class Abs(
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, abs(self.left.eval(ctx).value))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = self.left.to_string(ctx)
-		if ctx is None:
-			return self.template.format(op=self.op, left=left)
-		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
 
 	def partial(self, ctx: Any) -> "Abs[TSupportsArithmetic, Any]":
 		return Abs(self.left.partial(ctx))
@@ -1878,10 +1881,40 @@ class FoldLExpr(
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class AnyExpr(
+class BoolContainerFoldBase(
 	BinaryOperationOverloads[bool, S],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
+	op: ClassVar[str]
+	op_cls: ClassVar[type[Foldable[Any, Any]]]
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
+
+	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
+	_foldl: FoldLExpr[bool, S, bool] = field(init=False)
+
+	def __post_init__(self) -> None:
+		object.__setattr__(self, "_foldl", FoldLExpr(self.op_cls, self.container))
+
+	def eval(self, ctx: S) -> Const[bool]:
+		return self._foldl.eval(ctx)
+
+	def unwrap(self, ctx: S) -> bool:
+		return self._foldl.unwrap(ctx)
+
+	def to_string(self, ctx: S | None = None) -> str:
+		if ctx is None:
+			return self.template.format(op=self.op, left=format_iterable_var(self.container, ctx))
+		left = (
+			format_iterable_var(self.container, ctx)
+			if isinstance(self.container, (Var, Const))
+			else self.container.to_string(ctx)
+		)
+		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class AnyExpr(BoolContainerFoldBase[S]):
 	"""True if any element in the container is truthy.
 
 	>>> from typing import NamedTuple
@@ -1915,41 +1948,14 @@ class AnyExpr(
 	"""
 
 	op: ClassVar[str] = "any"
-	template: ClassVar[str] = "({op} {left})"
-	template_eval: ClassVar[str] = "({op} {left} -> {out})"
-
-	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
-	_foldl: FoldLExpr[bool, S, bool] = field(init=False)
-
-	def __post_init__(self) -> None:
-		object.__setattr__(self, "_foldl", FoldLExpr(Or, self.container))
-
-	def eval(self, ctx: S) -> Const[bool]:
-		return self._foldl.eval(ctx)
-
-	def unwrap(self, ctx: S) -> bool:
-		return self._foldl.unwrap(ctx)
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+	op_cls: ClassVar[type[Foldable[Any, Any]]] = Or
 
 	def partial(self, ctx: Any) -> "AnyExpr[Any]":
 		return AnyExpr(self.container.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class AllExpr(
-	BinaryOperationOverloads[bool, S],
-	BooleanBinaryOperationOverloads[bool, S],
-):
+class AllExpr(BoolContainerFoldBase[S]):
 	"""True if all elements in the container are truthy.
 
 	>>> from typing import NamedTuple
@@ -1983,41 +1989,47 @@ class AllExpr(
 	"""
 
 	op: ClassVar[str] = "all"
-	template: ClassVar[str] = "({op} {left})"
-	template_eval: ClassVar[str] = "({op} {left} -> {out})"
-
-	container: Expr[SizedIterable[Any], S, SizedIterable[Any]]
-	_foldl: FoldLExpr[bool, S, bool] = field(init=False)
-
-	def __post_init__(self) -> None:
-		object.__setattr__(self, "_foldl", FoldLExpr(And, self.container))
-
-	def eval(self, ctx: S) -> Const[bool]:
-		return self._foldl.eval(ctx)
-
-	def unwrap(self, ctx: S) -> bool:
-		return self._foldl.unwrap(ctx)
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+	op_cls: ClassVar[type[Foldable[Any, Any]]] = And
 
 	def partial(self, ctx: Any) -> "AllExpr[Any]":
 		return AllExpr(self.container.partial(ctx))
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class MinExpr(
+class ComparableContainerFoldBase(
 	BinaryOperationOverloads[TSupportsComparison, S],
 	Generic[TSupportsComparison, S],
 ):
+	op: ClassVar[str]
+	op_cls: ClassVar[type[Foldable[Any, Any]]]
+	template: ClassVar[str] = "({op} {left})"
+	template_eval: ClassVar[str] = "({op} {left} -> {out})"
+
+	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
+	_foldl: FoldLExpr[TSupportsComparison, S, TSupportsComparison] = field(init=False)
+
+	def __post_init__(self) -> None:
+		object.__setattr__(self, "_foldl", FoldLExpr(self.op_cls, self.container))
+
+	def eval(self, ctx: S) -> Const[TSupportsComparison]:
+		return self._foldl.eval(ctx)
+
+	def unwrap(self, ctx: S) -> TSupportsComparison:
+		return self._foldl.unwrap(ctx)
+
+	def to_string(self, ctx: S | None = None) -> str:
+		if ctx is None:
+			return self.template.format(op=self.op, left=format_iterable_var(self.container, ctx))
+		left = (
+			format_iterable_var(self.container, ctx)
+			if isinstance(self.container, (Var, Const))
+			else self.container.to_string(ctx)
+		)
+		return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class MinExpr(ComparableContainerFoldBase[TSupportsComparison, S]):
 	"""Minimum element in a container.
 
 	>>> from typing import NamedTuple
@@ -2034,31 +2046,7 @@ class MinExpr(
 	"""
 
 	op: ClassVar[str] = "min"
-	template: ClassVar[str] = "({op} {left})"
-	template_eval: ClassVar[str] = "({op} {left} -> {out})"
-
-	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
-	_foldl: FoldLExpr[TSupportsComparison, S, TSupportsComparison] = field(init=False)
-
-	def __post_init__(self) -> None:
-		object.__setattr__(self, "_foldl", FoldLExpr(Min, self.container))
-
-	def eval(self, ctx: S) -> Const[TSupportsComparison]:
-		return self._foldl.eval(ctx)
-
-	def unwrap(self, ctx: S) -> TSupportsComparison:
-		return self._foldl.unwrap(ctx)
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+	op_cls: ClassVar[type[Foldable[Any, Any]]] = Min
 
 	def partial(self, ctx: Any) -> "MinExpr[TSupportsComparison, Any]":
 		return MinExpr(self.container.partial(ctx))
@@ -2231,10 +2219,7 @@ def context_vars(*fields: tuple[str, type[Any]]) -> Any:
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class MaxExpr(
-	BinaryOperationOverloads[TSupportsComparison, S],
-	Generic[TSupportsComparison, S],
-):
+class MaxExpr(ComparableContainerFoldBase[TSupportsComparison, S]):
 	"""Maximum element in a container.
 
 	>>> from typing import NamedTuple
@@ -2251,31 +2236,7 @@ class MaxExpr(
 	"""
 
 	op: ClassVar[str] = "max"
-	template: ClassVar[str] = "({op} {left})"
-	template_eval: ClassVar[str] = "({op} {left} -> {out})"
-
-	container: Expr[SizedIterable[TSupportsComparison], S, SizedIterable[TSupportsComparison]]
-	_foldl: FoldLExpr[TSupportsComparison, S, TSupportsComparison] = field(init=False)
-
-	def __post_init__(self) -> None:
-		object.__setattr__(self, "_foldl", FoldLExpr(Max, self.container))
-
-	def eval(self, ctx: S) -> Const[TSupportsComparison]:
-		return self._foldl.eval(ctx)
-
-	def unwrap(self, ctx: S) -> TSupportsComparison:
-		return self._foldl.unwrap(ctx)
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			left = format_iterable_var(self.container, ctx)
-			return self.template.format(op=self.op, left=left)
-		else:
-			if isinstance(self.container, (Var, Const)):
-				left = format_iterable_var(self.container, ctx)
-			else:
-				left = self.container.to_string(ctx)
-			return self.template_eval.format(op=self.op, left=left, out=self.eval(ctx).value)
+	op_cls: ClassVar[type[Foldable[Any, Any]]] = Max
 
 	def partial(self, ctx: Any) -> "MaxExpr[TSupportsComparison, Any]":
 		return MaxExpr(self.container.partial(ctx))
