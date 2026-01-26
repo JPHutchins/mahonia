@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, assert_type
 
 import pytest
 
-from mahonia import Const, Expr, Func, Var, _extract_vars  # pyright: ignore[reportPrivateUsage]
+from mahonia import Const, Expr, Func, Var, extract_vars
 
 
 class FuncCtx(NamedTuple):
@@ -151,12 +151,12 @@ def test_nested_expressions() -> None:
 
 
 def test_extract_vars_helper_function() -> None:
-	"""Test the _extract_vars helper function directly."""
+	"""Test the extract_vars helper function directly."""
 	x = Var[int, FuncCtx]("x")
 	y = Var[int, FuncCtx]("y")
 
 	expr = x + y
-	vars_tuple = _extract_vars((), expr)
+	vars_tuple = extract_vars((), expr)
 
 	assert len(vars_tuple) == 2
 	assert vars_tuple[0].name == "x"
@@ -164,7 +164,7 @@ def test_extract_vars_helper_function() -> None:
 
 
 def test_extract_vars_with_existing_vars() -> None:
-	"""Test _extract_vars when some variables already exist."""
+	"""Test extract_vars when some variables already exist."""
 	x = Var[int, FuncCtx]("x")
 	y = Var[int, FuncCtx]("y")
 	z = Var[float, FuncCtx]("z")
@@ -173,7 +173,7 @@ def test_extract_vars_with_existing_vars() -> None:
 	existing_vars = (x,)
 
 	expr = x + y + z  # x is already in existing_vars
-	vars_tuple = _extract_vars(existing_vars, expr)
+	vars_tuple = extract_vars(existing_vars, expr)
 
 	# Should have x, y, z (x was already there, y and z added)
 	assert len(vars_tuple) == 3
