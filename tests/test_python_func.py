@@ -714,3 +714,337 @@ class TestEdgeCases:
 		right = safe_sqrt(x) * safe_sqrt(y)
 		expr = safe_div(left, right)
 		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == (2.0 + 3.0) / (2.0 * 3.0)
+
+
+SQRT_FAIL = "Failure(exceptions=(ValueError('expected a nonnegative input, got {val}'),))"
+
+
+class XOnly(NamedTuple):
+	x: float
+
+
+class TestDeepNestedMixedSerialization:
+	def test_ffi_inside_pure_inside_ffi_evaluated(self) -> None:
+		expr = safe_div(safe_sqrt(x + y), safe_sqrt(y))
+		assert expr.to_string() == "div(my_sqrt((x + y)), my_sqrt(y))"
+		assert expr.to_string(Ctx(x=7.0, y=9.0)) == (
+			"div(my_sqrt((x:7.0 + y:9.0 -> 16.0)) -> 4.0,"
+			" my_sqrt(y:9.0) -> 3.0) -> 1.3333333333333333"
+		)
+		assert expr.unwrap(Ctx(x=7.0, y=9.0)) == 4.0 / 3.0
+
+	def test_mixed_operations_evaluated(self) -> None:
+		expr = (safe_sqrt(x) + y) * safe_sqrt(y)
+		assert expr.to_string() == "((my_sqrt(x) + y) * my_sqrt(y))"
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"((my_sqrt(x:4.0) -> 2.0 + y:9.0 -> 11.0) * my_sqrt(y:9.0) -> 3.0 -> 33.0)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == 33.0
+
+	def test_four_level_chain_evaluated(self) -> None:
+		expr = ((safe_sqrt(x) + safe_sqrt(y)) * 2.0 - 3.0) / 2.0
+		assert expr.to_string() == "((((my_sqrt(x) + my_sqrt(y)) * 2.0) - 3.0) / 2.0)"
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"((((my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)"
+			" * 2.0 -> 10.0) - 3.0 -> 7.0) / 2.0 -> 3.5)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == 3.5
+
+	def test_ffi2_wrapping_result_ops(self) -> None:
+		expr = safe_div(safe_sqrt(x + y) * 2.0, safe_sqrt(x * y) - 1.0)
+		assert expr.to_string() == ("div((my_sqrt((x + y)) * 2.0), (my_sqrt((x * y)) - 1.0))")
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"div((my_sqrt((x:4.0 + y:9.0 -> 13.0)) -> 3.605551275463989"
+			" * 2.0 -> 7.211102550927978),"
+			" (my_sqrt((x:4.0 * y:9.0 -> 36.0)) -> 6.0 - 1.0 -> 5.0))"
+			" -> 1.4422205101855956"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == math.sqrt(13) * 2.0 / (math.sqrt(36) - 1.0)
+
+	def test_all_three_ffi_arities_mixed(self) -> None:
+		expr = (safe_sqrt(x) + get_pi_wrapped()) * safe_div(x, y)
+		assert expr.to_string() == "((my_sqrt(x) + get_pi()) * div(x, y))"
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"((my_sqrt(x:4.0) -> 2.0 + get_pi() -> 3.141592653589793"
+			" -> 5.141592653589793) * div(x:4.0, y:9.0)"
+			" -> 0.4444444444444444 -> 2.285152290484352)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == (2.0 + math.pi) * (4.0 / 9.0)
+
+	def test_named_const_with_ffi_deep(self) -> None:
+		expr = safe_div(safe_sqrt(x) * Const("Scale", 10.0) + Const("Offset", 3.0), y)
+		assert expr.to_string() == ("div(((my_sqrt(x) * Scale:10.0) + Offset:3.0), y)")
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"div(((my_sqrt(x:4.0) -> 2.0 * Scale:10.0 -> 20.0)"
+			" + Offset:3.0 -> 23.0), y:9.0) -> 2.5555555555555554"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) == (2.0 * 10.0 + 3.0) / 9.0
+
+
+class TestBoundExprSerializationComplete:
+	def test_bound_pythonfunc1_exact(self) -> None:
+		bound = safe_sqrt(x).bind(Ctx(x=4.0, y=0))
+		assert bound.to_string() == "my_sqrt(x:4.0) -> 2.0"
+		assert str(bound) == "my_sqrt(x:4.0) -> 2.0"
+		assert bound.unwrap() == 2.0
+
+	def test_bound_pythonfunc2_exact(self) -> None:
+		bound = safe_div(x, y).bind(Ctx(x=10.0, y=2.0))
+		assert bound.to_string() == "div(x:10.0, y:2.0) -> 5.0"
+		assert bound.unwrap() == 5.0
+
+	def test_bound_result_add_exact(self) -> None:
+		bound = (safe_sqrt(x) + safe_sqrt(y)).bind(Ctx(x=4.0, y=9.0))
+		assert bound.to_string() == ("(my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)")
+		assert bound.unwrap() == 5.0
+
+	def test_bound_deep_nested_exact(self) -> None:
+		bound = safe_div(safe_sqrt(x) + safe_sqrt(y), 2.0).bind(Ctx(x=4.0, y=16.0))
+		assert bound.to_string() == (
+			"div((my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:16.0) -> 4.0 -> 6.0), 2.0) -> 3.0"
+		)
+		assert bound.unwrap() == 3.0
+
+	def test_bound_four_level(self) -> None:
+		bound = ((safe_sqrt(x) + safe_sqrt(y)) * safe_div(x, y)).bind(Ctx(x=4.0, y=9.0))
+		assert bound.to_string() == (
+			"((my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)"
+			" * div(x:4.0, y:9.0) -> 0.4444444444444444"
+			" -> 2.2222222222222223)"
+		)
+		assert bound.unwrap() == (2.0 + 3.0) * (4.0 / 9.0)
+
+	def test_bound_composed_with_var(self) -> None:
+		bound_sqrt = safe_sqrt(x).bind(Ctx(x=4.0, y=0))
+		composed = bound_sqrt + y
+		assert composed.to_string() == "(my_sqrt(x:4.0) -> 2.0 + y)"
+		assert composed.to_string(Ctx(x=0, y=9.0)) == ("(my_sqrt(x:4.0) -> 2.0 + y:9.0 -> 11.0)")
+		assert composed.unwrap(Ctx(x=0, y=9.0)) == 11.0
+
+	def test_bound_in_ffi_arg(self) -> None:
+		bound_sqrt = safe_sqrt(x).bind(Ctx(x=4.0, y=0))
+		expr = safe_div(bound_sqrt, y)
+		assert expr.to_string() == "div(my_sqrt(x:4.0) -> 2.0, y)"
+		assert expr.to_string(Ctx(x=0, y=2.0)) == ("div(my_sqrt(x:4.0) -> 2.0, y:2.0) -> 1.0")
+		assert expr.unwrap(Ctx(x=0, y=2.0)) == 1.0
+
+	def test_bound_failure_exact(self) -> None:
+		bound = safe_sqrt(x).bind(Ctx(x=-1.0, y=0))
+		assert bound.to_string() == ("my_sqrt(x:-1.0) -> " + SQRT_FAIL.format(val=-1.0))
+		assert isinstance(bound.unwrap(), Failure)
+
+
+class TestPartialSerializationDeep:
+	def test_partial_ffi_inside_pure_resolved(self) -> None:
+		expr = safe_div(safe_sqrt(x + y), safe_sqrt(x * y))
+		partial = expr.partial(Ctx(x=4.0, y=9.0))
+		assert partial.to_string() == ("div(my_sqrt((x:4.0 + y:9.0)), my_sqrt((x:4.0 * y:9.0)))")
+
+	def test_partial_one_var_resolved(self) -> None:
+		expr = safe_div(safe_sqrt(x + y), safe_sqrt(x))
+		partial = expr.partial(XOnly(x=4.0))
+		assert partial.to_string() == ("div(my_sqrt((x:4.0 + y)), my_sqrt(x:4.0))")
+
+	def test_partial_result_op_deep(self) -> None:
+		expr = (safe_sqrt(x) + safe_sqrt(y)) * 2.0 - 1.0
+		partial = expr.partial(Ctx(x=4.0, y=9.0))
+		assert partial.to_string() == ("(((my_sqrt(x:4.0) + my_sqrt(y:9.0)) * 2.0) - 1.0)")
+
+	def test_partial_pythonfunc0_unchanged(self) -> None:
+		pi: PythonFunc0[float, Ctx] = get_pi_wrapped()
+		expr = pi + safe_sqrt(x)
+		partial = expr.partial(Ctx(x=4.0, y=0))
+		assert partial.to_string() == "(get_pi() + my_sqrt(x:4.0))"
+
+
+class TestFailureSerializationExact:
+	def test_failure_single_exact(self) -> None:
+		expr = safe_sqrt(x)
+		assert expr.to_string(Ctx(x=-1.0, y=0)) == (
+			"my_sqrt(x:-1.0) -> " + SQRT_FAIL.format(val=-1.0)
+		)
+		result = expr.unwrap(Ctx(x=-1.0, y=0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+
+	def test_failure_nested_propagation_exact(self) -> None:
+		expr = safe_sqrt(safe_sqrt(x))
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string(Ctx(x=-1.0, y=0)) == (f"my_sqrt(my_sqrt(x:-1.0) -> {fail}) -> {fail}")
+
+	def test_failure_accumulated_exact(self) -> None:
+		expr = safe_div(safe_sqrt(x), safe_sqrt(y))
+		single = SQRT_FAIL.format(val=-1.0)
+		double = (
+			"Failure(exceptions=("
+			"ValueError('expected a nonnegative input, got -1.0'), "
+			"ValueError('expected a nonnegative input, got -1.0')))"
+		)
+		assert expr.to_string(Ctx(x=-1.0, y=-1.0)) == (
+			f"div(my_sqrt(x:-1.0) -> {single}, my_sqrt(y:-1.0) -> {single}) -> {double}"
+		)
+		result = expr.unwrap(Ctx(x=-1.0, y=-1.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 2
+
+	def test_failure_deep_mixed_exact(self) -> None:
+		expr = safe_div(safe_sqrt(x + y), safe_sqrt(x))
+		fail_4 = SQRT_FAIL.format(val=-4.0)
+		fail_1 = SQRT_FAIL.format(val=-1.0)
+		double = (
+			"Failure(exceptions=("
+			"ValueError('expected a nonnegative input, got -4.0'), "
+			"ValueError('expected a nonnegative input, got -1.0')))"
+		)
+		assert expr.to_string(Ctx(x=-1.0, y=-3.0)) == (
+			f"div(my_sqrt((x:-1.0 + y:-3.0 -> -4.0)) -> {fail_4},"
+			f" my_sqrt(x:-1.0) -> {fail_1}) -> {double}"
+		)
+
+	def test_failure_divzero_exact(self) -> None:
+		expr = safe_div(safe_sqrt(x), y)
+		assert expr.to_string(Ctx(x=4.0, y=0.0)) == (
+			"div(my_sqrt(x:4.0) -> 2.0, y:0.0)"
+			" -> Failure(exceptions=(ZeroDivisionError('division by zero'),))"
+		)
+
+	def test_bound_failure_deep_exact(self) -> None:
+		bound = safe_div(safe_sqrt(x + y), safe_sqrt(x)).bind(Ctx(x=-1.0, y=-3.0))
+		fail_4 = SQRT_FAIL.format(val=-4.0)
+		fail_1 = SQRT_FAIL.format(val=-1.0)
+		double = (
+			"Failure(exceptions=("
+			"ValueError('expected a nonnegative input, got -4.0'), "
+			"ValueError('expected a nonnegative input, got -1.0')))"
+		)
+		assert bound.to_string() == (
+			f"div(my_sqrt((x:-1.0 + y:-3.0 -> -4.0)) -> {fail_4},"
+			f" my_sqrt(x:-1.0) -> {fail_1}) -> {double}"
+		)
+		assert isinstance(bound.unwrap(), Failure)
+
+
+class TestFailureTrickleDown:
+	def test_failure_trickles_through_addition(self) -> None:
+		expr = safe_sqrt(x) + 10.0
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string() == "(my_sqrt(x) + 10.0)"
+		assert expr.to_string(Ctx(x=-1.0, y=0)) == (f"(my_sqrt(x:-1.0) -> {fail} + 10.0 -> {fail})")
+		assert isinstance(expr.unwrap(Ctx(x=-1.0, y=0)), Failure)
+
+	def test_failure_trickles_through_multiplication(self) -> None:
+		expr = safe_sqrt(x) * y
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string() == "(my_sqrt(x) * y)"
+		assert expr.to_string(Ctx(x=-1.0, y=5.0)) == (
+			f"(my_sqrt(x:-1.0) -> {fail} * y:5.0 -> {fail})"
+		)
+		assert isinstance(expr.unwrap(Ctx(x=-1.0, y=5.0)), Failure)
+
+	def test_failure_trickles_through_ffi2(self) -> None:
+		expr = safe_div(safe_sqrt(x) + 1.0, y)
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string() == "div((my_sqrt(x) + 1.0), y)"
+		assert expr.to_string(Ctx(x=-1.0, y=5.0)) == (
+			f"div((my_sqrt(x:-1.0) -> {fail} + 1.0 -> {fail}), y:5.0) -> {fail}"
+		)
+		assert isinstance(expr.unwrap(Ctx(x=-1.0, y=5.0)), Failure)
+
+	def test_failure_trickles_through_chain(self) -> None:
+		expr = (safe_sqrt(x) + 1.0) * 2.0 - 3.0
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string() == "(((my_sqrt(x) + 1.0) * 2.0) - 3.0)"
+		assert expr.to_string(Ctx(x=-1.0, y=0)) == (
+			f"(((my_sqrt(x:-1.0) -> {fail} + 1.0 -> {fail}) * 2.0 -> {fail}) - 3.0 -> {fail})"
+		)
+		assert isinstance(expr.unwrap(Ctx(x=-1.0, y=0)), Failure)
+
+	def test_failure_one_branch_trickles_through_mul(self) -> None:
+		expr = (safe_sqrt(x) + safe_sqrt(y)) * safe_div(x, y)
+		fail = SQRT_FAIL.format(val=-1.0)
+		assert expr.to_string() == ("((my_sqrt(x) + my_sqrt(y)) * div(x, y))")
+		assert expr.to_string(Ctx(x=-1.0, y=9.0)) == (
+			f"((my_sqrt(x:-1.0) -> {fail}"
+			" + my_sqrt(y:9.0) -> 3.0"
+			f" -> {fail})"
+			" * div(x:-1.0, y:9.0) -> -0.1111111111111111"
+			f" -> {fail})"
+		)
+		assert isinstance(expr.unwrap(Ctx(x=-1.0, y=9.0)), Failure)
+
+
+class TestComparisonFFISerialization:
+	def test_gt_evaluated_exact(self) -> None:
+		expr = safe_sqrt(x) > 1.5
+		assert expr.to_string() == "(my_sqrt(x) > 1.5)"
+		assert expr.to_string(Ctx(x=4.0, y=0)) == ("(my_sqrt(x:4.0) -> 2.0 > 1.5 -> True)")
+		assert expr.unwrap(Ctx(x=4.0, y=0)) is True
+
+	def test_and_range_evaluated_exact(self) -> None:
+		expr = (safe_sqrt(x) > 1.0) & (safe_sqrt(x) < 5.0)
+		assert expr.to_string() == ("((my_sqrt(x) > 1.0) & (my_sqrt(x) < 5.0))")
+		assert expr.to_string(Ctx(x=4.0, y=0)) == (
+			"((my_sqrt(x:4.0) -> 2.0 > 1.0 -> True)"
+			" & (my_sqrt(x:4.0) -> 2.0 < 5.0 -> True) -> True)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=0)) is True
+
+	def test_not_ffi_comparison_evaluated_exact(self) -> None:
+		expr = ~(safe_sqrt(x) > 5.0)
+		assert expr.to_string() == "(not (my_sqrt(x) > 5.0))"
+		assert expr.to_string(Ctx(x=4.0, y=0)) == (
+			"(not (my_sqrt(x:4.0) -> 2.0 > 5.0 -> False) -> True)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=0)) is True
+
+	def test_deep_ffi_comparison_evaluated(self) -> None:
+		expr = (safe_sqrt(x) + safe_sqrt(y)) > safe_div(x, y)
+		assert expr.to_string() == ("((my_sqrt(x) + my_sqrt(y)) > div(x, y))")
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"((my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)"
+			" > div(x:4.0, y:9.0) -> 0.4444444444444444 -> True)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) is True
+
+	def test_and_deep_ffi_comparisons(self) -> None:
+		expr = ((safe_sqrt(x) + safe_sqrt(y)) > 0) & (safe_div(x, y) < 1.0)
+		assert expr.to_string() == ("(((my_sqrt(x) + my_sqrt(y)) > 0) & (div(x, y) < 1.0))")
+		assert expr.to_string(Ctx(x=4.0, y=9.0)) == (
+			"(((my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)"
+			" > 0 -> True)"
+			" & (div(x:4.0, y:9.0) -> 0.4444444444444444"
+			" < 1.0 -> True) -> True)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) is True
+
+
+class TestLiteralCoercionSerialization:
+	def test_literal_in_ffi_arg(self) -> None:
+		expr: PythonFunc1[float, float, Ctx] = safe_sqrt(9.0)
+		assert expr.to_string() == "my_sqrt(9.0)"
+		assert expr.to_string(Ctx(x=0, y=0)) == "my_sqrt(9.0) -> 3.0"
+		assert expr.unwrap(Ctx(x=0, y=0)) == 3.0
+
+	def test_literal_in_result_op(self) -> None:
+		expr = safe_sqrt(x) + 1.0
+		assert expr.to_string() == "(my_sqrt(x) + 1.0)"
+		assert expr.to_string(Ctx(x=4.0, y=0)) == ("(my_sqrt(x:4.0) -> 2.0 + 1.0 -> 3.0)")
+
+	def test_reverse_literal_in_result_op(self) -> None:
+		expr = 10.0 - safe_sqrt(x)
+		assert expr.to_string() == "(10.0 - my_sqrt(x))"
+		assert expr.to_string(Ctx(x=4.0, y=0)) == ("(10.0 - my_sqrt(x:4.0) -> 2.0 -> 8.0)")
+
+	def test_named_const_in_ffi_arg(self) -> None:
+		expr = safe_div(safe_sqrt(x), Const("TWO", 2.0))
+		assert expr.to_string() == "div(my_sqrt(x), TWO:2.0)"
+		assert expr.to_string(Ctx(x=16.0, y=0)) == ("div(my_sqrt(x:16.0) -> 4.0, TWO:2.0) -> 2.0")
+		assert expr.unwrap(Ctx(x=16.0, y=0)) == 2.0
+
+	def test_mixed_literal_named_const_var_ffi(self) -> None:
+		expr = (safe_sqrt(x) * Const("Scale", 10.0) + 3.0) / y
+		assert expr.to_string() == ("(((my_sqrt(x) * Scale:10.0) + 3.0) / y)")
+		assert expr.to_string(Ctx(x=4.0, y=5.0)) == (
+			"(((my_sqrt(x:4.0) -> 2.0 * Scale:10.0 -> 20.0) + 3.0 -> 23.0) / y:5.0 -> 4.6)"
+		)
+		assert expr.unwrap(Ctx(x=4.0, y=5.0)) == 4.6
