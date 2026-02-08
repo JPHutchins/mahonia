@@ -14,6 +14,12 @@ from mahonia.python_func import (
 	PythonFunc1Wrapper,
 	PythonFunc2,
 	PythonFunc2Wrapper,
+	PythonFunc3,
+	PythonFunc3Wrapper,
+	PythonFunc6,
+	PythonFunc6Wrapper,
+	PythonFunc12,
+	PythonFunc12Wrapper,
 	ResultAdd,  # pyright: ignore[reportUnusedImport]
 	python_func,
 )
@@ -201,11 +207,26 @@ class TestFactoryFunction:
 		assert isinstance(wrapper, PythonFunc2Wrapper)
 
 	def test_factory_raises_for_unsupported_arity(self) -> None:
-		def three_args(a: int, b: int, c: int) -> int:
-			return a + b + c
+		def thirteen_args(
+			a1: int,
+			a2: int,
+			a3: int,
+			a4: int,
+			a5: int,
+			a6: int,
+			a7: int,
+			a8: int,
+			a9: int,
+			a10: int,
+			a11: int,
+			a12: int,
+			a13: int,
+		) -> int:
+			return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13
 
-		with pytest.raises(ValueError, match="python_func supports 0-2 args, got 3"):
-			python_func(three_args)  # type: ignore[arg-type]
+		with pytest.raises(ValueError, match="python_func supports 0-12 args, got 13"):
+			# Arity 13 has no overload — type: ignore asserts the type checker catches this
+			python_func(thirteen_args)  # type: ignore[arg-type]
 
 
 class TestIntegration:
@@ -1048,3 +1069,722 @@ class TestLiteralCoercionSerialization:
 			"(((my_sqrt(x:4.0) -> 2.0 * Scale:10.0 -> 20.0) + 3.0 -> 23.0) / y:5.0 -> 4.6)"
 		)
 		assert expr.unwrap(Ctx(x=4.0, y=5.0)) == 4.6
+
+
+# --- Arity 3-12 test infrastructure ---
+
+
+class Ctx3(NamedTuple):
+	a: float
+	b: float
+	t: float
+
+
+a3 = Var[float, Ctx3]("a")
+b3 = Var[float, Ctx3]("b")
+t3 = Var[float, Ctx3]("t")
+
+
+def lerp(a: float, b: float, t: float) -> float:
+	return a + (b - a) * t
+
+
+def lerp_raises(a: float, b: float, t: float) -> float:
+	if t < 0.0 or t > 1.0:
+		raise ValueError("t out of range")
+	return a + (b - a) * t
+
+
+safe_lerp = python_func(lerp)
+safe_lerp_raises = python_func(lerp_raises)
+
+
+class Ctx6(NamedTuple):
+	v1: float
+	w1: float
+	v2: float
+	w2: float
+	v3: float
+	w3: float
+
+
+v1 = Var[float, Ctx6]("v1")
+w1 = Var[float, Ctx6]("w1")
+v2 = Var[float, Ctx6]("v2")
+w2 = Var[float, Ctx6]("w2")
+v3 = Var[float, Ctx6]("v3")
+w3 = Var[float, Ctx6]("w3")
+
+
+def weighted_avg_3(
+	v1: float,
+	w1: float,
+	v2: float,
+	w2: float,
+	v3: float,
+	w3: float,
+) -> float:
+	return (v1 * w1 + v2 * w2 + v3 * w3) / (w1 + w2 + w3)
+
+
+safe_weighted_avg = python_func(weighted_avg_3)
+
+
+class Ctx12(NamedTuple):
+	a1: float
+	a2: float
+	a3: float
+	a4: float
+	a5: float
+	a6: float
+	b1: float
+	b2: float
+	b3: float
+	b4: float
+	b5: float
+	b6: float
+
+
+d1 = Var[float, Ctx12]("a1")
+d2 = Var[float, Ctx12]("a2")
+d3 = Var[float, Ctx12]("a3")
+d4 = Var[float, Ctx12]("a4")
+d5 = Var[float, Ctx12]("a5")
+d6 = Var[float, Ctx12]("a6")
+e1 = Var[float, Ctx12]("b1")
+e2 = Var[float, Ctx12]("b2")
+e3 = Var[float, Ctx12]("b3")
+e4 = Var[float, Ctx12]("b4")
+e5 = Var[float, Ctx12]("b5")
+e6 = Var[float, Ctx12]("b6")
+
+
+def dot_product_6d(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	b1: float,
+	b2: float,
+	b3: float,
+	b4: float,
+	b5: float,
+	b6: float,
+) -> float:
+	return a1 * b1 + a2 * b2 + a3 * b3 + a4 * b4 + a5 * b5 + a6 * b6
+
+
+safe_dot = python_func(dot_product_6d)
+
+
+# --- PythonFunc3 tests ---
+
+
+class TestPythonFunc3:
+	def test_success_with_expr_args(self) -> None:
+		expr = safe_lerp(a3, b3, t3)
+		assert expr.unwrap(Ctx3(a=0.0, b=10.0, t=0.5)) == 5.0
+
+	def test_success_with_literal_args(self) -> None:
+		expr: PythonFunc3[float, float, float, float, Ctx3] = safe_lerp(0.0, 10.0, 0.5)
+		assert expr.unwrap(Ctx3(a=0, b=0, t=0)) == 5.0
+
+	def test_success_with_mixed_args(self) -> None:
+		expr = safe_lerp(a3, 10.0, t3)
+		assert expr.unwrap(Ctx3(a=2.0, b=0, t=0.5)) == 6.0
+
+	def test_single_failure_propagation(self) -> None:
+		expr = safe_lerp(safe_sqrt(Const(None, -1.0)), b3, t3)
+		result = expr.unwrap(Ctx3(a=0, b=10.0, t=0.5))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+
+	def test_multiple_failure_accumulation(self) -> None:
+		expr = safe_lerp(
+			safe_sqrt(Const(None, -1.0)),
+			safe_sqrt(Const(None, -4.0)),
+			t3,
+		)
+		result = expr.unwrap(Ctx3(a=0, b=0, t=0.5))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 2
+
+	def test_all_args_fail(self) -> None:
+		expr = safe_lerp(
+			safe_sqrt(Const(None, -1.0)),
+			safe_sqrt(Const(None, -2.0)),
+			safe_sqrt(Const(None, -3.0)),
+		)
+		result = expr.unwrap(Ctx3(a=0, b=0, t=0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 3
+
+	def test_function_exception(self) -> None:
+		expr = safe_lerp_raises(a3, b3, t3)
+		result = expr.unwrap(Ctx3(a=0.0, b=10.0, t=2.0))
+		assert isinstance(result, Failure)
+		assert "t out of range" in str(result.exceptions[0])
+
+	def test_to_string_without_ctx(self) -> None:
+		expr = safe_lerp(a3, b3, t3)
+		assert expr.to_string() == "lerp(a, b, t)"
+
+	def test_to_string_with_ctx(self) -> None:
+		expr = safe_lerp(a3, b3, t3)
+		assert expr.to_string(Ctx3(a=0.0, b=10.0, t=0.5)) == "lerp(a:0.0, b:10.0, t:0.5) -> 5.0"
+
+	def test_partial(self) -> None:
+		expr = safe_lerp(a3, b3, t3)
+		partial_expr = expr.partial(Ctx3(a=2.0, b=8.0, t=0.5))
+		assert partial_expr.to_string() == "lerp(a:2.0, b:8.0, t:0.5)"
+
+	def test_factory_returns_correct_wrapper(self) -> None:
+		assert isinstance(safe_lerp, PythonFunc3Wrapper)
+
+	def test_composition_with_operator(self) -> None:
+		expr = safe_lerp(a3, b3, t3) + a3
+		assert expr.unwrap(Ctx3(a=0.0, b=10.0, t=0.5)) == 5.0
+
+
+# --- PythonFunc6 tests ---
+
+
+class TestPythonFunc6:
+	def test_success_with_expr_args(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+		assert expr.unwrap(Ctx6(v1=10.0, w1=1.0, v2=20.0, w2=1.0, v3=30.0, w3=1.0)) == 20.0
+
+	def test_success_with_literal_args(self) -> None:
+		expr: PythonFunc6[float, float, float, float, float, float, float, Ctx6] = (
+			safe_weighted_avg(10.0, 1.0, 20.0, 1.0, 30.0, 1.0)
+		)
+		assert expr.unwrap(Ctx6(v1=0, w1=0, v2=0, w2=0, v3=0, w3=0)) == 20.0
+
+	def test_success_with_mixed_args(self) -> None:
+		expr = safe_weighted_avg(v1, 2.0, v2, 3.0, v3, 5.0)
+		assert expr.unwrap(Ctx6(v1=10.0, w1=0, v2=20.0, w2=0, v3=30.0, w3=0)) == 23.0
+
+	def test_single_failure_propagation(self) -> None:
+		expr = safe_weighted_avg(safe_sqrt(Const(None, -1.0)), w1, v2, w2, v3, w3)
+		result = expr.unwrap(Ctx6(v1=0, w1=1.0, v2=10.0, w2=1.0, v3=10.0, w3=1.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+
+	def test_multiple_failure_accumulation(self) -> None:
+		expr = safe_weighted_avg(
+			safe_sqrt(Const(None, -1.0)),
+			w1,
+			safe_sqrt(Const(None, -2.0)),
+			w2,
+			v3,
+			w3,
+		)
+		result = expr.unwrap(Ctx6(v1=0, w1=1.0, v2=0, w2=1.0, v3=10.0, w3=1.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 2
+
+	def test_all_args_fail(self) -> None:
+		expr = safe_weighted_avg(
+			safe_sqrt(Const(None, -1.0)),
+			safe_sqrt(Const(None, -2.0)),
+			safe_sqrt(Const(None, -3.0)),
+			safe_sqrt(Const(None, -4.0)),
+			safe_sqrt(Const(None, -5.0)),
+			safe_sqrt(Const(None, -6.0)),
+		)
+		result = expr.unwrap(Ctx6(v1=0, w1=0, v2=0, w2=0, v3=0, w3=0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 6
+
+	def test_function_exception_division_by_zero(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+		result = expr.unwrap(Ctx6(v1=10.0, w1=0.0, v2=20.0, w2=0.0, v3=30.0, w3=0.0))
+		assert isinstance(result, Failure)
+
+	def test_to_string_without_ctx(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+		assert expr.to_string() == "weighted_avg_3(v1, w1, v2, w2, v3, w3)"
+
+	def test_to_string_with_ctx(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+		result_str = expr.to_string(Ctx6(v1=10.0, w1=1.0, v2=20.0, w2=1.0, v3=30.0, w3=1.0))
+		assert result_str == (
+			"weighted_avg_3(v1:10.0, w1:1.0, v2:20.0, w2:1.0, v3:30.0, w3:1.0) -> 20.0"
+		)
+
+	def test_partial(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+		partial_expr = expr.partial(Ctx6(v1=10.0, w1=1.0, v2=20.0, w2=1.0, v3=30.0, w3=1.0))
+		assert partial_expr.to_string() == (
+			"weighted_avg_3(v1:10.0, w1:1.0, v2:20.0, w2:1.0, v3:30.0, w3:1.0)"
+		)
+
+	def test_factory_returns_correct_wrapper(self) -> None:
+		assert isinstance(safe_weighted_avg, PythonFunc6Wrapper)
+
+	def test_composition_with_operator(self) -> None:
+		expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3) * 2.0
+		assert expr.unwrap(Ctx6(v1=10.0, w1=1.0, v2=20.0, w2=1.0, v3=30.0, w3=1.0)) == 40.0
+
+
+# --- PythonFunc12 tests ---
+
+
+class TestPythonFunc12:
+	def test_success_with_expr_args(self) -> None:
+		expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)
+		ctx = Ctx12(
+			a1=1.0,
+			a2=0.0,
+			a3=0.0,
+			a4=0.0,
+			a5=0.0,
+			a6=0.0,
+			b1=1.0,
+			b2=0.0,
+			b3=0.0,
+			b4=0.0,
+			b5=0.0,
+			b6=0.0,
+		)
+		assert expr.unwrap(ctx) == 1.0
+
+	def test_success_with_literal_args(self) -> None:
+		expr: PythonFunc12[
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			Ctx12,
+		] = safe_dot(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+		assert (
+			expr.unwrap(
+				Ctx12(
+					a1=0,
+					a2=0,
+					a3=0,
+					a4=0,
+					a5=0,
+					a6=0,
+					b1=0,
+					b2=0,
+					b3=0,
+					b4=0,
+					b5=0,
+					b6=0,
+				)
+			)
+			== 21.0
+		)
+
+	def test_success_with_mixed_args(self) -> None:
+		expr = safe_dot(d1, d2, d3, 0.0, 0.0, 0.0, e1, e2, e3, 0.0, 0.0, 0.0)
+		ctx = Ctx12(
+			a1=1.0, a2=2.0, a3=3.0, a4=0, a5=0, a6=0, b1=4.0, b2=5.0, b3=6.0, b4=0, b5=0, b6=0
+		)
+		assert expr.unwrap(ctx) == 32.0
+
+	def test_single_failure_propagation(self) -> None:
+		expr = safe_dot(
+			safe_sqrt(Const(None, -1.0)),
+			d2,
+			d3,
+			d4,
+			d5,
+			d6,
+			e1,
+			e2,
+			e3,
+			e4,
+			e5,
+			e6,
+		)
+		ctx = Ctx12(
+			a1=0,
+			a2=1.0,
+			a3=1.0,
+			a4=1.0,
+			a5=1.0,
+			a6=1.0,
+			b1=1.0,
+			b2=1.0,
+			b3=1.0,
+			b4=1.0,
+			b5=1.0,
+			b6=1.0,
+		)
+		result = expr.unwrap(ctx)
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+
+	def test_multiple_failure_accumulation(self) -> None:
+		expr = safe_dot(
+			safe_sqrt(Const(None, -1.0)),
+			safe_sqrt(Const(None, -2.0)),
+			safe_sqrt(Const(None, -3.0)),
+			d4,
+			d5,
+			d6,
+			e1,
+			e2,
+			e3,
+			e4,
+			e5,
+			e6,
+		)
+		ctx = Ctx12(
+			a1=0, a2=0, a3=0, a4=1.0, a5=1.0, a6=1.0, b1=1.0, b2=1.0, b3=1.0, b4=1.0, b5=1.0, b6=1.0
+		)
+		result = expr.unwrap(ctx)
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 3
+
+	def test_all_args_fail(self) -> None:
+		expr = safe_dot(
+			safe_sqrt(Const(None, -1.0)),
+			safe_sqrt(Const(None, -2.0)),
+			safe_sqrt(Const(None, -3.0)),
+			safe_sqrt(Const(None, -4.0)),
+			safe_sqrt(Const(None, -5.0)),
+			safe_sqrt(Const(None, -6.0)),
+			safe_sqrt(Const(None, -7.0)),
+			safe_sqrt(Const(None, -8.0)),
+			safe_sqrt(Const(None, -9.0)),
+			safe_sqrt(Const(None, -10.0)),
+			safe_sqrt(Const(None, -11.0)),
+			safe_sqrt(Const(None, -12.0)),
+		)
+		ctx = Ctx12(a1=0, a2=0, a3=0, a4=0, a5=0, a6=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0)
+		result = expr.unwrap(ctx)
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 12
+
+	def test_to_string_without_ctx(self) -> None:
+		expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)
+		assert expr.to_string() == "dot_product_6d(a1, a2, a3, a4, a5, a6, b1, b2, b3, b4, b5, b6)"
+
+	def test_to_string_with_ctx(self) -> None:
+		expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)
+		ctx = Ctx12(
+			a1=1.0,
+			a2=0.0,
+			a3=0.0,
+			a4=0.0,
+			a5=0.0,
+			a6=0.0,
+			b1=1.0,
+			b2=0.0,
+			b3=0.0,
+			b4=0.0,
+			b5=0.0,
+			b6=0.0,
+		)
+		result_str = expr.to_string(ctx)
+		assert "-> 1.0" in result_str
+		assert result_str.startswith("dot_product_6d(")
+
+	def test_partial(self) -> None:
+		expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)
+		ctx = Ctx12(
+			a1=1.0,
+			a2=2.0,
+			a3=3.0,
+			a4=4.0,
+			a5=5.0,
+			a6=6.0,
+			b1=1.0,
+			b2=1.0,
+			b3=1.0,
+			b4=1.0,
+			b5=1.0,
+			b6=1.0,
+		)
+		partial_expr = expr.partial(ctx)
+		assert "a1:1.0" in partial_expr.to_string()
+		assert "b6:1.0" in partial_expr.to_string()
+
+	def test_factory_returns_correct_wrapper(self) -> None:
+		assert isinstance(safe_dot, PythonFunc12Wrapper)
+
+	def test_composition_with_operator(self) -> None:
+		expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6) + d1
+		ctx = Ctx12(
+			a1=1.0,
+			a2=0.0,
+			a3=0.0,
+			a4=0.0,
+			a5=0.0,
+			a6=0.0,
+			b1=1.0,
+			b2=0.0,
+			b3=0.0,
+			b4=0.0,
+			b5=0.0,
+			b6=0.0,
+		)
+		assert expr.unwrap(ctx) == 2.0
+
+
+# --- Factory tests for intermediate arities ---
+
+
+def sum4(a1: float, a2: float, a3: float, a4: float) -> float:
+	return a1 + a2 + a3 + a4
+
+
+def sum5(a1: float, a2: float, a3: float, a4: float, a5: float) -> float:
+	return a1 + a2 + a3 + a4 + a5
+
+
+def sum7(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	a7: float,
+) -> float:
+	return a1 + a2 + a3 + a4 + a5 + a6 + a7
+
+
+def sum8(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	a7: float,
+	a8: float,
+) -> float:
+	return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8
+
+
+def sum9(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	a7: float,
+	a8: float,
+	a9: float,
+) -> float:
+	return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9
+
+
+def sum10(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	a7: float,
+	a8: float,
+	a9: float,
+	a10: float,
+) -> float:
+	return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10
+
+
+def sum11(
+	a1: float,
+	a2: float,
+	a3: float,
+	a4: float,
+	a5: float,
+	a6: float,
+	a7: float,
+	a8: float,
+	a9: float,
+	a10: float,
+	a11: float,
+) -> float:
+	return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11
+
+
+class TestFactoryIntermediateArities:
+	def test_factory_arity_4(self) -> None:
+		from mahonia.python_func import PythonFunc4Wrapper
+
+		assert isinstance(python_func(sum4), PythonFunc4Wrapper)
+
+	def test_factory_arity_5(self) -> None:
+		from mahonia.python_func import PythonFunc5Wrapper
+
+		assert isinstance(python_func(sum5), PythonFunc5Wrapper)
+
+	def test_factory_arity_7(self) -> None:
+		from mahonia.python_func import PythonFunc7Wrapper
+
+		assert isinstance(python_func(sum7), PythonFunc7Wrapper)
+
+	def test_factory_arity_8(self) -> None:
+		from mahonia.python_func import PythonFunc8Wrapper
+
+		assert isinstance(python_func(sum8), PythonFunc8Wrapper)
+
+	def test_factory_arity_9(self) -> None:
+		from mahonia.python_func import PythonFunc9Wrapper
+
+		assert isinstance(python_func(sum9), PythonFunc9Wrapper)
+
+	def test_factory_arity_10(self) -> None:
+		from mahonia.python_func import PythonFunc10Wrapper
+
+		assert isinstance(python_func(sum10), PythonFunc10Wrapper)
+
+	def test_factory_arity_11(self) -> None:
+		from mahonia.python_func import PythonFunc11Wrapper
+
+		assert isinstance(python_func(sum11), PythonFunc11Wrapper)
+
+
+# --- Static type safety tests ---
+
+
+@pytest.mark.mypy_testing
+def test_python_func_3_generic_types() -> None:
+	assert_type(safe_lerp, PythonFunc3Wrapper[float, float, float, float])
+	expr = safe_lerp(a3, b3, t3)
+	assert_type(expr, PythonFunc3[float, float, float, float, Ctx3])
+	assert_type(expr.unwrap(Ctx3(a=0, b=10, t=0.5)), float | Failure)
+	add_expr = safe_lerp(a3, b3, t3) + a3
+	assert_type(add_expr, ResultAdd[float, Ctx3])
+
+	# Wrong literal type must be caught by type checker.
+	# Since warn_unused_ignores=true, these ignores act as type-error assertions:
+	# if the type checker stops flagging the line, the unused ignore itself becomes an error.
+	safe_lerp("wrong", b3, t3)  # type: ignore[arg-type]
+	safe_lerp(a3, "wrong", t3)  # type: ignore[arg-type]
+	safe_lerp(a3, b3, "wrong")  # type: ignore[arg-type]
+
+	# Correct literal type must be accepted without error.
+	safe_lerp(0.0, b3, t3)
+	safe_lerp(a3, 0.0, t3)
+	safe_lerp(a3, b3, 0.0)
+
+
+@pytest.mark.mypy_testing
+def test_python_func_6_generic_types() -> None:
+	assert_type(
+		safe_weighted_avg,
+		PythonFunc6Wrapper[float, float, float, float, float, float, float],
+	)
+	expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3)
+	assert_type(expr, PythonFunc6[float, float, float, float, float, float, float, Ctx6])
+	assert_type(
+		expr.unwrap(Ctx6(v1=0, w1=0, v2=0, w2=0, v3=0, w3=0)),
+		float | Failure,
+	)
+	mul_expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3) * 2.0
+	from mahonia.python_func import ResultMul  # pyright: ignore[reportUnusedImport]
+
+	assert_type(mul_expr, ResultMul[float, Ctx6])
+
+	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
+	safe_weighted_avg("wrong", w1, v2, w2, v3, w3)  # type: ignore[arg-type]
+	safe_weighted_avg(v1, w1, v2, w2, v3, "wrong")  # type: ignore[arg-type]
+
+	# Correct literal type must be accepted
+	safe_weighted_avg(1.0, w1, v2, w2, v3, 1.0)
+
+
+@pytest.mark.mypy_testing
+def test_python_func_12_generic_types() -> None:
+	assert_type(
+		safe_dot,
+		PythonFunc12Wrapper[
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+		],
+	)
+	expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)
+	assert_type(
+		expr,
+		PythonFunc12[
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			float,
+			Ctx12,
+		],
+	)
+	assert_type(
+		expr.unwrap(
+			Ctx12(
+				a1=0,
+				a2=0,
+				a3=0,
+				a4=0,
+				a5=0,
+				a6=0,
+				b1=0,
+				b2=0,
+				b3=0,
+				b4=0,
+				b5=0,
+				b6=0,
+			)
+		),
+		float | Failure,
+	)
+	sub_expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6) - d1
+	from mahonia.python_func import ResultSub  # pyright: ignore[reportUnusedImport]
+
+	assert_type(sub_expr, ResultSub[float, Ctx12])
+
+	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
+	safe_dot("wrong", d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)  # type: ignore[arg-type]
+	safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, "wrong")  # type: ignore[arg-type]
+
+	# Correct literal type must be accepted
+	safe_dot(1.0, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, 1.0)
+
+
+@pytest.mark.mypy_testing
+def test_python_func_arg_type_checking_existing_arities() -> None:
+	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
+	safe_sqrt("wrong")  # type: ignore[arg-type]
+	safe_sqrt(4.0)
+	safe_sqrt(x)
+
+	# Wrong literal type must be caught
+	safe_div("wrong", y)  # type: ignore[arg-type]
+	safe_div(x, "wrong")  # type: ignore[arg-type]
+	safe_div(1.0, y)
+	safe_div(x, 2.0)
