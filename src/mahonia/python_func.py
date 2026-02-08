@@ -1,4 +1,5 @@
 import inspect
+import operator
 from dataclasses import dataclass
 from functools import reduce
 from typing import Any, Callable, ClassVar, Final, Protocol, overload, runtime_checkable
@@ -339,20 +340,29 @@ class ResultBinaryOperationOverloads[T, S](Expr[T, S, T | Failure]):
 @dataclass(frozen=True, eq=False, slots=True)
 class ResultBinaryOp[T, S, R](ToString[S], Expr[T, S, R]):
 	op: ClassVar[str] = " ? "
+	op_func: ClassVar[Callable[..., Any]]
 	template: ClassVar[str] = "({left}{op}{right})"
 	template_eval: ClassVar[str] = "({left}{op}{right} -> {out})"
 
 	left: Expr[Any, S, Any]
 	right: Expr[Any, S, Any]
 
+	def eval(self, ctx: S) -> Const[R]:
+		lv, rv = self.left.unwrap(ctx), self.right.unwrap(ctx)
+		match (lv, rv):
+			case (Failure() as f1, Failure() as f2):
+				return Const(None, f1 + f2)  # type: ignore[arg-type]
+			case (Failure() as f, _) | (_, Failure() as f):
+				return Const(None, f)  # type: ignore[arg-type]
+			case _:
+				return Const(None, self.op_func(lv, rv))
+
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.left.to_string(ctx)
 		right: Final = self.right.to_string(ctx)
 		if ctx is None:
 			return self.template.format(left=left, op=self.op, right=right)
-		return self.template_eval.format(
-			left=left, op=self.op, right=right, out=self.eval(ctx).value
-		)
+		return self.template_eval.format(left=left, op=self.op, right=right, out=self.unwrap(ctx))
 
 	def partial(self, ctx: Any) -> "Expr[T, Any, R]":
 		return type(self)(self.left.partial(ctx), self.right.partial(ctx))
@@ -364,16 +374,7 @@ class ResultAdd(
 	BooleanBinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " + "
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv + rv)
+	op_func: ClassVar = operator.add
 
 
 class ResultSub(
@@ -382,16 +383,7 @@ class ResultSub(
 	BooleanBinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " - "
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv - rv)
+	op_func: ClassVar = operator.sub
 
 
 class ResultMul(
@@ -400,16 +392,7 @@ class ResultMul(
 	BooleanBinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " * "
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv * rv)
+	op_func: ClassVar = operator.mul
 
 
 class ResultDiv(
@@ -418,16 +401,7 @@ class ResultDiv(
 	BooleanBinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " / "
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv / rv)
+	op_func: ClassVar = operator.truediv
 
 
 class ResultLt(
@@ -435,16 +409,7 @@ class ResultLt(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " < "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv < rv)
+	op_func: ClassVar = operator.lt
 
 
 class ResultLe(
@@ -452,16 +417,7 @@ class ResultLe(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " <= "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv <= rv)
+	op_func: ClassVar = operator.le
 
 
 class ResultGt(
@@ -469,16 +425,7 @@ class ResultGt(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " > "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv > rv)
+	op_func: ClassVar = operator.gt
 
 
 class ResultGe(
@@ -486,16 +433,7 @@ class ResultGe(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " >= "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv >= rv)
+	op_func: ClassVar = operator.ge
 
 
 class ResultEq(
@@ -503,16 +441,7 @@ class ResultEq(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " == "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv == rv)
+	op_func: ClassVar = operator.eq
 
 
 class ResultNe(
@@ -520,767 +449,204 @@ class ResultNe(
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " != "
-
-	def eval(self, ctx: S) -> Const[bool | Failure]:
-		lv, rv = self.left.eval(ctx).value, self.right.eval(ctx).value
-		match (lv, rv):
-			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
-			case (Failure() as f, _) | (_, Failure() as f):
-				return Const(None, f)
-			case _:
-				return Const(None, lv != rv)
+	op_func: ClassVar = operator.ne
 
 
 def _func_name(func: Callable[..., Any]) -> str:
 	return func.__name__ if func.__name__ != "<lambda>" else "lambda"
 
 
-@dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc0[R, S: ContextProtocol](
+class PythonFuncBase[R, S: ContextProtocol](
 	ResultBinaryOperationOverloads[R, S],
 	BooleanBinaryOperationOverloads[R, S],
 ):
+	func: Callable[..., R]
+	args: tuple[Expr[Any, S, Any], ...]
+
+	@property
+	def name(self) -> str:
+		return _func_name(self.func)
+
+	def eval(self, ctx: S) -> Const[R | Failure]:
+		vals = tuple(arg.unwrap(ctx) for arg in self.args)
+		failures = tuple(v for v in vals if isinstance(v, Failure))
+		if failures:
+			return Const(None, reduce(Failure.__add__, failures))
+		try:
+			return Const(None, self.func(*vals))
+		except Exception as e:
+			return Const(None, Failure((e,)))
+
+	def to_string(self, ctx: S | None = None) -> str:
+		args_str = ", ".join(a.to_string(ctx) for a in self.args)
+		if ctx is None:
+			return f"{self.name}({args_str})"
+		return f"{self.name}({args_str}) -> {self.unwrap(ctx)}"
+
+	def partial(self, ctx: Any) -> "PythonFuncBase[R, Any]":
+		return type(self)(self.func, tuple(arg.partial(ctx) for arg in self.args))  # type: ignore[call-arg]
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class PythonFunc0[R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[], R]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:  # noqa: ARG002
-		try:
-			return Const(None, self.func())
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		if ctx is None:
-			return f"{self.name}()"
-		return f"{self.name}() -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc0[R, Any]":  # noqa: ARG002
-		return self
+	args: tuple[Expr[Any, S, Any], ...] = ()
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc1[T1, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc1[T1, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1], R]
-	arg1: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (self.arg1.eval(ctx).value,)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(a.to_string(ctx) for a in (self.arg1,))
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc1[T1, R, Any]":
-		return PythonFunc1(self.func, self.arg1.partial(ctx))
+	args: tuple[Expr[Any, S, Any]]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc2[T1, T2, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc2[T1, T2, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (self.arg1.eval(ctx).value, self.arg2.eval(ctx).value)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(a.to_string(ctx) for a in (self.arg1, self.arg2))
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc2[T1, T2, R, Any]":
-		return PythonFunc2(self.func, self.arg1.partial(ctx), self.arg2.partial(ctx))
+	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any]]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc3[T1, T2, T3, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc3[T1, T2, T3, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (self.arg1.eval(ctx).value, self.arg2.eval(ctx).value, self.arg3.eval(ctx).value)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(a.to_string(ctx) for a in (self.arg1, self.arg2, self.arg3))
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc3[T1, T2, T3, R, Any]":
-		return PythonFunc3(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-		)
+	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any]]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc4[T1, T2, T3, T4, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc4[T1, T2, T3, T4, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(a.to_string(ctx) for a in (self.arg1, self.arg2, self.arg3, self.arg4))
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc4[T1, T2, T3, T4, R, Any]":
-		return PythonFunc4(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-		)
+	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any]]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc5[T1, T2, T3, T4, T5, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc5[T1, T2, T3, T4, T5, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx) for a in (self.arg1, self.arg2, self.arg3, self.arg4, self.arg5)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc5[T1, T2, T3, T4, T5, R, Any]":
-		return PythonFunc5(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc6[T1, T2, T3, T4, T5, T6, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc6[T1, T2, T3, T4, T5, T6, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (self.arg1, self.arg2, self.arg3, self.arg4, self.arg5, self.arg6)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc6[T1, T2, T3, T4, T5, T6, R, Any]":
-		return PythonFunc6(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, Any]":
-		return PythonFunc7(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
-class PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
-):
+class PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-	arg8: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-			self.arg8.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-				self.arg8,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, Any]":
-		return PythonFunc8(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-			self.arg8.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
+	PythonFuncBase[R, S],
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-	arg8: Expr[Any, S, Any]
-	arg9: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-			self.arg8.eval(ctx).value,
-			self.arg9.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-				self.arg8,
-				self.arg9,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(self, ctx: Any) -> "PythonFunc9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R, Any]":
-		return PythonFunc9(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-			self.arg8.partial(ctx),
-			self.arg9.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
+	PythonFuncBase[R, S],
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-	arg8: Expr[Any, S, Any]
-	arg9: Expr[Any, S, Any]
-	arg10: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-			self.arg8.eval(ctx).value,
-			self.arg9.eval(ctx).value,
-			self.arg10.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-				self.arg8,
-				self.arg9,
-				self.arg10,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(
-		self,
-		ctx: Any,
-	) -> "PythonFunc10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R, Any]":
-		return PythonFunc10(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-			self.arg8.partial(ctx),
-			self.arg9.partial(ctx),
-			self.arg10.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
+	PythonFuncBase[R, S],
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-	arg8: Expr[Any, S, Any]
-	arg9: Expr[Any, S, Any]
-	arg10: Expr[Any, S, Any]
-	arg11: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-			self.arg8.eval(ctx).value,
-			self.arg9.eval(ctx).value,
-			self.arg10.eval(ctx).value,
-			self.arg11.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-				self.arg8,
-				self.arg9,
-				self.arg10,
-				self.arg11,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(
-		self,
-		ctx: Any,
-	) -> "PythonFunc11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R, Any]":
-		return PythonFunc11(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-			self.arg8.partial(ctx),
-			self.arg9.partial(ctx),
-			self.arg10.partial(ctx),
-			self.arg11.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, S: ContextProtocol](
-	ResultBinaryOperationOverloads[R, S],
-	BooleanBinaryOperationOverloads[R, S],
+	PythonFuncBase[R, S],
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12], R]
-	arg1: Expr[Any, S, Any]
-	arg2: Expr[Any, S, Any]
-	arg3: Expr[Any, S, Any]
-	arg4: Expr[Any, S, Any]
-	arg5: Expr[Any, S, Any]
-	arg6: Expr[Any, S, Any]
-	arg7: Expr[Any, S, Any]
-	arg8: Expr[Any, S, Any]
-	arg9: Expr[Any, S, Any]
-	arg10: Expr[Any, S, Any]
-	arg11: Expr[Any, S, Any]
-	arg12: Expr[Any, S, Any]
-
-	@property
-	def name(self) -> str:
-		return _func_name(self.func)
-
-	def eval(self, ctx: S) -> Const[R | Failure]:
-		vals = (
-			self.arg1.eval(ctx).value,
-			self.arg2.eval(ctx).value,
-			self.arg3.eval(ctx).value,
-			self.arg4.eval(ctx).value,
-			self.arg5.eval(ctx).value,
-			self.arg6.eval(ctx).value,
-			self.arg7.eval(ctx).value,
-			self.arg8.eval(ctx).value,
-			self.arg9.eval(ctx).value,
-			self.arg10.eval(ctx).value,
-			self.arg11.eval(ctx).value,
-			self.arg12.eval(ctx).value,
-		)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
-		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
-		try:
-			return Const(None, self.func(*vals))
-		except Exception as e:
-			return Const(None, Failure((e,)))
-
-	def to_string(self, ctx: S | None = None) -> str:
-		args = ", ".join(
-			a.to_string(ctx)
-			for a in (
-				self.arg1,
-				self.arg2,
-				self.arg3,
-				self.arg4,
-				self.arg5,
-				self.arg6,
-				self.arg7,
-				self.arg8,
-				self.arg9,
-				self.arg10,
-				self.arg11,
-				self.arg12,
-			)
-		)
-		if ctx is None:
-			return f"{self.name}({args})"
-		return f"{self.name}({args}) -> {self.eval(ctx).value}"
-
-	def partial(
-		self,
-		ctx: Any,
-	) -> "PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, Any]":
-		return PythonFunc12(
-			self.func,
-			self.arg1.partial(ctx),
-			self.arg2.partial(ctx),
-			self.arg3.partial(ctx),
-			self.arg4.partial(ctx),
-			self.arg5.partial(ctx),
-			self.arg6.partial(ctx),
-			self.arg7.partial(ctx),
-			self.arg8.partial(ctx),
-			self.arg9.partial(ctx),
-			self.arg10.partial(ctx),
-			self.arg11.partial(ctx),
-			self.arg12.partial(ctx),
-		)
+	args: tuple[
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+		Expr[Any, S, Any],
+	]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1296,7 +662,7 @@ class PythonFunc1Wrapper[T1, R]:  # type: ignore[misc]
 	func: Callable[[T1], R]
 
 	def __call__[S: ContextProtocol](self, arg1: T1 | Expr[Any, S, Any]) -> PythonFunc1[T1, R, S]:
-		return PythonFunc1(self.func, arg1 if isinstance(arg1, Expr) else Const(None, arg1))  # pyright: ignore[reportUnknownArgumentType]
+		return PythonFunc1(self.func, (arg1 if isinstance(arg1, Expr) else Const(None, arg1),))  # pyright: ignore[reportUnknownArgumentType]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1310,8 +676,10 @@ class PythonFunc2Wrapper[T1, T2, R]:  # type: ignore[misc]
 	) -> PythonFunc2[T1, T2, R, S]:
 		return PythonFunc2(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1327,9 +695,11 @@ class PythonFunc3Wrapper[T1, T2, T3, R]:  # type: ignore[misc]
 	) -> PythonFunc3[T1, T2, T3, R, S]:
 		return PythonFunc3(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1346,10 +716,12 @@ class PythonFunc4Wrapper[T1, T2, T3, T4, R]:  # type: ignore[misc]
 	) -> PythonFunc4[T1, T2, T3, T4, R, S]:
 		return PythonFunc4(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1367,11 +739,13 @@ class PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]:  # type: ignore[misc]
 	) -> PythonFunc5[T1, T2, T3, T4, T5, R, S]:
 		return PythonFunc5(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1390,12 +764,14 @@ class PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]:  # type: ignore[misc]
 	) -> PythonFunc6[T1, T2, T3, T4, T5, T6, R, S]:
 		return PythonFunc6(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1415,13 +791,15 @@ class PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]:  # type: ignore[misc]
 	) -> PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S]:
 		return PythonFunc7(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1442,14 +820,16 @@ class PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]:  # type: ignore[mis
 	) -> PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, S]:
 		return PythonFunc8(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
-			arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+				arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1471,15 +851,17 @@ class PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]:  # type: ignore
 	) -> PythonFunc9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R, S]:
 		return PythonFunc9(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
-			arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
-			arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+				arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+				arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1502,16 +884,18 @@ class PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]:  # type: 
 	) -> PythonFunc10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R, S]:
 		return PythonFunc10(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
-			arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
-			arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
-			arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+				arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+				arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
+				arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1535,17 +919,19 @@ class PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]:  # t
 	) -> PythonFunc11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R, S]:
 		return PythonFunc11(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
-			arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
-			arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
-			arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
-			arg11 if isinstance(arg11, Expr) else Const(None, arg11),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+				arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+				arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
+				arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
+				arg11 if isinstance(arg11, Expr) else Const(None, arg11),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
@@ -1570,18 +956,20 @@ class PythonFunc12Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R]:
 	) -> PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, S]:
 		return PythonFunc12(
 			self.func,
-			arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
-			arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
-			arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
-			arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
-			arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
-			arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
-			arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
-			arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
-			arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
-			arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
-			arg11 if isinstance(arg11, Expr) else Const(None, arg11),  # pyright: ignore[reportUnknownArgumentType]
-			arg12 if isinstance(arg12, Expr) else Const(None, arg12),  # pyright: ignore[reportUnknownArgumentType]
+			(
+				arg1 if isinstance(arg1, Expr) else Const(None, arg1),  # pyright: ignore[reportUnknownArgumentType]
+				arg2 if isinstance(arg2, Expr) else Const(None, arg2),  # pyright: ignore[reportUnknownArgumentType]
+				arg3 if isinstance(arg3, Expr) else Const(None, arg3),  # pyright: ignore[reportUnknownArgumentType]
+				arg4 if isinstance(arg4, Expr) else Const(None, arg4),  # pyright: ignore[reportUnknownArgumentType]
+				arg5 if isinstance(arg5, Expr) else Const(None, arg5),  # pyright: ignore[reportUnknownArgumentType]
+				arg6 if isinstance(arg6, Expr) else Const(None, arg6),  # pyright: ignore[reportUnknownArgumentType]
+				arg7 if isinstance(arg7, Expr) else Const(None, arg7),  # pyright: ignore[reportUnknownArgumentType]
+				arg8 if isinstance(arg8, Expr) else Const(None, arg8),  # pyright: ignore[reportUnknownArgumentType]
+				arg9 if isinstance(arg9, Expr) else Const(None, arg9),  # pyright: ignore[reportUnknownArgumentType]
+				arg10 if isinstance(arg10, Expr) else Const(None, arg10),  # pyright: ignore[reportUnknownArgumentType]
+				arg11 if isinstance(arg11, Expr) else Const(None, arg11),  # pyright: ignore[reportUnknownArgumentType]
+				arg12 if isinstance(arg12, Expr) else Const(None, arg12),  # pyright: ignore[reportUnknownArgumentType]
+			),
 		)
 
 
