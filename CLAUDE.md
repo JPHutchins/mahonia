@@ -4,13 +4,16 @@ Mahonia is a domain specific language (DSL) for defining, evaluating, saving, an
 
 ## Project Structure
 - `src/mahonia/` - Main source code
-  - `latex.py` - LaTeX conversion functionality  
+  - `__init__.py` - Core expression types, operators, `BinaryOperationOverloads`
+  - `python_func.py` - Python function FFI with `ResultBinaryOperationOverloads`, `ResultExpr` protocol
+  - `latex.py` - LaTeX conversion functionality
   - `stats.py` - Statistics functionality
 - `tests/` - Test files
+- `plans/` - Design documents
 - Uses Python 3.12+
-- Uses hatch for project management
+- Uses uv for package management
 - Uses ruff for linting and formatting
-- Uses mypy for type checking
+- Uses mypy and pyright for type checking
 - Uses pytest for testing
 
 ## Development Commands
@@ -22,22 +25,22 @@ source .venv/bin/activate  # Activate virtual environment
 
 ### Testing
 ```bash
-hatch run test  # Run all tests including doctests
-pytest  # Run pytest directly
+uv run task test  # Run all tests including doctests
+uv run pytest     # Run pytest directly
 ```
 
 ### Linting and Formatting
 ```bash
-hatch run format  # Format code with ruff
-hatch run lint    # Run ruff check and mypy
-ruff format .     # Format directly
-ruff check .      # Lint directly  
-mypy .           # Type check directly
+uv run task format  # Format code with ruff
+uv run task lint    # Run ruff check, mypy, and pyright
+uv run ruff format .     # Format directly
+uv run ruff check .      # Lint directly
+uv run mypy .            # Type check directly
 ```
 
 ### All checks
 ```bash
-hatch run all    # Run format, lint, and test
+uv run task all    # Run format, lint, and test
 ```
 
 ## Key Features
@@ -47,11 +50,13 @@ hatch run all    # Run format, lint, and test
 - Serialization for logging and debugging
 - Type-safe variable definitions
 - Statistics expressions
+- Python function FFI with railroad-oriented error handling (`Failure` accumulation)
+- Compile-time type virality: FFI contamination propagates bidirectionally through `ResultExpr` protocol
 
 ## Important Files
 - `tests/latex_examples.md` - pytest-generated latex examples
 - `pyproject.toml` - Project configuration
-- LaTeX functionality is in `src/mahonia/latex.py`
+- `plans/python_func_ffi.md` - FFI design document
 
 ## Notes
 - Uses tab indentation (configured in ruff)

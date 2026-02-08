@@ -205,6 +205,25 @@ from mahonia.types import U as U
 if TYPE_CHECKING:
 	from mahonia.match import Match as Match
 	from mahonia.match import MatchExpr as MatchExpr
+	from mahonia.python_func import ResultAdd as ResultAdd
+	from mahonia.python_func import ResultDiv as ResultDiv
+	from mahonia.python_func import ResultEq as ResultEq
+	from mahonia.python_func import ResultExpr as ResultExpr
+	from mahonia.python_func import ResultGe as ResultGe
+	from mahonia.python_func import ResultGt as ResultGt
+	from mahonia.python_func import ResultLe as ResultLe
+	from mahonia.python_func import ResultLt as ResultLt
+	from mahonia.python_func import ResultMul as ResultMul
+	from mahonia.python_func import ResultNe as ResultNe
+	from mahonia.python_func import ResultSub as ResultSub
+
+
+@dataclass(frozen=True)
+class Failure:
+	exceptions: tuple[Exception, ...]
+
+	def __add__(self, other: "Failure") -> "Failure":
+		return Failure(self.exceptions + other.exceptions)
 
 
 @runtime_checkable
@@ -413,6 +432,11 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	) -> "Approximately[TSupportsArithmetic, S]": ...
 
 	@overload
+	def __eq__(  # pyright: ignore[reportOverlappingOverload]
+		self, other: ResultExpr[TSupportsEquality, S]
+	) -> "ResultEq[TSupportsEquality, S]": ...
+
+	@overload
 	def __eq__(
 		self, other: Expr[TSupportsEquality, S, TSupportsEquality]
 	) -> "Eq[TSupportsEquality, S]": ...
@@ -420,7 +444,7 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	@overload
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
-	def __eq__(  # pyright: ignore[reportIncompatibleMethodOverride]
+	def __eq__(  # type: ignore[misc]  # pyright: ignore[reportIncompatibleMethodOverride]
 		self,
 		other: Expr[TSupportsEquality, S, TSupportsEquality]
 		| TSupportsEquality
@@ -428,18 +452,27 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S]":
 		if isinstance(other, ConstTolerance):
 			return Approximately(self, other)  # type: ignore[arg-type]
+		elif isinstance(other, Expr) and getattr(other, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
+			return NotImplemented
 		elif isinstance(other, Expr):
 			return Eq(self, other)  # type: ignore[arg-type]
 		else:
 			return Eq(self, Const(None, other))  # type: ignore[arg-type]
 
 	@overload  # type: ignore[override]
+	def __ne__(self, other: ResultExpr[T, S]) -> "ResultNe[T, S]": ...  # type: ignore[overload-overlap]
+
+	@overload
 	def __ne__(self, other: Expr[T, S, T]) -> "Ne[T, S]": ...
 
 	@overload
 	def __ne__(self, other: T) -> "Ne[T, S]": ...
 
-	def __ne__(self, other: Expr[T, S, T] | T) -> "Ne[T, S]":  # pyright: ignore[reportIncompatibleMethodOverride]
+	def __ne__(  # type: ignore[misc]  # pyright: ignore[reportIncompatibleMethodOverride]
+		self, other: Expr[T, S, T] | T
+	) -> "Ne[T, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Ne(self, other)  # pyright: ignore[reportUnknownArgumentType]
 		else:
@@ -450,12 +483,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __lt__(
+		self, other: ResultExpr[TSupportsComparison, S]
+	) -> "ResultLt[TSupportsComparison, S]": ...
+
+	@overload
+	def __lt__(
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
 	) -> "Lt[TSupportsComparison, S]": ...
 
-	def __lt__(
+	def __lt__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Lt[TSupportsComparison, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Lt(self, other)  # type: ignore[arg-type]
 		else:
@@ -466,28 +506,42 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __le__(
+		self, other: ResultExpr[TSupportsComparison, S]
+	) -> "ResultLe[TSupportsComparison, S]": ...
+
+	@overload
+	def __le__(
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
 	) -> "Le[TSupportsComparison, S]": ...
 
-	def __le__(
+	def __le__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Le[TSupportsComparison, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Le(self, other)  # type: ignore[arg-type]
 		else:
 			return Le(self, Const(None, other))  # type: ignore[arg-type]
 
 	@overload
-	def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison,S]": ...
+	def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison, S]": ...
+
+	@overload
+	def __gt__(
+		self, other: ResultExpr[TSupportsComparison, S]
+	) -> "ResultGt[TSupportsComparison, S]": ...
 
 	@overload
 	def __gt__(
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
 	) -> "Gt[TSupportsComparison, S]": ...
 
-	def __gt__(
+	def __gt__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Gt[TSupportsComparison, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Gt(self, other)  # type: ignore[arg-type]
 		else:
@@ -498,12 +552,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __ge__(
+		self, other: ResultExpr[TSupportsComparison, S]
+	) -> "ResultGe[TSupportsComparison, S]": ...
+
+	@overload
+	def __ge__(
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison]
 	) -> "Ge[TSupportsComparison, S]": ...
 
-	def __ge__(
+	def __ge__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
 	) -> "Ge[TSupportsComparison, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Ge(self, other)  # type: ignore[arg-type]
 		else:
@@ -514,12 +575,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __add__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultAdd[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __add__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Add[TSupportsArithmetic, S]": ...
 
-	def __add__(
+	def __add__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Add[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Add(self, other)  # type: ignore[arg-type]
 		else:
@@ -530,12 +598,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __radd__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultAdd[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __radd__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Add[TSupportsArithmetic, S]": ...
 
-	def __radd__(
+	def __radd__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Add[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Add(other, self)  # type: ignore[arg-type]
 		else:
@@ -546,12 +621,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __sub__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultSub[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __sub__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Sub[TSupportsArithmetic, S]": ...
 
-	def __sub__(
+	def __sub__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Sub[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Sub(self, other)  # type: ignore[arg-type]
 		else:
@@ -562,12 +644,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __rsub__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultSub[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rsub__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Sub[TSupportsArithmetic, S]": ...
 
-	def __rsub__(
+	def __rsub__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Sub[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Sub(other, self)  # type: ignore[arg-type]
 		else:
@@ -578,12 +667,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __mul__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultMul[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __mul__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Mul[TSupportsArithmetic, S]": ...
 
-	def __mul__(
+	def __mul__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Mul[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Mul(self, other)  # type: ignore[arg-type]
 		else:
@@ -594,12 +690,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __rmul__(
+		self, other: ResultExpr[TSupportsArithmetic, S]
+	) -> "ResultMul[TSupportsArithmetic, S]": ...
+
+	@overload
+	def __rmul__(
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	) -> "Mul[TSupportsArithmetic, S]": ...
 
-	def __rmul__(
+	def __rmul__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Mul[TSupportsArithmetic, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Mul(other, self)  # type: ignore[arg-type]
 		else:
@@ -609,9 +712,16 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	def __truediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
+	def __truediv__(self, other: ResultExpr[float, S]) -> "ResultDiv[float, S]": ...
+
+	@overload
 	def __truediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
-	def __truediv__(self, other: Expr[float, S, float] | float) -> "Div[float, S]":
+	def __truediv__(  # type: ignore[misc]
+		self, other: Expr[float, S, float] | float
+	) -> "Div[float, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Div(self, other)  # type: ignore[arg-type]
 		else:
@@ -621,9 +731,16 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	def __rtruediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
+	def __rtruediv__(self, other: ResultExpr[float, S]) -> "ResultDiv[float, S]": ...
+
+	@overload
 	def __rtruediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
-	def __rtruediv__(self, other: Expr[float, S, float] | float) -> "Div[float, S]":
+	def __rtruediv__(  # type: ignore[misc]
+		self, other: Expr[float, S, float] | float
+	) -> "Div[float, S]":
+		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+			return NotImplemented
 		if isinstance(other, Expr):
 			return Div(other, self)  # type: ignore[arg-type]
 		else:
