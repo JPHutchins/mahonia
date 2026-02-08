@@ -278,8 +278,10 @@ def test_math_sqrt_wrapper_types() -> None:
 	stdlib_sqrt = python_func(math.sqrt)
 	assert_type(stdlib_sqrt, PythonFunc1Wrapper[SupportsFloat | SupportsIndex, float])
 
-	expr = stdlib_sqrt(x)
-	assert_type(expr, PythonFunc1[SupportsFloat | SupportsIndex, float, Ctx])
+	# Wrapping stdlib functions directly causes invariance mismatch:
+	# math.sqrt has T1 = SupportsFloat | SupportsIndex, but Var[float, Ctx] has R = float.
+	# Invariance requires R == T1 exactly. Use typed helpers instead (see safe_sqrt).
+	stdlib_sqrt(x)  # type: ignore[arg-type]
 
 
 @pytest.mark.mypy_testing
@@ -1778,13 +1780,96 @@ def test_python_func_12_generic_types() -> None:
 
 @pytest.mark.mypy_testing
 def test_python_func_arg_type_checking_existing_arities() -> None:
-	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
 	safe_sqrt("wrong")  # type: ignore[arg-type]
 	safe_sqrt(4.0)
 	safe_sqrt(x)
 
-	# Wrong literal type must be caught
 	safe_div("wrong", y)  # type: ignore[arg-type]
 	safe_div(x, "wrong")  # type: ignore[arg-type]
 	safe_div(1.0, y)
 	safe_div(x, 2.0)
+
+
+class MixedCtx(NamedTuple):
+	label: str
+	n: int
+	val: float
+
+
+m_label = Var[str, MixedCtx]("label")
+m_n = Var[int, MixedCtx]("n")
+m_val = Var[float, MixedCtx]("val")
+
+
+def repeat_str(s: str, n: int) -> str:
+	return s * n
+
+
+def format_value(label: str, val: float, precision: int) -> str:
+	return f"{label}: {val:.{precision}f}"
+
+
+safe_repeat = python_func(repeat_str)
+safe_format = python_func(format_value)
+
+
+@pytest.mark.mypy_testing
+def test_mixed_type_expr_args_accepted() -> None:
+	assert_type(safe_repeat, PythonFunc2Wrapper[str, int, str])
+	assert_type(safe_format, PythonFunc3Wrapper[str, float, int, str])
+
+	expr2 = safe_repeat(m_label, m_n)
+	assert_type(expr2, PythonFunc2[str, int, str, MixedCtx])
+
+	expr3 = safe_format(m_label, m_val, m_n)
+	assert_type(expr3, PythonFunc3[str, float, int, str, MixedCtx])
+
+	safe_repeat("hello", m_n)
+	safe_repeat(m_label, 3)
+	safe_format("label", m_val, m_n)
+	safe_format(m_label, 1.5, m_n)
+	safe_format(m_label, m_val, 2)
+
+
+@pytest.mark.mypy_testing
+def test_mixed_type_wrong_expr_rejected() -> None:
+	safe_repeat(m_n, m_label)  # type: ignore[arg-type]
+	safe_repeat(m_val, m_n)  # type: ignore[arg-type]
+	safe_repeat(m_label, m_val)  # type: ignore[arg-type]
+
+	safe_format(m_val, m_label, m_n)  # type: ignore[arg-type]
+	safe_format(m_label, m_n, m_val)  # type: ignore[arg-type]
+	safe_format(m_label, m_val, m_label)  # type: ignore[arg-type]
+
+
+@pytest.mark.mypy_testing
+def test_mixed_type_result_expr_composition() -> None:
+	safe_repeat(safe_format(m_label, m_val, m_n), m_n)
+
+	safe_repeat(m_label, safe_format(m_label, m_val, m_n))  # type: ignore[arg-type]
+
+
+@pytest.mark.mypy_testing
+def test_pure_expr_args_accepted() -> None:
+	safe_div(x + y, x * y)
+	safe_sqrt(x + y)
+	safe_format(m_label, m_val * m_val, m_n + m_n)
+
+
+@pytest.mark.mypy_testing
+def test_pure_expr_args_wrong_type_rejected() -> None:
+	safe_div(x + y, m_label)  # type: ignore[arg-type]
+	safe_repeat(m_n + m_n, m_label)  # type: ignore[arg-type]
+	safe_format(m_val * m_val, m_label, m_n)  # type: ignore[arg-type]
+	safe_format(m_label, m_n + m_n, m_val)  # type: ignore[arg-type]
+
+
+@pytest.mark.mypy_testing
+def test_homogeneous_wrong_expr_rejected() -> None:
+	str_x = Var[str, Ctx]("x")
+	safe_sqrt(str_x)  # type: ignore[arg-type]
+	safe_div(str_x, y)  # type: ignore[arg-type]
+	safe_div(x, str_x)  # type: ignore[arg-type]
+
+	safe_sqrt(x)
+	safe_div(x, safe_sqrt(x))

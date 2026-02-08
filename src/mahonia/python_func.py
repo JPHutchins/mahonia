@@ -496,36 +496,48 @@ class PythonFunc0[R, S: ContextProtocol](PythonFuncBase[R, S]):
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc1[T1, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1], R]
-	args: tuple[Expr[Any, S, Any]]
+	args: tuple[Expr[Any, S, T1] | Expr[Any, S, T1 | Failure]]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc2[T1, T2, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2], R]
-	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any]]
+	args: tuple[
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc3[T1, T2, T3, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3], R]
-	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any]]
+	args: tuple[
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc4[T1, T2, T3, T4, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4], R]
-	args: tuple[Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any], Expr[Any, S, Any]]
+	args: tuple[
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+	]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
 class PythonFunc5[T1, T2, T3, T4, T5, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
 	]
 
 
@@ -533,12 +545,12 @@ class PythonFunc5[T1, T2, T3, T4, T5, R, S: ContextProtocol](PythonFuncBase[R, S
 class PythonFunc6[T1, T2, T3, T4, T5, T6, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
 	]
 
 
@@ -546,13 +558,13 @@ class PythonFunc6[T1, T2, T3, T4, T5, T6, R, S: ContextProtocol](PythonFuncBase[
 class PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
 	]
 
 
@@ -560,14 +572,14 @@ class PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S: ContextProtocol](PythonFuncB
 class PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, S: ContextProtocol](PythonFuncBase[R, S]):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
 	]
 
 
@@ -577,15 +589,15 @@ class PythonFunc9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R, S: ContextProtocol](
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
 	]
 
 
@@ -595,16 +607,16 @@ class PythonFunc10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R, S: ContextProtoco
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
 	]
 
 
@@ -614,17 +626,17 @@ class PythonFunc11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R, S: ContextPr
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
+		Expr[Any, S, T11] | Expr[Any, S, T11 | Failure],
 	]
 
 
@@ -634,18 +646,18 @@ class PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, S: Cont
 ):
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12], R]
 	args: tuple[
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
-		Expr[Any, S, Any],
+		Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
+		Expr[Any, S, T11] | Expr[Any, S, T11 | Failure],
+		Expr[Any, S, T12] | Expr[Any, S, T12 | Failure],
 	]
 
 
@@ -661,7 +673,9 @@ class PythonFunc0Wrapper[R]:  # type: ignore[misc]
 class PythonFunc1Wrapper[T1, R]:  # type: ignore[misc]
 	func: Callable[[T1], R]
 
-	def __call__[S: ContextProtocol](self, arg1: T1 | Expr[Any, S, Any]) -> PythonFunc1[T1, R, S]:
+	def __call__[S: ContextProtocol](
+		self, arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure]
+	) -> PythonFunc1[T1, R, S]:
 		return PythonFunc1(self.func, (arg1 if isinstance(arg1, Expr) else Const(None, arg1),))  # pyright: ignore[reportUnknownArgumentType]
 
 
@@ -671,8 +685,8 @@ class PythonFunc2Wrapper[T1, T2, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
 	) -> PythonFunc2[T1, T2, R, S]:
 		return PythonFunc2(
 			self.func,
@@ -689,9 +703,9 @@ class PythonFunc3Wrapper[T1, T2, T3, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
 	) -> PythonFunc3[T1, T2, T3, R, S]:
 		return PythonFunc3(
 			self.func,
@@ -709,10 +723,10 @@ class PythonFunc4Wrapper[T1, T2, T3, T4, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
 	) -> PythonFunc4[T1, T2, T3, T4, R, S]:
 		return PythonFunc4(
 			self.func,
@@ -731,11 +745,11 @@ class PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
 	) -> PythonFunc5[T1, T2, T3, T4, T5, R, S]:
 		return PythonFunc5(
 			self.func,
@@ -755,12 +769,12 @@ class PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
 	) -> PythonFunc6[T1, T2, T3, T4, T5, T6, R, S]:
 		return PythonFunc6(
 			self.func,
@@ -781,13 +795,13 @@ class PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]:  # type: ignore[misc]
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
 	) -> PythonFunc7[T1, T2, T3, T4, T5, T6, T7, R, S]:
 		return PythonFunc7(
 			self.func,
@@ -809,14 +823,14 @@ class PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]:  # type: ignore[mis
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
-		arg8: T8 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		arg8: T8 | Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
 	) -> PythonFunc8[T1, T2, T3, T4, T5, T6, T7, T8, R, S]:
 		return PythonFunc8(
 			self.func,
@@ -839,15 +853,15 @@ class PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]:  # type: ignore
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
-		arg8: T8 | Expr[Any, S, Any],
-		arg9: T9 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		arg8: T8 | Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		arg9: T9 | Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
 	) -> PythonFunc9[T1, T2, T3, T4, T5, T6, T7, T8, T9, R, S]:
 		return PythonFunc9(
 			self.func,
@@ -871,16 +885,16 @@ class PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]:  # type: 
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
-		arg8: T8 | Expr[Any, S, Any],
-		arg9: T9 | Expr[Any, S, Any],
-		arg10: T10 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		arg8: T8 | Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		arg9: T9 | Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		arg10: T10 | Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
 	) -> PythonFunc10[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R, S]:
 		return PythonFunc10(
 			self.func,
@@ -905,17 +919,17 @@ class PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]:  # t
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
-		arg8: T8 | Expr[Any, S, Any],
-		arg9: T9 | Expr[Any, S, Any],
-		arg10: T10 | Expr[Any, S, Any],
-		arg11: T11 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		arg8: T8 | Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		arg9: T9 | Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		arg10: T10 | Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
+		arg11: T11 | Expr[Any, S, T11] | Expr[Any, S, T11 | Failure],
 	) -> PythonFunc11[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R, S]:
 		return PythonFunc11(
 			self.func,
@@ -941,18 +955,18 @@ class PythonFunc12Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R]:
 
 	def __call__[S: ContextProtocol](
 		self,
-		arg1: T1 | Expr[Any, S, Any],
-		arg2: T2 | Expr[Any, S, Any],
-		arg3: T3 | Expr[Any, S, Any],
-		arg4: T4 | Expr[Any, S, Any],
-		arg5: T5 | Expr[Any, S, Any],
-		arg6: T6 | Expr[Any, S, Any],
-		arg7: T7 | Expr[Any, S, Any],
-		arg8: T8 | Expr[Any, S, Any],
-		arg9: T9 | Expr[Any, S, Any],
-		arg10: T10 | Expr[Any, S, Any],
-		arg11: T11 | Expr[Any, S, Any],
-		arg12: T12 | Expr[Any, S, Any],
+		arg1: T1 | Expr[Any, S, T1] | Expr[Any, S, T1 | Failure],
+		arg2: T2 | Expr[Any, S, T2] | Expr[Any, S, T2 | Failure],
+		arg3: T3 | Expr[Any, S, T3] | Expr[Any, S, T3 | Failure],
+		arg4: T4 | Expr[Any, S, T4] | Expr[Any, S, T4 | Failure],
+		arg5: T5 | Expr[Any, S, T5] | Expr[Any, S, T5 | Failure],
+		arg6: T6 | Expr[Any, S, T6] | Expr[Any, S, T6 | Failure],
+		arg7: T7 | Expr[Any, S, T7] | Expr[Any, S, T7 | Failure],
+		arg8: T8 | Expr[Any, S, T8] | Expr[Any, S, T8 | Failure],
+		arg9: T9 | Expr[Any, S, T9] | Expr[Any, S, T9 | Failure],
+		arg10: T10 | Expr[Any, S, T10] | Expr[Any, S, T10 | Failure],
+		arg11: T11 | Expr[Any, S, T11] | Expr[Any, S, T11 | Failure],
+		arg12: T12 | Expr[Any, S, T12] | Expr[Any, S, T12 | Failure],
 	) -> PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, S]:
 		return PythonFunc12(
 			self.func,
