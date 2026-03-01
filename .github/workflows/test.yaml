@@ -1,8 +1,9 @@
-name: Test
+name: CI
 
 on:
   push:
     branches: [main]
+    tags: ["*"]
   pull_request:
   workflow_dispatch:
 
@@ -16,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Ensures all history and tags are available
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v6
 
@@ -55,3 +56,23 @@ jobs:
             exit 1
           fi
           echo "✅ LaTeX examples are up to date"
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [lint-and-test, check-latex-examples]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mahonia
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv build
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
