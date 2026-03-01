@@ -34,7 +34,7 @@ _mypy = "mypy ."
 _pyright = "pyright src examples tests"
 test = "pytest --doctest-modules"
 all = "task format && task lint && task typecheck && task test"
-matrix = "uv run --all-packages --python 3.12 task all && uv run --all-packages --python 3.13 task all && uv run --all-packages --python 3.14 task all"
+matrix = "UV_PROJECT_ENVIRONMENT=.venv-3.12 uv run --all-packages --python 3.12 task all && UV_PROJECT_ENVIRONMENT=.venv-3.13 uv run --all-packages --python 3.13 task all && UV_PROJECT_ENVIRONMENT=.venv-3.14 uv run --all-packages --python 3.14 task all"
 
 [tool.ruff]
 line-length = 100
@@ -55,7 +55,7 @@ warn_unused_ignores = true
 [tool.pyright]
 typeCheckingMode = "strict"
 include = ["src", "examples", "tests"]
-exclude = [".venv", "**/__pycache__"]
+exclude = [".venv*", "**/__pycache__"]
 
 [tool.uv.workspace]
 members = ["examples/manufacturing_tests"]
