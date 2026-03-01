@@ -72,7 +72,9 @@ class ConstTolerance(
 	def __eq__(  # pyright: ignore[reportIncompatibleMethodOverride]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
 	) -> "Approximately[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
+		from mahonia import ResultBase
+
+		if isinstance(other, ResultBase):
 			return NotImplemented
 		if isinstance(other, Expr):
 			return Approximately(other, self)

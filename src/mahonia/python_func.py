@@ -1,7 +1,7 @@
 import inspect
 from dataclasses import dataclass
 from functools import reduce
-from typing import Any, Callable, ClassVar, Final, Protocol, overload, runtime_checkable
+from typing import Any, Callable, ClassVar, Final, overload
 
 from mahonia import (
 	BinaryOperationOverloads,
@@ -9,7 +9,7 @@ from mahonia import (
 	Const,
 	Expr,
 	Failure,
-	ToString,
+	ResultBase,
 )
 from mahonia.tolerance import ConstTolerance
 from mahonia.types import (
@@ -18,22 +18,8 @@ from mahonia.types import (
 )
 
 
-@runtime_checkable
-class ResultExpr[T, S](Protocol):
-	_is_result_type: ClassVar[bool]
-
-	def eval(self, ctx: S) -> Const[T | Failure]: ...
-
-	def to_string(self, ctx: S | None = None) -> str: ...
-
-
-class ResultExprBase[T, S](Expr[T, S, T | Failure]):
-	_is_result_type: ClassVar[bool] = True
-
-
 @dataclass(frozen=True, eq=False, slots=True)
 class ResultApproximately[T: SupportsArithmetic, S](
-	ToString[S],
 	Expr[T, S, bool | Failure],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
@@ -64,7 +50,7 @@ def _func_name(func: Callable[..., Any]) -> str:
 
 
 class PythonFuncBase[R, S: ContextProtocol](  # pyright: ignore[reportGeneralTypeIssues]
-	ResultExprBase[R, S],
+	ResultBase[R, S],
 	BinaryOperationOverloads[R, S],
 	BooleanBinaryOperationOverloads[R, S],
 ):

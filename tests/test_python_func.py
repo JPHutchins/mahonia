@@ -268,7 +268,7 @@ def test_python_func_generic_types() -> None:
 
 	add_expr = safe_sqrt(x) + safe_sqrt(y)
 	assert_type(add_expr, Result[float, Ctx, float | Failure])
-	assert_type(add_expr.unwrap(Ctx(x=4.0, y=9.0)), float)
+	assert_type(add_expr.unwrap(Ctx(x=4.0, y=9.0)), float | Failure)
 
 
 def test_math_sqrt_wrapper_types() -> None:
