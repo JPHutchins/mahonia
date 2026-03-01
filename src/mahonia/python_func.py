@@ -1,6 +1,5 @@
 import inspect
 from dataclasses import dataclass
-from functools import reduce
 from typing import Any, Callable, ClassVar, Final, overload
 
 from mahonia import (
@@ -23,6 +22,29 @@ class ResultApproximately[T: SupportsArithmetic, S](
 	Expr[T, S, bool | Failure],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
+	"""Approximate equality in the Result context: propagates Failure from the left operand.
+
+	Constructed via ``==`` on a ResultBase expression with a ConstTolerance.
+
+	>>> from typing import NamedTuple
+	>>> from mahonia import Var, PlusMinus
+	>>> from mahonia.python_func import python_func
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	>>> x = Var[float, Ctx]("x")
+	>>> def my_sqrt(v: float) -> float:
+	... 	if v < 0: raise ValueError(f"neg: {v}")
+	... 	return v ** 0.5
+	>>> safe_sqrt = python_func(my_sqrt)
+	>>> expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
+	>>> expr.to_string()
+	'(my_sqrt(x) \\u2248 T:2.0 \\xb1 0.1)'
+	>>> expr.to_string(Ctx(x=4.0))
+	'(my_sqrt(x:4.0) -> 2.0 \\u2248 T:2.0 \\xb1 0.1 -> True)'
+	>>> expr.to_string(Ctx(x=-1.0))
+	"(my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),)) \\u2248 T:2.0 \\xb1 0.1 -> Failure(exceptions=(ValueError('neg: -1.0'),)))"
+	"""
+
 	op: ClassVar[str] = " ≈ "
 
 	left: Expr[Any, S, Any]
@@ -54,6 +76,44 @@ class PythonFuncBase[R, S: ContextProtocol](  # pyright: ignore[reportGeneralTyp
 	BinaryOperationOverloads[R, S],
 	BooleanBinaryOperationOverloads[R, S],
 ):
+	"""FFI bridge: wraps a Python callable into the Result context.
+
+	Exceptions raised by the wrapped function become Failure values.
+	When multiple arguments are themselves ResultBase, their Failures
+	are accumulated before the function is called.
+
+	>>> from typing import NamedTuple
+	>>> from mahonia import Failure, Var
+	>>> from mahonia.python_func import python_func
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	... 	y: float
+	>>> x, y = Var[float, Ctx]("x"), Var[float, Ctx]("y")
+	>>> def my_sqrt(v: float) -> float:
+	... 	if v < 0: raise ValueError(f"neg: {v}")
+	... 	return v ** 0.5
+	>>> safe_sqrt = python_func(my_sqrt)
+
+	Success:
+
+	>>> safe_sqrt(x).to_string(Ctx(x=4.0, y=0.0))
+	'my_sqrt(x:4.0) -> 2.0'
+
+	Exception caught as Failure:
+
+	>>> safe_sqrt(x).to_string(Ctx(x=-1.0, y=0.0))
+	"my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),))"
+
+	Nested calls accumulate failures from all arguments:
+
+	>>> def div(a: float, b: float) -> float:
+	... 	return a / b
+	>>> safe_div = python_func(div)
+	>>> r = safe_div(safe_sqrt(x), safe_sqrt(y)).unwrap(Ctx(x=-1.0, y=-4.0))
+	>>> isinstance(r, Failure) and len(r.exceptions)
+	2
+	"""
+
 	func: Callable[..., R]
 	args: tuple[Expr[Any, S, Any], ...]
 
@@ -63,9 +123,9 @@ class PythonFuncBase[R, S: ContextProtocol](  # pyright: ignore[reportGeneralTyp
 
 	def eval(self, ctx: S) -> Const[R | Failure]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		vals = tuple(arg.unwrap(ctx) for arg in self.args)
-		failures = tuple(v for v in vals if isinstance(v, Failure))
+		failures = tuple(e for v in vals if isinstance(v, Failure) for e in v.exceptions)
 		if failures:
-			return Const(None, reduce(Failure.__add__, failures))
+			return Const(None, Failure(failures))
 		try:
 			return Const(None, self.func(*vals))
 		except Exception as e:
@@ -654,6 +714,28 @@ def python_func[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R](
 
 
 def python_func(f: Callable[..., Any]) -> Any:
+	"""Lift a Python callable into the Result context.
+
+	Returns a wrapper whose ``__call__`` accepts Expr or literal arguments and
+	produces a PythonFunc expression (a ResultBase).  Supports 0-12 parameters.
+
+	>>> from typing import NamedTuple
+	>>> from mahonia import Var
+	>>> from mahonia.python_func import python_func
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	>>> x = Var[float, Ctx]("x")
+	>>> def my_sqrt(v: float) -> float:
+	... 	if v < 0: raise ValueError(f"neg: {v}")
+	... 	return v ** 0.5
+	>>> safe_sqrt = python_func(my_sqrt)
+	>>> safe_sqrt(x).to_string()
+	'my_sqrt(x)'
+	>>> safe_sqrt(x).to_string(Ctx(x=4.0))
+	'my_sqrt(x:4.0) -> 2.0'
+	>>> safe_sqrt(x).to_string(Ctx(x=-1.0))
+	"my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),))"
+	"""
 	match len(inspect.signature(f).parameters):
 		case 0:
 			return PythonFunc0Wrapper(f)

@@ -210,10 +210,18 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Failure:
-	exceptions: tuple[Exception, ...]
+	"""Accumulated errors from the Result (error-accumulating) context.
 
-	def __add__(self, other: "Failure") -> "Failure":
-		return Failure(self.exceptions + other.exceptions)
+	>>> f = Failure((ValueError("bad x"), TypeError("bad y")))
+	>>> len(f.exceptions)
+	2
+	>>> str(f.exceptions[0])
+	'bad x'
+	>>> str(f.exceptions[1])
+	'bad y'
+	"""
+
+	exceptions: tuple[Exception, ...]
 
 
 @runtime_checkable
@@ -1262,16 +1270,29 @@ class Mod(
 
 
 class ResultBase[T, S](Expr[T, S, T | Failure]):
-	"""Base for all expressions in the Result (error-accumulating) context.
+	"""Type class marker for the Validated applicative (error-accumulating) context.
 
-	ResultBase : T | Failure :: SizedIterable : collection
+	Expr[T, S, T] evaluates to T.  ResultBase[T, S] evaluates to T | Failure.
+	BinaryOperationOverloads uses ``isinstance(x, ResultBase)`` to decide
+	whether an operator returns a clean op (Add, Eq, ...) or a Result that
+	accumulates Failures from both operands.
 
-	>>> from mahonia import ResultBase, Pure, Var
 	>>> from typing import NamedTuple
+	>>> from mahonia import ResultBase, Var
+	>>> from mahonia.python_func import python_func
 	>>> class Ctx(NamedTuple):
-	... 	x: int
-	>>> x = Var[int, Ctx]("x")
-	>>> isinstance(Pure(x), ResultBase)
+	... 	x: float
+
+	Plain expressions are not in the Result context:
+
+	>>> x = Var[float, Ctx]("x")
+	>>> isinstance(x, ResultBase)
+	False
+
+	python_func lifts a Python function into the Result context:
+
+	>>> safe_abs = python_func(abs)
+	>>> isinstance(safe_abs(x), ResultBase)
 	True
 	"""
 
@@ -1282,19 +1303,31 @@ class Pure[T, S](  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOperationOverloads[T, S],
 	BooleanBinaryOperationOverloads[T, S],
 ):
-	"""Applicative unit: lifts a clean expression into the Result context (guaranteed Ok).
+	"""Applicative pure: lifts a clean Expr[T, S, T] into ResultBase[T, S].
 
-	Transparent serialization — Pure is invisible in to_string output.
+	Pure can never produce a Failure — it is the identity embedding.
+	Transparent in serialization: Pure(x).to_string() == x.to_string().
 
 	>>> from typing import NamedTuple
-	>>> from mahonia import Var, Pure
+	>>> from mahonia import Var, Pure, Result
 	>>> class Ctx(NamedTuple):
-	... 	x: int
-	>>> x = Var[int, Ctx]("x")
+	... 	x: float
+	... 	y: float
+	>>> x, y = Var[float, Ctx]("x"), Var[float, Ctx]("y")
+
+	Wrapping in Pure is invisible to evaluation and serialization:
+
 	>>> Pure(x).to_string()
 	'x'
-	>>> Pure(x).unwrap(Ctx(x=42))
-	42
+	>>> Pure(x).unwrap(Ctx(x=42.0, y=0.0))
+	42.0
+
+	But it marks the expression as ResultBase, so operators produce Result:
+
+	>>> type(x + y).__name__
+	'Add'
+	>>> type(Pure(x) + y).__name__
+	'Result'
 	"""
 
 	inner: Expr[T, S, T]
@@ -1316,18 +1349,34 @@ class Result[T, S, R](  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[T, S],
 	ToString[S],
 ):
-	"""liftA2 for the Validated Applicative: lifts a BinaryOp into the error-accumulating context.
+	"""liftA2 for the Validated applicative: applies a BinaryOp in the error-accumulating context.
 
-	MapExpr : SizedIterable :: Result : T | Failure
+	When both operands succeed, applies inner.op_func.  When both fail, the
+	Failures are concatenated.  Typically constructed via operators on
+	ResultBase values rather than directly.
 
 	>>> from typing import NamedTuple
-	>>> from mahonia import Var, Result, Add, Pure
+	>>> from mahonia import Failure, Var
+	>>> from mahonia.python_func import python_func
 	>>> class Ctx(NamedTuple):
 	... 	x: float
-	>>> x = Var[float, Ctx]("x")
-	>>> r = Result(Add, Pure(x), Pure(x))
-	>>> r.unwrap(Ctx(x=1.0))
-	2.0
+	... 	y: float
+	>>> x, y = Var[float, Ctx]("x"), Var[float, Ctx]("y")
+	>>> def my_sqrt(v: float) -> float:
+	... 	if v < 0: raise ValueError(f"neg: {v}")
+	... 	return v ** 0.5
+	>>> safe_sqrt = python_func(my_sqrt)
+	>>> expr = safe_sqrt(x) + safe_sqrt(y)
+
+	Both succeed — the underlying Add is applied:
+
+	>>> expr.to_string(Ctx(x=4.0, y=9.0))
+	'(my_sqrt(x:4.0) -> 2.0 + my_sqrt(y:9.0) -> 3.0 -> 5.0)'
+
+	Both fail — exceptions are accumulated, not short-circuited:
+
+	>>> expr.to_string(Ctx(x=-1.0, y=-4.0))
+	"(my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),)) + my_sqrt(y:-4.0) -> Failure(exceptions=(ValueError('neg: -4.0'),)) -> Failure(exceptions=(ValueError('neg: -1.0'), ValueError('neg: -4.0'))))"
 	"""
 
 	inner: type[BinaryOp[Any, Any, Any]]
@@ -1339,7 +1388,7 @@ class Result[T, S, R](  # pyright: ignore[reportGeneralTypeIssues]
 		rv: Final = self.right.unwrap(ctx)
 		match (lv, rv):
 			case (Failure() as f1, Failure() as f2):
-				return Const(None, f1 + f2)
+				return Const(None, Failure(f1.exceptions + f2.exceptions))
 			case (Failure() as f, _) | (_, Failure() as f):
 				return Const(None, f)
 			case _:
