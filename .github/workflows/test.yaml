@@ -19,13 +19,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - run: uv sync --locked --all-extras --all-packages --dev --python ${{ matrix.python-version }}
+      - run: uv run --all-packages --python ${{ matrix.python-version }} task lint
 
-      - run: uv run task lint
+      - run: uv run --all-packages --python ${{ matrix.python-version }} task typecheck
 
-      - run: uv run task typecheck
-
-      - run: uv run task test
+      - run: uv run --all-packages --python ${{ matrix.python-version }} task test
 
       - name: Check LaTeX examples are up to date
         run: |
