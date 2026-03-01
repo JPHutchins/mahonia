@@ -391,7 +391,6 @@ dev = [
     { name = "mypy" },
     { name = "pyright" },
     { name = "pytest" },
-    { name = "pytest-mypy-testing" },
     { name = "ruff" },
     { name = "taskipy" },
 ]
@@ -405,7 +404,6 @@ dev = [
     { name = "mypy", specifier = ">=1.19" },
     { name = "pyright", specifier = ">=1.1.408" },
     { name = "pytest", specifier = ">=8.4.0" },
-    { name = "pytest-mypy-testing", specifier = ">=0.1.3" },
     { name = "ruff", specifier = ">=0.12.0" },
     { name = "taskipy", specifier = ">=1" },
 ]
@@ -627,19 +625,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/08/ba/45911d754e8eba3d5a841a5ce61a65a685ff1798421ac054f85aa8747dfb/pytest-8.4.1.tar.gz", hash = "sha256:7c67fd69174877359ed9371ec3af8a3d2b04741818c51e5e99cc1742251fa93c", size = 1517714, upload-time = "2025-06-18T05:48:06.109Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/29/16/c8a903f4c4dffe7a12843191437d7cd8e32751d5de349d45d3fe69544e87/pytest-8.4.1-py3-none-any.whl", hash = "sha256:539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7", size = 365474, upload-time = "2025-06-18T05:48:03.955Z" },
-]
-
-[[package]]
-name = "pytest-mypy-testing"
-version = "0.1.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "mypy" },
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/fa/66abdc214aea4061009ef45664433b3941d83cd2579102a72783c1ecc431/pytest-mypy-testing-0.1.3.tar.gz", hash = "sha256:ad4c41232f5d5f6d54b85a34325612e29669d01eb4e173aaf1fb023fecc9e281", size = 30127, upload-time = "2024-03-04T23:18:17.628Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/1f/9cf9c352d52ab1b2b1d8e01dac7ba5b9e7329c7037a2456d07ad6f366a9c/pytest_mypy_testing-0.1.3-py3-none-any.whl", hash = "sha256:86f2451a403ff50fe1620c798ca70123bef255ed24c77aa3f73b8fca6fce9f25", size = 22533, upload-time = "2024-03-04T23:18:11.724Z" },
 ]
 
 [[package]]
