@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, Final, overload
+from typing import Any, Callable, overload
 
 from mahonia import (
 	BinaryOperationOverloads,
@@ -10,65 +10,7 @@ from mahonia import (
 	Failure,
 	ResultBase,
 )
-from mahonia.tolerance import ConstTolerance
-from mahonia.types import (
-	ContextProtocol,
-	SupportsArithmetic,
-)
-
-
-@dataclass(frozen=True, eq=False, slots=True)
-class ResultApproximately[T: SupportsArithmetic, S](
-	Expr[T, S, bool],
-	BooleanBinaryOperationOverloads[bool, S],
-):
-	"""Approximate equality in the Result context: propagates Failure from the left operand.
-
-	Constructed via ``==`` on a ResultBase expression with a ConstTolerance.
-
-	>>> from typing import NamedTuple
-	>>> from mahonia import Var, PlusMinus
-	>>> from mahonia.python_func import python_func
-	>>> class Ctx(NamedTuple):
-	... 	x: float
-	>>> x = Var[float, Ctx]("x")
-	>>> def my_sqrt(v: float) -> float:
-	... 	if v < 0: raise ValueError(f"neg: {v}")
-	... 	return v ** 0.5
-	>>> safe_sqrt = python_func(my_sqrt)
-	>>> expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
-	>>> expr.to_string()
-	'(my_sqrt(x) \\u2248 T:2.0 \\xb1 0.1)'
-	>>> expr.to_string(Ctx(x=4.0))
-	'(my_sqrt(x:4.0) -> 2.0 \\u2248 T:2.0 \\xb1 0.1 -> True)'
-	>>> expr.to_string(Ctx(x=-1.0))
-	"(my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),)) \\u2248 T:2.0 \\xb1 0.1 -> Failure(exceptions=(ValueError('neg: -1.0'),)))"
-	"""
-
-	op: ClassVar[str] = " ≈ "
-
-	left: Expr[Any, S, Any]
-	right: ConstTolerance[T]
-
-	def eval(self, ctx: S) -> Const[bool]:
-		lv: Final = self.left.unwrap(ctx)
-		if isinstance(lv, Failure):
-			return lv  # type: ignore[return-value]
-		return Const(None, abs(lv - self.right.value) <= self.right.max_abs_error)
-
-	def unwrap(self, ctx: S) -> bool | Failure:  # type: ignore[override]
-		result = self.eval(ctx)
-		return result if isinstance(result, Failure) else result.value
-
-	def to_string(self, ctx: S | None = None) -> str:
-		left: Final = self.left.to_string(ctx)
-		right: Final = self.right.to_string(ctx)
-		if ctx is None:
-			return f"({left}{self.op}{right})"
-		return f"({left}{self.op}{right} -> {self.unwrap(ctx)})"
-
-	def partial(self, ctx: Any) -> "ResultApproximately[T, Any]":
-		return ResultApproximately(self.left.partial(ctx), self.right)
+from mahonia.types import ContextProtocol
 
 
 def _func_name(func: Callable[..., Any]) -> str:
@@ -320,7 +262,7 @@ class PythonFunc12[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R, S: Cont
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc0Wrapper[R]:  # type: ignore[misc]
+class PythonFunc0Wrapper[R]:
 	func: Callable[[], R]
 
 	def __call__[S: ContextProtocol](self) -> PythonFunc0[R, S]:  # pyright: ignore[reportInvalidTypeVarUse]
@@ -328,7 +270,7 @@ class PythonFunc0Wrapper[R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc1Wrapper[T1, R]:  # type: ignore[misc]
+class PythonFunc1Wrapper[T1, R]:
 	func: Callable[[T1], R]
 
 	def __call__[S: ContextProtocol](
@@ -338,7 +280,7 @@ class PythonFunc1Wrapper[T1, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc2Wrapper[T1, T2, R]:  # type: ignore[misc]
+class PythonFunc2Wrapper[T1, T2, R]:
 	func: Callable[[T1, T2], R]
 
 	def __call__[S: ContextProtocol](
@@ -356,7 +298,7 @@ class PythonFunc2Wrapper[T1, T2, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc3Wrapper[T1, T2, T3, R]:  # type: ignore[misc]
+class PythonFunc3Wrapper[T1, T2, T3, R]:
 	func: Callable[[T1, T2, T3], R]
 
 	def __call__[S: ContextProtocol](
@@ -376,7 +318,7 @@ class PythonFunc3Wrapper[T1, T2, T3, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc4Wrapper[T1, T2, T3, T4, R]:  # type: ignore[misc]
+class PythonFunc4Wrapper[T1, T2, T3, T4, R]:
 	func: Callable[[T1, T2, T3, T4], R]
 
 	def __call__[S: ContextProtocol](
@@ -398,7 +340,7 @@ class PythonFunc4Wrapper[T1, T2, T3, T4, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]:  # type: ignore[misc]
+class PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]:
 	func: Callable[[T1, T2, T3, T4, T5], R]
 
 	def __call__[S: ContextProtocol](
@@ -422,7 +364,7 @@ class PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]:  # type: ignore[misc]
+class PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6], R]
 
 	def __call__[S: ContextProtocol](
@@ -448,7 +390,7 @@ class PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]:  # type: ignore[misc]
+class PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7], R]
 
 	def __call__[S: ContextProtocol](
@@ -476,7 +418,7 @@ class PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]:  # type: ignore[misc]
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]:  # type: ignore[misc]
+class PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8], R]
 
 	def __call__[S: ContextProtocol](
@@ -506,7 +448,7 @@ class PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]:  # type: ignore[mis
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]:  # type: ignore[misc]
+class PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9], R]
 
 	def __call__[S: ContextProtocol](
@@ -538,7 +480,7 @@ class PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]:  # type: ignore
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]:  # type: ignore[misc]
+class PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], R]
 
 	def __call__[S: ContextProtocol](
@@ -572,7 +514,7 @@ class PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]:  # type: 
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]:  # type: ignore[misc]
+class PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11], R]
 
 	def __call__[S: ContextProtocol](
@@ -608,7 +550,7 @@ class PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]:  # t
 
 
 @dataclass(frozen=True, slots=True)
-class PythonFunc12Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R]:  # type: ignore[misc]
+class PythonFunc12Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R]:
 	func: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12], R]
 
 	def __call__[S: ContextProtocol](

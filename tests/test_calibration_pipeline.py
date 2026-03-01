@@ -10,7 +10,6 @@ from mahonia import Failure, PlusMinus, Result, Var
 from mahonia.python_func import (
 	PythonFunc1,
 	PythonFunc1Wrapper,
-	ResultApproximately,
 	python_func,
 )
 
@@ -175,4 +174,4 @@ def test_ffi_virality_types() -> None:
 	assert_type(safe_validate, PythonFunc1Wrapper[float, float])
 	assert_type(safe_gain(cal_path), PythonFunc1[str, float, Reading])
 	assert_type(calibrated, Result[float, Reading, float])
-	assert_type(in_spec, ResultApproximately[float, Reading])  # type: ignore[assert-type]
+	assert_type(in_spec, Result[float, Reading, bool])

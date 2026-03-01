@@ -195,8 +195,8 @@ def _latex_value(value: Any) -> str:
 def _format_with_result(structure: str, result: Const[Any]) -> str:
 	"""Format structure with result arrow notation."""
 	result_latex = (
-		_latex_expr_structure(result)  # pyright: ignore[reportUnknownArgumentType]
-		if isinstance(result, (PlusMinus, Percent))
+		_latex_expr_structure(result.value)  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+		if isinstance(result.value, (PlusMinus, Percent))
 		else _latex_value(result.value)
 	)
 	return f"({structure} \\rightarrow {result_latex})"

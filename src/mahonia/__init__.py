@@ -205,7 +205,6 @@ from mahonia.types import U as U
 if TYPE_CHECKING:
 	from mahonia.match import Match as Match
 	from mahonia.match import MatchExpr as MatchExpr
-	from mahonia.python_func import ResultApproximately as ResultApproximately
 
 
 @dataclass(frozen=True)
@@ -425,6 +424,12 @@ class BooleanBinaryOperationOverloads(Generic[T, S]):
 
 class BinaryOperationOverloads(Expr[T, S, T]):
 	@overload  # type: ignore[override]
+	def __eq__(  # type: ignore[misc]  # pyright: ignore[reportOverlappingOverload]
+		self: "ResultBase[TSupportsArithmetic, S]",
+		other: "ConstTolerance[TSupportsArithmetic]",
+	) -> "Result[TSupportsArithmetic, S, bool]": ...
+
+	@overload
 	def __eq__(
 		self, other: "ConstTolerance[TSupportsArithmetic]"
 	) -> "Approximately[TSupportsArithmetic, S]": ...
@@ -448,17 +453,19 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 	@overload
 	def __eq__(self, other: TSupportsEquality) -> "Eq[TSupportsEquality, S]": ...
 
-	def __eq__(  # pyright: ignore[reportIncompatibleMethodOverride]
+	def __eq__(  # type: ignore[misc]  # pyright: ignore[reportIncompatibleMethodOverride]
 		self,
 		other: Expr[TSupportsEquality, S, TSupportsEquality]
 		| TSupportsEquality
 		| "ConstTolerance[TSupportsArithmetic]",
-	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S] | Result[TSupportsEquality, S, bool] | ResultApproximately[TSupportsArithmetic, S]":
+	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S] | Result[TSupportsEquality, S, bool] | Result[TSupportsArithmetic, S, bool]":
 		if isinstance(other, ConstTolerance):
 			if isinstance(self, ResultBase):
-				from mahonia.python_func import ResultApproximately
-
-				return ResultApproximately(self, other)  # pyright: ignore[reportUnknownArgumentType]
+				return Result(
+					Approximately,
+					self,  # pyright: ignore[reportUnknownArgumentType]
+					Pure(other),  # pyright: ignore[reportUnknownArgumentType]
+				)
 			return Approximately(self, other)  # type: ignore[arg-type]
 		rhs = other if isinstance(other, Expr) else Const(None, other)  # pyright: ignore[reportUnknownVariableType]
 		if isinstance(self, ResultBase) or isinstance(rhs, ResultBase):

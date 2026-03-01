@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Protocol, Self, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Protocol, overload
 
 from mahonia import (
 	BinaryOp,
@@ -44,22 +44,15 @@ class ConstTolerance(
 	True
 	"""
 
-	def eval(self, ctx: Any) -> Self:
-		return self
+	def eval(self, ctx: Any) -> "Const[ConstTolerance[TSupportsArithmetic]]":  # type: ignore[override]
+		return Const(None, self)
 
 	def to_string(self, ctx: Any | None = None) -> str:
-		if ctx is None:
-			return (
-				f"{self.name}:{self.value}{self.tolerance_string}"
-				if self.name
-				else f"{self.value}{self.tolerance_string}"
-			)
-		else:
-			return (
-				f"{self.name}:{self.eval(ctx).value}{self.tolerance_string}"
-				if self.name
-				else f"{self.eval(ctx).value}{self.tolerance_string}"
-			)
+		return (
+			f"{self.name}:{self.value}{self.tolerance_string}"
+			if self.name
+			else f"{self.value}{self.tolerance_string}"
+		)
 
 	@overload  # type: ignore[override]
 	def __eq__(
@@ -178,6 +171,10 @@ class Approximately(
 	"""
 
 	op: ClassVar[str] = " ≈ "
+
+	@staticmethod
+	def op_func(v: TSupportsArithmetic, tol: "ConstTolerance[TSupportsArithmetic]") -> bool:
+		return abs(v - tol.value) <= tol.max_abs_error  # type: ignore[no-any-return]  # pyright: ignore[reportUnknownMemberType, reportOperatorIssue]
 
 	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	right: ConstTolerance[TSupportsArithmetic]  # type: ignore[assignment]
