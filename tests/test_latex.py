@@ -11,6 +11,7 @@ from mahonia import (
 	Match,
 	Percent,
 	PlusMinus,
+	Pow,
 	Predicate,
 	SizedIterable,
 	Var,
@@ -415,7 +416,7 @@ def test_nested_function_composition() -> None:
 	target2 = PlusMinus("target2", 10.0, 0.2)
 	expr1: Approximately[float, Ctx] = Approximately(x, target1)
 	two = Const(None, 2.0)  # Use float constant to maintain float type
-	power_expr = x**two
+	power_expr = Pow(x, two)
 	expr2: Approximately[float, Ctx] = Approximately(power_expr, target2)
 	combined = expr1 & expr2
 	assert latex(combined) == "x \\approx target1 \\pm 0.1 \\land x^{2.0} \\approx target2 \\pm 0.2"

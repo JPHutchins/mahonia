@@ -9,7 +9,6 @@ for all valid inputs, helping catch edge cases and ensure correctness.
 
 from dataclasses import dataclass
 
-import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from hypothesis.strategies import DrawFn
@@ -17,6 +16,7 @@ from hypothesis.strategies import DrawFn
 from mahonia import (
 	Approximately,
 	Const,
+	Failure,
 	Percent,
 	PlusMinus,
 	Predicate,
@@ -146,7 +146,8 @@ class TestArithmeticProperties:
 		cb = Const("b", 2.0)  # Use a safe non-zero divisor
 		expr = (ca / cb) * cb
 		result = expr.unwrap(None)
-		assert abs(result - a) < 1e-10  # Account for floating point precision
+		assert not isinstance(result, Failure)
+		assert abs(result - a) < 1e-10
 
 
 class TestComparisonProperties:
@@ -404,16 +405,15 @@ class TestRegressionCases:
 	"""Test specific edge cases and regression scenarios."""
 
 	def test_zero_division_safety(self) -> None:
-		"""Division by zero should be handled appropriately"""
-		# This would be a regression test if hypothesis found a division by zero issue
+		"""Division by zero produces a Failure with ZeroDivisionError."""
 		numerator = Const("num", 10.0)
 		denominator = Const("den", 0.0)
 
-		# In a real scenario, we might want to handle this gracefully
-		# For now, we expect Python's normal division by zero behavior
 		expr = numerator / denominator
-		with pytest.raises(ZeroDivisionError):
-			expr.unwrap(None)
+		result = expr.unwrap(None)
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+		assert isinstance(result.exceptions[0], ZeroDivisionError)
 
 	@given(
 		st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False),

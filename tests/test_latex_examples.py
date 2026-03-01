@@ -22,6 +22,7 @@ from mahonia import (
 	Func,
 	Percent,
 	PlusMinus,
+	Pow,
 	Predicate,
 	Var,
 )
@@ -323,7 +324,7 @@ def test_generate_latex_examples() -> None:
 	target1 = PlusMinus("target", 5.0, 0.1)
 	target2 = PlusMinus("target2", 10.0, 0.2)
 	approx1 = Approximately(x_approx, target1)
-	approx2 = Approximately(x_approx ** Const(None, 2.0), target2)
+	approx2 = Approximately(Pow(x_approx, Const(None, 2.0)), target2)
 
 	pred1 = Predicate("condition", x > 5)
 	pred2 = Predicate(None, x > 5)

@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable, Final, NamedTuple, assert_never
 
 import mahonia
 
-type Testable = mahonia.BoolExpr[Any, Any] | mahonia.Predicate[Any]
+type Testable = mahonia.BoolExpr[Any, Any] | mahonia.Predicate[Any] | mahonia.ResultBase[bool, Any]
 
 
 class CachedContext[C: mahonia.ContextProtocol]:

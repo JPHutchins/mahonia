@@ -16,7 +16,7 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from hypothesis.strategies import DrawFn
 
-from mahonia import Approximately, PlusMinus, Predicate, Var
+from mahonia import Approximately, Failure, PlusMinus, Predicate, Var
 from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
 
 
@@ -369,9 +369,9 @@ class TestArithmeticProperties:
 
 		cv_expr = stddev_expr / mean_expr
 		cv_result = cv_expr.unwrap(ctx)
+		assert not isinstance(cv_result, Failure)
 
 		expected_cv = stddev_val / mean_val
-		# Use absolute tolerance for small values, relative for larger values
 		tolerance = max(1e-12, 1e-10 * abs(expected_cv))
 		assert abs(cv_result - expected_cv) < tolerance
 

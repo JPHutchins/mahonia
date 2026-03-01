@@ -19,7 +19,7 @@ from mahonia.types import (
 
 @dataclass(frozen=True, eq=False, slots=True)
 class ResultApproximately[T: SupportsArithmetic, S](
-	Expr[T, S, bool | Failure],
+	Expr[T, S, bool],
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	"""Approximate equality in the Result context: propagates Failure from the left operand.
@@ -50,11 +50,15 @@ class ResultApproximately[T: SupportsArithmetic, S](
 	left: Expr[Any, S, Any]
 	right: ConstTolerance[T]
 
-	def eval(self, ctx: S) -> Const[bool | Failure]:
+	def eval(self, ctx: S) -> Const[bool]:
 		lv: Final = self.left.unwrap(ctx)
 		if isinstance(lv, Failure):
-			return Const(None, lv)
+			return lv  # type: ignore[return-value]
 		return Const(None, abs(lv - self.right.value) <= self.right.max_abs_error)
+
+	def unwrap(self, ctx: S) -> bool | Failure:  # type: ignore[override]
+		result = self.eval(ctx)
+		return result if isinstance(result, Failure) else result.value
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.left.to_string(ctx)
@@ -121,15 +125,15 @@ class PythonFuncBase[R, S: ContextProtocol](  # pyright: ignore[reportGeneralTyp
 	def name(self) -> str:
 		return _func_name(self.func)
 
-	def eval(self, ctx: S) -> Const[R | Failure]:  # pyright: ignore[reportIncompatibleMethodOverride]
+	def eval(self, ctx: S) -> Const[R]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		vals = tuple(arg.unwrap(ctx) for arg in self.args)
 		failures = tuple(e for v in vals if isinstance(v, Failure) for e in v.exceptions)
 		if failures:
-			return Const(None, Failure(failures))
+			return Failure(failures)  # type: ignore[return-value]
 		try:
 			return Const(None, self.func(*vals))
 		except Exception as e:
-			return Const(None, Failure((e,)))
+			return Failure((e,))  # type: ignore[return-value]
 
 	def to_string(self, ctx: S | None = None) -> str:
 		args_str = ", ".join(a.to_string(ctx) for a in self.args)

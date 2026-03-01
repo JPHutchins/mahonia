@@ -51,6 +51,8 @@ from mahonia import (
 	PlusMinus,
 	Pow,
 	Predicate,
+	Pure,
+	Result,
 	S,
 	Sub,
 	Var,
@@ -149,18 +151,22 @@ def latex(expr: Expr[Any, S, Any] | Func[Any, S], ctx: LatexCtx[S] | None = None
 	if isinstance(expr, Func):
 		return _latex_func(expr, ctx)
 
+	unwrapped: Final = _unwrap_result(expr)
+
 	match ctx:
 		case None:
-			return _latex_expr_structure(expr)
+			return _latex_expr_structure(unwrapped)
 		case LatexCtx(ctx_data, show) if show & Show.WORK:
-			structure = _latex_expr_structure(expr, ctx)
+			structure = _latex_expr_structure(unwrapped, ctx)
 			return (
 				structure
 				if "\\rightarrow" in structure
-				else _format_with_result(structure, expr.eval(ctx_data))
+				else _format_with_result(structure, unwrapped.eval(ctx_data))
 			)
 		case LatexCtx(ctx_data, _):
-			return _format_with_result(_latex_expr_structure(expr, ctx), expr.eval(ctx_data))
+			return _format_with_result(
+				_latex_expr_structure(unwrapped, ctx), unwrapped.eval(ctx_data)
+			)
 		case _:
 			assert_never(ctx)
 
@@ -196,9 +202,21 @@ def _format_with_result(structure: str, result: Const[Any]) -> str:
 	return f"({structure} \\rightarrow {result_latex})"
 
 
+def _unwrap_result(expr: Expr[Any, Any, Any]) -> Expr[Any, Any, Any]:
+	match expr:
+		case Pure(inner=inner):
+			return inner
+		case Result(inner=op, left=left, right=right):
+			return op(_unwrap_result(left), _unwrap_result(right))
+		case _:
+			return expr
+
+
 def _latex_expr_structure(expr: Expr[Any, Any, Any], latex_ctx: LatexCtx[Any] | None = None) -> str:
 	"""Convert expression structure to LaTeX, optionally showing variable values."""
 	match expr:
+		case Pure() | Result():
+			return _latex_expr_structure(_unwrap_result(expr), latex_ctx)  # pyright: ignore[reportUnknownArgumentType]
 		case Var(name=name):
 			match latex_ctx:
 				case LatexCtx(ctx, show) if show & Show.VALUES:

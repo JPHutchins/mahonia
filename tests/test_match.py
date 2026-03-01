@@ -7,7 +7,6 @@ from mahonia import (
 	Add,
 	And,
 	Const,
-	Div,
 	Eq,
 	Ge,
 	Gt,
@@ -15,11 +14,11 @@ from mahonia import (
 	Lt,
 	Match,
 	MatchExpr,
-	Mod,
 	Mul,
 	Neg,
 	Not,
 	Or,
+	Result,
 	Sub,
 	Var,
 )
@@ -378,12 +377,12 @@ def test_fizzbuzz_composition_with_logic() -> None:
 	n = Var[int, FizzBuzzCtx]("n")
 
 	mod_3 = n % 3
-	assert_type(mod_3, Mod[int, FizzBuzzCtx])
+	assert_type(mod_3, Result[int, FizzBuzzCtx, int])
 
 	is_fizz = (n % 3) == 0
 	is_buzz = (n % 5) == 0
-	assert_type(is_fizz, Eq[int, FizzBuzzCtx])
-	assert_type(is_buzz, Eq[int, FizzBuzzCtx])
+	assert_type(is_fizz, Result[int, FizzBuzzCtx, bool])
+	assert_type(is_buzz, Result[int, FizzBuzzCtx, bool])
 
 	is_fizzbuzz = is_fizz & is_buzz
 	assert_type(is_fizzbuzz, And[bool, FizzBuzzCtx])
@@ -1055,7 +1054,7 @@ def test_simple_interpreter_pattern() -> None:
 	assert_type(left_minus_right, Sub[float, ExprTreeCtx])
 
 	left_div_right = left / right
-	assert_type(left_div_right, Div[float, ExprTreeCtx])
+	assert_type(left_div_right, Result[float, ExprTreeCtx, float])
 
 	interpret = Match(
 		(op_eq_plus, left_plus_right),
@@ -1280,7 +1279,7 @@ def test_leap_year_complex_predicate() -> None:
 	div_by_4 = (year % 4) == 0
 	div_by_100 = (year % 100) == 0
 	div_by_400 = (year % 400) == 0
-	assert_type(div_by_4, Eq[int, LeapYearCtx])
+	assert_type(div_by_4, Result[int, LeapYearCtx, bool])
 
 	not_div_by_100 = ~div_by_100
 	assert_type(not_div_by_100, Not[LeapYearCtx])

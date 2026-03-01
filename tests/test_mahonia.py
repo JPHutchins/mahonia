@@ -46,6 +46,8 @@ from mahonia import (
 	PlusMinus,
 	Pow,
 	Predicate,
+	Pure,
+	Result,
 	SizedIterable,
 	StrVar,
 	Sub,
@@ -519,7 +521,7 @@ def test_literal_rmul_var() -> None:
 def test_literal_rtruediv_var() -> None:
 	y = Var[float, Ctx]("y")
 	expr = 20.0 / y
-	assert_type(expr, Div[float, Ctx])
+	assert_type(expr, Result[float, Ctx, float])
 	assert expr == Div(Const(None, 20.0), y)
 	assert expr.unwrap(ctx) == 2.0
 
@@ -527,7 +529,7 @@ def test_literal_rtruediv_var() -> None:
 def test_literal_rpow_var() -> None:
 	x = Var[int, Ctx]("x")
 	expr = 2**x
-	assert_type(expr, Pow[int, Ctx])
+	assert_type(expr, Result[int, Ctx, int])
 	assert expr == Pow(Const(None, 2), x)
 	assert expr.unwrap(ctx) == 32
 
@@ -1096,7 +1098,7 @@ def test_pow() -> None:
 
 	# Create a power expression
 	pow_expr = x**2
-	assert_type(pow_expr, Pow[int, Ctx])
+	assert_type(pow_expr, Result[int, Ctx, int])
 
 	assert pow_expr.unwrap(ctx) == 25
 	assert pow_expr.to_string() == "(x^2)"
@@ -1109,7 +1111,7 @@ def test_pow() -> None:
 	assert pow_expr.unwrap(ctx) == 9765625
 
 	pow_expr1 = Const(None, 2) ** x
-	assert_type(pow_expr1, Pow[int, Any])
+	assert_type(pow_expr1, Result[int, Any, int])
 	assert pow_expr1.unwrap(ctx) == 2**5
 	assert pow_expr1.to_string() == "(2^x)"
 
@@ -1340,30 +1342,34 @@ def test_partial_application_preserves_structure() -> None:
 
 	# Partial with only a and b
 	partial1 = expr.partial(ABCtx(a=3, b=2))
-	assert_type(partial1, Expr[int, Any, int])
+	assert_type(partial1, Result[int, Any, int])
 	assert partial1.to_string() == "(((a:3 + b:2) * (c - d))^2)"
 
 	# The structure is preserved: Add and Sub are still there, not collapsed
-	assert isinstance(partial1, Pow)
-	assert isinstance(partial1.left, Mul)
-	assert isinstance(partial1.left.left, Add)
-	assert isinstance(partial1.left.right, Sub)
+	assert isinstance(partial1, Result)
+	assert partial1.inner is Pow
+	assert isinstance(partial1.left, Pure)
+	assert isinstance(partial1.left.inner, Mul)
+	assert isinstance(partial1.left.inner.left, Add)
+	assert isinstance(partial1.left.inner.right, Sub)
 
 	# Left side fully resolved to Const, right side still has Vars
-	assert isinstance(partial1.left.left.left, Const)
-	assert isinstance(partial1.left.left.right, Const)
-	assert isinstance(partial1.left.right.left, Var)
-	assert isinstance(partial1.left.right.right, Var)
+	assert isinstance(partial1.left.inner.left.left, Const)
+	assert isinstance(partial1.left.inner.left.right, Const)
+	assert isinstance(partial1.left.inner.right.left, Var)
+	assert isinstance(partial1.left.inner.right.right, Var)
 
 	# Complete the evaluation
 	partial2 = partial1.partial(CDCtx(c=10, d=3))
 	assert partial2.to_string() == "(((a:3 + b:2) * (c:10 - d:3))^2)"
 
 	# All leaves are now Const but structure is intact
-	assert isinstance(partial2, Pow)
-	assert isinstance(partial2.left, Mul)
-	assert isinstance(partial2.left.left, Add)
-	assert isinstance(partial2.left.right, Sub)
+	assert isinstance(partial2, Result)
+	assert partial2.inner is Pow
+	assert isinstance(partial2.left, Pure)
+	assert isinstance(partial2.left.inner, Mul)
+	assert isinstance(partial2.left.inner.left, Add)
+	assert isinstance(partial2.left.inner.right, Sub)
 
 	# Final evaluation: ((3+2) * (10-3)) ** 2 = (5 * 7) ** 2 = 35 ** 2 = 1225
 	assert partial2.unwrap(()) == 1225
@@ -1598,7 +1604,7 @@ def test_arithmetic_result_types() -> None:
 	assert_type(mul_expr.eval(ctx), Const[int])
 
 	pow_expr = x**2
-	assert_type(pow_expr, Pow[int, Ctx])
+	assert_type(pow_expr, Result[int, Ctx, int])
 	assert_type(pow_expr.eval(ctx), Const[int])
 
 

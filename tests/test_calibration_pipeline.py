@@ -174,5 +174,5 @@ def test_ffi_virality_types() -> None:
 	assert_type(safe_gain, PythonFunc1Wrapper[str, float])
 	assert_type(safe_validate, PythonFunc1Wrapper[float, float])
 	assert_type(safe_gain(cal_path), PythonFunc1[str, float, Reading])
-	assert_type(calibrated, Result[float, Reading, float | Failure])
+	assert_type(calibrated, Result[float, Reading, float])
 	assert_type(in_spec, ResultApproximately[float, Reading])  # type: ignore[assert-type]

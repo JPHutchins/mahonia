@@ -26,11 +26,18 @@ def extract_vars(
 		MapExpr,
 		MaxExpr,
 		MinExpr,
+		Pure,
+		Result,
 		UnaryOpEval,
 		Var,
 	)
 
 	match expr:
+		case Pure(inner=inner):
+			vars = extract_vars(vars, inner)
+		case Result(left=left, right=right):
+			vars = extract_vars(vars, left)
+			vars = extract_vars(vars, right)
 		case Var() as v:
 			if id(v) not in (id(var) for var in vars):
 				vars += (v,)

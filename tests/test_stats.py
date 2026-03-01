@@ -8,7 +8,7 @@ from typing import NamedTuple, assert_type
 
 import pytest
 
-from mahonia import Approximately, Const, PlusMinus, Predicate, Var
+from mahonia import Approximately, Const, Failure, PlusMinus, Predicate, Var
 from mahonia.stats import Count, Mean, Median, Percentile, Range, SizedIterable, StdDev
 
 
@@ -145,6 +145,7 @@ def test_statistical_arithmetic() -> None:
 
 	result = ratio_expr.unwrap(ctx)
 	expected = 8.0 / 6.0
+	assert not isinstance(result, Failure)
 	assert abs(result - expected) < 0.0001
 
 
