@@ -180,7 +180,7 @@ class FoldLExpr(
 
 		for item in self.container.unwrap(ctx):
 			item_value: R = item.unwrap(ctx) if isinstance(item, Expr) else item  # type: ignore[assignment]  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType, reportAssignmentType]
-			result_value = self.op_cls.op_func(result_value, item_value)  # type: ignore[arg-type, assignment]  # pyright: ignore[reportArgumentType]
+			result_value = self.op_cls.op_func(result_value, item_value)  # pyright: ignore[reportArgumentType]
 
 		return Const(None, result_value)
 

@@ -974,6 +974,7 @@ class Neg(
 
 
 class BinaryOpProtocol(Expr[T, S, R], Protocol[T, S, R]):
+	op_func: ClassVar[Callable[..., Any]]
 	left: Expr[T, S, T]
 	right: Expr[T, S, T]
 
@@ -986,6 +987,9 @@ class BinaryOp(ToString[S], BinaryOpProtocol[T, S, R], Generic[T, S, R]):
 
 	left: Expr[T, S, T]
 	right: Expr[T, S, T]
+
+	def eval(self, ctx: S) -> Const[R]:
+		return Const(None, self.op_func(self.left.unwrap(ctx), self.right.unwrap(ctx)))
 
 	def to_string(self, ctx: S | None = None) -> str:
 		left: Final = self.left.to_string(ctx)
@@ -1002,8 +1006,7 @@ class BinaryOp(ToString[S], BinaryOpProtocol[T, S, R], Generic[T, S, R]):
 
 
 class SymmetricalBinaryOpProtocol(BinaryOpProtocol[T, S, T], Protocol[T, S]):
-	op_func: Callable[[Expr[T, S, T], Expr[T, S, T]], Expr[T, S, T]]
-	identity_element: T
+	identity_element: ClassVar[Any]
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1015,11 +1018,11 @@ class And(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " & "
-	op_func: ClassVar = operator.and_  # type: ignore[misc,assignment]
-	identity_element: ClassVar = True  # type: ignore[misc,assignment]
+	identity_element: ClassVar = True
 
-	def eval(self, ctx: S) -> Const[TSupportsLogic]:
-		return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
+	@staticmethod
+	def op_func(a: TSupportsLogic, b: TSupportsLogic) -> TSupportsLogic:
+		return a and b
 
 
 class Or(
@@ -1027,11 +1030,11 @@ class Or(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " | "
-	op_func: ClassVar = operator.or_  # type: ignore[misc,assignment]
-	identity_element: ClassVar = False  # type: ignore[misc,assignment]
+	identity_element: ClassVar = False
 
-	def eval(self, ctx: S) -> Const[TSupportsLogic]:
-		return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
+	@staticmethod
+	def op_func(a: TSupportsLogic, b: TSupportsLogic) -> TSupportsLogic:
+		return a or b
 
 
 class Eq(  # pyright: ignore[reportGeneralTypeIssues]
@@ -1042,9 +1045,6 @@ class Eq(  # pyright: ignore[reportGeneralTypeIssues]
 	op: ClassVar[str] = " == "
 	op_func: ClassVar = operator.eq  # pyright: ignore[reportInvalidTypeForm]
 
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
-
 
 class Ne(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsEquality, S, bool],
@@ -1053,9 +1053,6 @@ class Ne(  # pyright: ignore[reportGeneralTypeIssues]
 ):
 	op: ClassVar[str] = " != "
 	op_func: ClassVar = operator.ne  # pyright: ignore[reportInvalidTypeForm]
-
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
 
 
 class Lt(  # pyright: ignore[reportGeneralTypeIssues]
@@ -1066,9 +1063,6 @@ class Lt(  # pyright: ignore[reportGeneralTypeIssues]
 	op: ClassVar[str] = " < "
 	op_func: ClassVar = operator.lt  # pyright: ignore[reportInvalidTypeForm]
 
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
-
 
 class Le(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
@@ -1077,9 +1071,6 @@ class Le(  # pyright: ignore[reportGeneralTypeIssues]
 ):
 	op: ClassVar[str] = " <= "
 	op_func: ClassVar = operator.le  # pyright: ignore[reportInvalidTypeForm]
-
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
 
 
 class Gt(  # pyright: ignore[reportGeneralTypeIssues]
@@ -1090,9 +1081,6 @@ class Gt(  # pyright: ignore[reportGeneralTypeIssues]
 	op: ClassVar[str] = " > "
 	op_func: ClassVar = operator.gt  # pyright: ignore[reportInvalidTypeForm]
 
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
-
 
 class Ge(  # pyright: ignore[reportGeneralTypeIssues]
 	BinaryOp[TSupportsComparison, S, bool],
@@ -1102,9 +1090,6 @@ class Ge(  # pyright: ignore[reportGeneralTypeIssues]
 	op: ClassVar[str] = " >= "
 	op_func: ClassVar = operator.ge  # pyright: ignore[reportInvalidTypeForm]
 
-	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
-		return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
-
 
 class Min(
 	Foldable[TSupportsComparison, S],
@@ -1113,11 +1098,8 @@ class Min(
 	op: ClassVar[str] = "min"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: ClassVar = min  # type: ignore[misc,assignment]
-	identity_element: ClassVar = float("inf")  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsComparison]:
-		return Const(None, min(self.left.eval(ctx).value, self.right.eval(ctx).value))
+	op_func: ClassVar = min
+	identity_element: ClassVar = float("inf")
 
 
 class Max(
@@ -1127,11 +1109,8 @@ class Max(
 	op: ClassVar[str] = "max"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: ClassVar = max  # type: ignore[misc,assignment]
-	identity_element: ClassVar = float("-inf")  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsComparison]:
-		return Const(None, max(self.left.eval(ctx).value, self.right.eval(ctx).value))
+	op_func: ClassVar = max
+	identity_element: ClassVar = float("-inf")
 
 
 class Add(
@@ -1139,11 +1118,8 @@ class Add(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " + "
-	op_func: ClassVar = operator.add  # type: ignore[misc,assignment]
-	identity_element: ClassVar = 0  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
+	op_func: ClassVar = operator.add
+	identity_element: ClassVar = 0
 
 
 class Sub(
@@ -1151,11 +1127,8 @@ class Sub(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " - "
-	op_func: ClassVar = operator.sub  # type: ignore[misc,assignment]
-	identity_element: ClassVar = 0  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
+	op_func: ClassVar = operator.sub
+	identity_element: ClassVar = 0
 
 
 class Mul(
@@ -1163,11 +1136,8 @@ class Mul(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " * "
-	op_func: ClassVar = operator.mul  # type: ignore[misc,assignment]
-	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
+	op_func: ClassVar = operator.mul
+	identity_element: ClassVar = 1
 
 
 class Div(
@@ -1175,11 +1145,8 @@ class Div(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " / "
-	op_func: ClassVar = operator.truediv  # type: ignore[misc,assignment]
-	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
+	op_func: ClassVar = operator.truediv
+	identity_element: ClassVar = 1
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1188,14 +1155,10 @@ class Pow(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = "^"
-	op_func: ClassVar = operator.pow  # type: ignore[misc,assignment]
-	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
-
+	op_func: ClassVar = operator.pow
+	identity_element: ClassVar = 1
 	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	right: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value ** self.right.eval(ctx).value)
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -1208,9 +1171,6 @@ class Mod(
 
 	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	right: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
-
-	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
-		return Const(None, self.left.eval(ctx).value % self.right.eval(ctx).value)
 
 
 class ResultBase[T, S](Expr[T, S, T]):
@@ -1341,7 +1301,7 @@ class Result[T, S, R](  # pyright: ignore[reportGeneralTypeIssues]
 				return f  # type: ignore[return-value]
 			case _:
 				try:
-					return Const(None, self.inner.op_func(lv, rv))  # type: ignore[attr-defined]
+					return Const(None, self.inner.op_func(lv, rv))
 				except Exception as e:
 					return Failure((e,))  # type: ignore[return-value]
 
