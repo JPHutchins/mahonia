@@ -1064,8 +1064,8 @@ class And(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " & "
-	op_func: Final[ClassVar] = operator.and_  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = True  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.and_  # type: ignore[misc,assignment]
+	identity_element: ClassVar = True  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value and self.right.eval(ctx).value)
@@ -1076,8 +1076,8 @@ class Or(
 	BooleanBinaryOperationOverloads[TSupportsLogic, S],
 ):
 	op: ClassVar[str] = " | "
-	op_func: Final[ClassVar] = operator.or_  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = False  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.or_  # type: ignore[misc,assignment]
+	identity_element: ClassVar = False  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsLogic]:
 		return Const(None, self.left.eval(ctx).value or self.right.eval(ctx).value)
@@ -1089,7 +1089,7 @@ class Eq(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " == "
-	op_func: Final[ClassVar] = operator.eq  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.eq  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
@@ -1101,7 +1101,7 @@ class Ne(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " != "
-	op_func: Final[ClassVar] = operator.ne  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.ne  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
@@ -1113,7 +1113,7 @@ class Lt(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " < "
-	op_func: Final[ClassVar] = operator.lt  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.lt  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
@@ -1125,7 +1125,7 @@ class Le(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " <= "
-	op_func: Final[ClassVar] = operator.le  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.le  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
@@ -1137,7 +1137,7 @@ class Gt(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " > "
-	op_func: Final[ClassVar] = operator.gt  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.gt  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
@@ -1149,7 +1149,7 @@ class Ge(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " >= "
-	op_func: Final[ClassVar] = operator.ge  # pyright: ignore[reportInvalidTypeForm]
+	op_func: ClassVar = operator.ge  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
@@ -1162,8 +1162,8 @@ class Min(
 	op: ClassVar[str] = "min"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: Final[ClassVar] = min  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = float("inf")  # type: ignore[misc,assignment]
+	op_func: ClassVar = min  # type: ignore[misc,assignment]
+	identity_element: ClassVar = float("inf")  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsComparison]:
 		return Const(None, min(self.left.eval(ctx).value, self.right.eval(ctx).value))
@@ -1176,8 +1176,8 @@ class Max(
 	op: ClassVar[str] = "max"
 	template: ClassVar[str] = "({op} {left} {right})"
 	template_eval: ClassVar[str] = "({op} {left} {right} -> {out})"
-	op_func: Final[ClassVar] = max  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = float("-inf")  # type: ignore[misc,assignment]
+	op_func: ClassVar = max  # type: ignore[misc,assignment]
+	identity_element: ClassVar = float("-inf")  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsComparison]:
 		return Const(None, max(self.left.eval(ctx).value, self.right.eval(ctx).value))
@@ -1188,8 +1188,8 @@ class Add(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " + "
-	op_func: Final[ClassVar] = operator.add  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = 0  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.add  # type: ignore[misc,assignment]
+	identity_element: ClassVar = 0  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value + self.right.eval(ctx).value)
@@ -1200,8 +1200,8 @@ class Sub(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " - "
-	op_func: Final[ClassVar] = operator.sub  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = 0  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.sub  # type: ignore[misc,assignment]
+	identity_element: ClassVar = 0  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value - self.right.eval(ctx).value)
@@ -1212,8 +1212,8 @@ class Mul(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " * "
-	op_func: Final[ClassVar] = operator.mul  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.mul  # type: ignore[misc,assignment]
+	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value * self.right.eval(ctx).value)
@@ -1224,8 +1224,8 @@ class Div(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = " / "
-	op_func: Final[ClassVar] = operator.truediv  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.truediv  # type: ignore[misc,assignment]
+	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value / self.right.eval(ctx).value)
@@ -1237,8 +1237,8 @@ class Pow(
 	BinaryOperationOverloads[TSupportsArithmetic, S],
 ):
 	op: ClassVar[str] = "^"
-	op_func: Final[ClassVar] = operator.pow  # type: ignore[misc,assignment]
-	identity_element: Final[ClassVar] = 1  # type: ignore[misc,assignment]
+	op_func: ClassVar = operator.pow  # type: ignore[misc,assignment]
+	identity_element: ClassVar = 1  # type: ignore[misc,assignment]
 
 	left: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
 	right: Expr[TSupportsArithmetic, S, TSupportsArithmetic]
