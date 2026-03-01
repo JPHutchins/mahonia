@@ -5,8 +5,6 @@
 
 from typing import Any, NamedTuple, assert_type
 
-import pytest
-
 from mahonia import Const, Expr, Func, Var, extract_vars
 
 
@@ -196,7 +194,6 @@ def test_func_types() -> None:
 	assert func.expr == expr
 
 
-@pytest.mark.mypy_testing
 def test_func_result_type_int() -> None:
 	"""Verify Func preserves int result type."""
 	x = Var[int, FuncCtx]("x")
@@ -215,7 +212,6 @@ def test_func_result_type_int() -> None:
 	assert_type(sub_func.expr, Expr[Any, FuncCtx, int])
 
 
-@pytest.mark.mypy_testing
 def test_func_result_type_float() -> None:
 	"""Verify Func preserves float result type."""
 	z = Var[float, FuncCtx]("z")
@@ -225,7 +221,6 @@ def test_func_result_type_float() -> None:
 	assert_type(float_func.expr, Expr[Any, FuncCtx, float])
 
 
-@pytest.mark.mypy_testing
 def test_func_result_type_bool() -> None:
 	"""Verify Func preserves bool result type for comparisons."""
 	x = Var[int, FuncCtx]("x")
@@ -244,7 +239,6 @@ def test_func_result_type_bool() -> None:
 	assert_type(and_func.expr, Expr[Any, FuncCtx, bool])
 
 
-@pytest.mark.mypy_testing
 def test_func_args_tuple_types() -> None:
 	"""Verify Func.args tuple contains correctly typed Vars."""
 	x = Var[int, FuncCtx]("x")
@@ -257,7 +251,6 @@ def test_func_args_tuple_types() -> None:
 	assert_type(single_func.args, tuple[Expr[Any, FuncCtx, Any], ...])
 
 
-@pytest.mark.mypy_testing
 def test_func_from_const_any_context() -> None:
 	"""Verify Func from Const has Any context type."""
 	const_func = Const("answer", 42).to_func()

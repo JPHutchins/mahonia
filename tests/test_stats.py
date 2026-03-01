@@ -202,7 +202,6 @@ def test_process_control_scenario() -> None:
 	assert "Process Control:" in result_str
 
 
-@pytest.mark.mypy_testing
 def test_statistical_generic_types() -> None:
 	"""Test that statistical operations have correct generic types."""
 	measurements = Var[SizedIterable[float], BatchData]("measurements")

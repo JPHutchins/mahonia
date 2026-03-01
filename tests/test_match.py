@@ -3,8 +3,6 @@
 
 from typing import NamedTuple, assert_type
 
-import pytest
-
 from mahonia import (
 	Add,
 	And,
@@ -111,7 +109,6 @@ def test_fizzbuzz_sequence() -> None:
 		assert fizzbuzz.unwrap(FizzBuzzCtx(n=i)) == exp
 
 
-@pytest.mark.mypy_testing
 def test_match_expr_type_inference() -> None:
 	"""Verify match() correctly infers union types."""
 
@@ -133,7 +130,6 @@ def test_match_expr_type_inference() -> None:
 	assert_type(m3.unwrap(Ctx(x=1)), str | float | bool | int)
 
 
-@pytest.mark.mypy_testing
 def test_match_expr_fizzbuzz_types() -> None:
 	"""Verify FizzBuzz has correct str | int union type."""
 	n = Var[int, FizzBuzzCtx]("n")
@@ -150,7 +146,6 @@ def test_match_expr_fizzbuzz_types() -> None:
 	assert_type(fizzbuzz.eval(FizzBuzzCtx(n=1)), Const[str | int])
 
 
-@pytest.mark.mypy_testing
 def test_match_expr_homogeneous_type() -> None:
 	"""Verify Match() with same type in all branches."""
 
@@ -164,7 +159,6 @@ def test_match_expr_homogeneous_type() -> None:
 	assert_type(m.unwrap(Ctx(x=1)), int)
 
 
-@pytest.mark.mypy_testing
 def test_match_overload_coverage() -> None:
 	"""Test all Match overload categories for type inference.
 
@@ -379,7 +373,6 @@ def test_fizzbuzz_composition_with_comparison() -> None:
 	assert is_large.unwrap(FizzBuzzCtx(n=22)) is True
 
 
-@pytest.mark.mypy_testing
 def test_fizzbuzz_composition_with_logic() -> None:
 	"""Test FizzBuzz conditions in logical expressions."""
 	n = Var[int, FizzBuzzCtx]("n")
@@ -429,7 +422,6 @@ def test_fizzbuzz_bound_expr_composition() -> None:
 	assert composed_mul.unwrap(()) == 150
 
 
-@pytest.mark.mypy_testing
 def test_fizzbuzz_bind_type() -> None:
 	"""Verify bind() returns correctly typed BoundExpr."""
 	n = Var[int, FizzBuzzCtx]("n")
@@ -484,7 +476,6 @@ class GradeCtx(NamedTuple):
 	score: int
 
 
-@pytest.mark.mypy_testing
 def test_composed_grading_system() -> None:
 	"""Demonstrate composing Match expressions for a grading system."""
 	score = Var[int, GradeCtx]("score")
@@ -535,7 +526,6 @@ class TaxCtx(NamedTuple):
 	filing_status: str
 
 
-@pytest.mark.mypy_testing
 def test_composed_tax_bracket_calculator() -> None:
 	"""Demonstrate nested Match for tax bracket calculation."""
 	income = Var[float, TaxCtx]("income")
@@ -780,7 +770,6 @@ class CollatzCtx(NamedTuple):
 	n: float
 
 
-@pytest.mark.mypy_testing
 def test_collatz_step() -> None:
 	"""Collatz conjecture: if even, n/2; if odd, 3n+1.
 
@@ -814,7 +803,6 @@ class Point2DCtx(NamedTuple):
 	y: int
 
 
-@pytest.mark.mypy_testing
 def test_quadrant_classifier() -> None:
 	"""Classify 2D points into quadrants - nested conditionals.
 
@@ -854,7 +842,6 @@ def test_quadrant_classifier() -> None:
 	)
 
 
-@pytest.mark.mypy_testing
 def test_nested_match_distance_from_origin() -> None:
 	"""Compute taxicab distance with sign-aware absolute value via nested Match.
 
@@ -889,7 +876,6 @@ def test_nested_match_distance_from_origin() -> None:
 	)
 
 
-@pytest.mark.mypy_testing
 def test_deeply_nested_match_in_match_arms() -> None:
 	"""Match expressions as branch values - true Haskell case-of-case.
 
@@ -961,7 +947,6 @@ class RationalCtx(NamedTuple):
 	denom: int
 
 
-@pytest.mark.mypy_testing
 def test_sign_function_composition() -> None:
 	"""Compose sign functions: signum(a) * signum(b) for rational sign.
 
@@ -997,7 +982,6 @@ class TriangleCtx(NamedTuple):
 	c: int
 
 
-@pytest.mark.mypy_testing
 def test_triangle_classifier_deep_composition() -> None:
 	"""Classify triangles: first check validity, then classify type.
 
@@ -1051,7 +1035,6 @@ class ExprTreeCtx(NamedTuple):
 	right_val: float
 
 
-@pytest.mark.mypy_testing
 def test_simple_interpreter_pattern() -> None:
 	"""A tiny expression interpreter - the essence of Lisp eval.
 
@@ -1103,7 +1086,6 @@ class ColorCtx(NamedTuple):
 	b: float
 
 
-@pytest.mark.mypy_testing
 def test_color_classifier_with_luminance() -> None:
 	"""Classify colors by computing luminance and categorizing.
 
@@ -1137,7 +1119,6 @@ def test_color_classifier_with_luminance() -> None:
 	assert brightness.unwrap(ColorCtx(r=255, g=0, b=0)) == "medium"
 
 
-@pytest.mark.mypy_testing
 def test_match_with_arithmetic_in_both_condition_and_result() -> None:
 	"""Complex expressions in both guard and body - full FP style.
 
@@ -1172,7 +1153,6 @@ class ChainCtx(NamedTuple):
 	c: int
 
 
-@pytest.mark.mypy_testing
 def test_three_way_min_max_via_nested_match() -> None:
 	"""Compute min and max of three values using only nested Match.
 
@@ -1217,7 +1197,6 @@ def test_three_way_min_max_via_nested_match() -> None:
 	)
 
 
-@pytest.mark.mypy_testing
 def test_clamp_via_composed_min_max() -> None:
 	"""Clamp a value to [lo, hi] using composed min/max Match expressions.
 
@@ -1251,7 +1230,6 @@ class MaybeCtx(NamedTuple):
 	value: int
 
 
-@pytest.mark.mypy_testing
 def test_maybe_monad_simulation() -> None:
 	"""Simulate Maybe monad's fmap and bind-like behavior.
 
@@ -1288,7 +1266,6 @@ class LeapYearCtx(NamedTuple):
 	year: int
 
 
-@pytest.mark.mypy_testing
 def test_leap_year_complex_predicate() -> None:
 	"""Determine leap year - classic nested conditional logic.
 
@@ -1331,7 +1308,6 @@ class RomanCtx(NamedTuple):
 	n: int
 
 
-@pytest.mark.mypy_testing
 def test_roman_numeral_digit_selector() -> None:
 	"""Select Roman numeral representation for single digits.
 
@@ -1384,7 +1360,6 @@ class ChessCtx(NamedTuple):
 	to_file: int
 
 
-@pytest.mark.mypy_testing
 def test_chess_move_validator_complex() -> None:
 	"""Validate basic chess piece movements.
 
@@ -1440,7 +1415,6 @@ class RecursivePatternCtx(NamedTuple):
 	value: int
 
 
-@pytest.mark.mypy_testing
 def test_tower_of_hanoi_move_count() -> None:
 	"""Compute moves needed for Tower of Hanoi at various depths.
 
@@ -1478,7 +1452,6 @@ class FibonacciSelectCtx(NamedTuple):
 	n: int
 
 
-@pytest.mark.mypy_testing
 def test_fibonacci_selector() -> None:
 	"""Select from precomputed Fibonacci numbers - demonstrates many-branch Match."""
 	n = Var[int, FibonacciSelectCtx]("n")
@@ -1514,7 +1487,6 @@ def test_fibonacci_selector() -> None:
 	)
 
 
-@pytest.mark.mypy_testing
 def test_expression_tree_depth_classification() -> None:
 	"""Classify expression complexity based on depth of nesting."""
 	n = Var[int, FizzBuzzCtx]("n")
@@ -1555,7 +1527,6 @@ class DayCtx(NamedTuple):
 	year: int
 
 
-@pytest.mark.mypy_testing
 def test_day_of_year_calculation() -> None:
 	"""Calculate day of year - complex multi-branch with arithmetic.
 

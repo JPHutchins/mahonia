@@ -5,8 +5,6 @@
 
 from typing import Any, NamedTuple, assert_type
 
-import pytest
-
 from mahonia import (
 	Const,
 	Expr,
@@ -466,7 +464,6 @@ def test_syntax_equivalence() -> None:
 	assert result_verbose == result_fluent == [1, 4, 9]
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_int_result_type() -> None:
 	"""Verify MapExpr preserves int result type."""
 	x = Var[int, ElementCtx]("x")
@@ -486,7 +483,6 @@ def test_mapexpr_int_result_type() -> None:
 	assert_type(result, SizedIterable[int])
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_float_result_type() -> None:
 	"""Verify MapExpr preserves float result type."""
 	f = Var[float, FloatElementCtx]("f")
@@ -500,7 +496,6 @@ def test_mapexpr_float_result_type() -> None:
 	assert_type(result, SizedIterable[float])
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_bool_result_type() -> None:
 	"""Verify MapExpr preserves bool result type for predicates."""
 	x = Var[int, ElementCtx]("x")
@@ -514,7 +509,6 @@ def test_mapexpr_bool_result_type() -> None:
 	assert_type(result, SizedIterable[bool])
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_func_field_types() -> None:
 	"""Verify MapExpr.func and MapExpr.container preserve types."""
 	x = Var[int, ElementCtx]("x")
@@ -525,7 +519,6 @@ def test_mapexpr_func_field_types() -> None:
 	assert_type(mapped.container, Expr[SizedIterable[Any], Any, SizedIterable[Any]])
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_eval_returns_const() -> None:
 	"""Verify MapExpr.eval returns Const with correct element type."""
 	x = Var[int, ElementCtx]("x")
@@ -538,7 +531,6 @@ def test_mapexpr_eval_returns_const() -> None:
 	assert_type(result, Const[SizedIterable[int]])
 
 
-@pytest.mark.mypy_testing
 def test_mapexpr_with_const_expression() -> None:
 	"""Verify MapExpr with expressions containing Const."""
 	x = Var[int, ElementCtx]("x")

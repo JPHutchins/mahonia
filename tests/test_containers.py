@@ -5,8 +5,6 @@
 
 from typing import Any, NamedTuple, assert_type
 
-import pytest
-
 from mahonia import (
 	Add,
 	AllExpr,
@@ -957,7 +955,6 @@ class FoldLCtx(NamedTuple):
 	bools: list[bool]
 
 
-@pytest.mark.mypy_testing
 def test_foldl_add_type_preservation() -> None:
 	"""Verify FoldLExpr with Add preserves int type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -971,7 +968,6 @@ def test_foldl_add_type_preservation() -> None:
 	assert_type(fold_add.unwrap(ctx), int)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_mul_type_preservation() -> None:
 	"""Verify FoldLExpr with Mul preserves int type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -984,7 +980,6 @@ def test_foldl_mul_type_preservation() -> None:
 	assert_type(result, Const[int])
 
 
-@pytest.mark.mypy_testing
 def test_foldl_and_type_preservation() -> None:
 	"""Verify FoldLExpr with And preserves bool type."""
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
@@ -998,7 +993,6 @@ def test_foldl_and_type_preservation() -> None:
 	assert_type(fold_and.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_or_type_preservation() -> None:
 	"""Verify FoldLExpr with Or preserves bool type."""
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
@@ -1011,7 +1005,6 @@ def test_foldl_or_type_preservation() -> None:
 	assert_type(result, Const[bool])
 
 
-@pytest.mark.mypy_testing
 def test_foldl_min_type_preservation() -> None:
 	"""Verify FoldLExpr with Min preserves float type."""
 	floats = Var[SizedIterable[float], FoldLCtx]("floats")
@@ -1025,7 +1018,6 @@ def test_foldl_min_type_preservation() -> None:
 	assert_type(fold_min.unwrap(ctx), float)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_max_type_preservation() -> None:
 	"""Verify FoldLExpr with Max preserves float type."""
 	floats = Var[SizedIterable[float], FoldLCtx]("floats")
@@ -1038,7 +1030,6 @@ def test_foldl_max_type_preservation() -> None:
 	assert_type(result, Const[float])
 
 
-@pytest.mark.mypy_testing
 def test_foldl_with_initial_value_type() -> None:
 	"""Verify FoldLExpr with initial value preserves type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -1051,7 +1042,6 @@ def test_foldl_with_initial_value_type() -> None:
 	assert_type(result, Const[int])
 
 
-@pytest.mark.mypy_testing
 def test_minexpr_type_preservation() -> None:
 	"""Verify MinExpr preserves element type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -1065,7 +1055,6 @@ def test_minexpr_type_preservation() -> None:
 	assert_type(min_expr.unwrap(ctx), int)
 
 
-@pytest.mark.mypy_testing
 def test_maxexpr_type_preservation() -> None:
 	"""Verify MaxExpr preserves element type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -1079,7 +1068,6 @@ def test_maxexpr_type_preservation() -> None:
 	assert_type(max_expr.unwrap(ctx), int)
 
 
-@pytest.mark.mypy_testing
 def test_anyexpr_type_preservation() -> None:
 	"""Verify AnyExpr returns bool type."""
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
@@ -1093,7 +1081,6 @@ def test_anyexpr_type_preservation() -> None:
 	assert_type(any_expr.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_allexpr_type_preservation() -> None:
 	"""Verify AllExpr returns bool type."""
 	bools = Var[SizedIterable[bool], FoldLCtx]("bools")
@@ -1107,7 +1094,6 @@ def test_allexpr_type_preservation() -> None:
 	assert_type(all_expr.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_contains_type_preservation() -> None:
 	"""Verify Contains returns bool type."""
 	ints = Var[SizedIterable[int], FoldLCtx]("ints")
@@ -1130,7 +1116,6 @@ class ElemCtx(NamedTuple):
 	n: int
 
 
-@pytest.mark.mypy_testing
 def test_anyexpr_with_mapexpr_composition() -> None:
 	"""Verify AnyExpr composed with MapExpr preserves bool type."""
 	from mahonia import MapExpr
@@ -1150,7 +1135,6 @@ def test_anyexpr_with_mapexpr_composition() -> None:
 	assert_type(any_mapped.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_allexpr_with_mapexpr_composition() -> None:
 	"""Verify AllExpr composed with MapExpr preserves bool type."""
 	from mahonia import MapExpr
@@ -1170,7 +1154,6 @@ def test_allexpr_with_mapexpr_composition() -> None:
 	assert_type(all_mapped.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_with_mapexpr_composition() -> None:
 	"""Verify FoldLExpr composed with MapExpr preserves element type."""
 	from mahonia import MapExpr
@@ -1329,7 +1312,6 @@ def test_filter_expr_partial() -> None:
 	assert partial_expr.unwrap(EmptyCtx()) == (1, 3, 5)
 
 
-@pytest.mark.mypy_testing
 def test_filter_expr_type_preservation() -> None:
 	"""Verify FilterExpr preserves element type."""
 
@@ -1348,7 +1330,6 @@ def test_filter_expr_type_preservation() -> None:
 	assert_type(result, Const[SizedIterable[int]])
 
 
-@pytest.mark.mypy_testing
 def test_foldl_expr_unwrap_returns_R_not_T() -> None:
 	"""Critical test: verify FoldLExpr unwrap returns R (result type), not T (element type).
 
@@ -1381,7 +1362,6 @@ def test_foldl_expr_unwrap_returns_R_not_T() -> None:
 	assert fold.unwrap(ctx) == (2 + 3) + (2 * 3)  # 5 + 6 = 11
 
 
-@pytest.mark.mypy_testing
 def test_foldl_plain_int_type_identity() -> None:
 	"""Verify FoldLExpr[int, S, int] - plain values have T == R."""
 
@@ -1396,7 +1376,6 @@ def test_foldl_plain_int_type_identity() -> None:
 	assert_type(fold.unwrap(Ctx(nums=[1, 2, 3])), int)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_plain_float_type_identity() -> None:
 	"""Verify FoldLExpr[float, S, float] - plain floats have T == R."""
 
@@ -1411,7 +1390,6 @@ def test_foldl_plain_float_type_identity() -> None:
 	assert_type(fold.unwrap(Ctx(vals=[1.0, 2.0])), float)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_plain_bool_type_identity() -> None:
 	"""Verify FoldLExpr[bool, S, bool] - plain bools have T == R."""
 
@@ -1428,7 +1406,6 @@ def test_foldl_plain_bool_type_identity() -> None:
 	assert_type(fold_or.unwrap(Ctx(flags=[False, True])), bool)
 
 
-@pytest.mark.mypy_testing
 def test_foldl_with_initial_preserves_result_type() -> None:
 	"""Verify FoldLExpr with initial value preserves result type correctly."""
 
@@ -1445,7 +1422,6 @@ def test_foldl_with_initial_preserves_result_type() -> None:
 	assert fold_with_init.unwrap(Ctx(nums=[1, 2, 3])) == 106
 
 
-@pytest.mark.mypy_testing
 def test_foldl_filter_composition_types() -> None:
 	"""Verify FoldLExpr composed with FilterExpr preserves types."""
 
@@ -1467,7 +1443,6 @@ def test_foldl_filter_composition_types() -> None:
 	assert fold_sum.unwrap(ctx) == 6
 
 
-@pytest.mark.mypy_testing
 def test_foldl_partial_preserves_result_type() -> None:
 	"""Verify FoldLExpr.partial preserves the result type R."""
 
@@ -1487,7 +1462,6 @@ def test_foldl_partial_preserves_result_type() -> None:
 	assert partial.unwrap(Empty()) == 6
 
 
-@pytest.mark.mypy_testing
 def test_foldl_mul_with_expr_elements() -> None:
 	"""Verify FoldLExpr[Expr[int,...], S, int] with Mul operation."""
 

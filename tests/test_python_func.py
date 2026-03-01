@@ -249,7 +249,6 @@ class TestIntegration:
 		assert "Failure" in result_str
 
 
-@pytest.mark.mypy_testing
 def test_python_func_generic_types() -> None:
 	assert_type(safe_sqrt, PythonFunc1Wrapper[float, float])
 	assert_type(safe_div, PythonFunc2Wrapper[float, float, float])
@@ -273,7 +272,6 @@ def test_python_func_generic_types() -> None:
 	assert_type(add_expr.unwrap(Ctx(x=4.0, y=9.0)), float | Failure)
 
 
-@pytest.mark.mypy_testing
 def test_math_sqrt_wrapper_types() -> None:
 	stdlib_sqrt = python_func(math.sqrt)
 	assert_type(stdlib_sqrt, PythonFunc1Wrapper[SupportsFloat | SupportsIndex, float])
@@ -284,7 +282,6 @@ def test_math_sqrt_wrapper_types() -> None:
 	stdlib_sqrt(x)  # type: ignore[arg-type]
 
 
-@pytest.mark.mypy_testing
 def test_ffi_pollution_coerces_to_result_types() -> None:
 	from mahonia import Add
 	from mahonia.python_func import (
@@ -1659,7 +1656,6 @@ class TestFactoryIntermediateArities:
 # --- Static type safety tests ---
 
 
-@pytest.mark.mypy_testing
 def test_python_func_3_generic_types() -> None:
 	assert_type(safe_lerp, PythonFunc3Wrapper[float, float, float, float])
 	expr = safe_lerp(a3, b3, t3)
@@ -1681,7 +1677,6 @@ def test_python_func_3_generic_types() -> None:
 	safe_lerp(a3, b3, 0.0)
 
 
-@pytest.mark.mypy_testing
 def test_python_func_6_generic_types() -> None:
 	assert_type(
 		safe_weighted_avg,
@@ -1706,7 +1701,6 @@ def test_python_func_6_generic_types() -> None:
 	safe_weighted_avg(1.0, w1, v2, w2, v3, 1.0)
 
 
-@pytest.mark.mypy_testing
 def test_python_func_12_generic_types() -> None:
 	assert_type(
 		safe_dot,
@@ -1778,7 +1772,6 @@ def test_python_func_12_generic_types() -> None:
 	safe_dot(1.0, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, 1.0)
 
 
-@pytest.mark.mypy_testing
 def test_python_func_arg_type_checking_existing_arities() -> None:
 	safe_sqrt("wrong")  # type: ignore[arg-type]
 	safe_sqrt(4.0)
@@ -1813,7 +1806,6 @@ safe_repeat = python_func(repeat_str)
 safe_format = python_func(format_value)
 
 
-@pytest.mark.mypy_testing
 def test_mixed_type_expr_args_accepted() -> None:
 	assert_type(safe_repeat, PythonFunc2Wrapper[str, int, str])
 	assert_type(safe_format, PythonFunc3Wrapper[str, float, int, str])
@@ -1831,7 +1823,6 @@ def test_mixed_type_expr_args_accepted() -> None:
 	safe_format(m_label, m_val, 2)
 
 
-@pytest.mark.mypy_testing
 def test_mixed_type_wrong_expr_rejected() -> None:
 	safe_repeat(m_n, m_label)  # type: ignore[arg-type]
 	safe_repeat(m_val, m_n)  # type: ignore[arg-type]
@@ -1842,21 +1833,18 @@ def test_mixed_type_wrong_expr_rejected() -> None:
 	safe_format(m_label, m_val, m_label)  # type: ignore[arg-type]
 
 
-@pytest.mark.mypy_testing
 def test_mixed_type_result_expr_composition() -> None:
 	safe_repeat(safe_format(m_label, m_val, m_n), m_n)
 
 	safe_repeat(m_label, safe_format(m_label, m_val, m_n))  # type: ignore[arg-type]
 
 
-@pytest.mark.mypy_testing
 def test_pure_expr_args_accepted() -> None:
 	safe_div(x + y, x * y)
 	safe_sqrt(x + y)
 	safe_format(m_label, m_val * m_val, m_n + m_n)
 
 
-@pytest.mark.mypy_testing
 def test_pure_expr_args_wrong_type_rejected() -> None:
 	safe_div(x + y, m_label)  # type: ignore[arg-type]
 	safe_repeat(m_n + m_n, m_label)  # type: ignore[arg-type]
@@ -1864,7 +1852,6 @@ def test_pure_expr_args_wrong_type_rejected() -> None:
 	safe_format(m_label, m_n + m_n, m_val)  # type: ignore[arg-type]
 
 
-@pytest.mark.mypy_testing
 def test_homogeneous_wrong_expr_rejected() -> None:
 	str_x = Var[str, Ctx]("x")
 	safe_sqrt(str_x)  # type: ignore[arg-type]

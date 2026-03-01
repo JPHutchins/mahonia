@@ -123,7 +123,6 @@ def test_const_eval_and_str() -> None:
 	assert c.to_string(ctx) == "100"
 
 
-@pytest.mark.mypy_testing
 def test_const_generic_type() -> None:
 	c_int = Const(None, 1)
 	assert_type(c_int, Const[int])
@@ -153,7 +152,6 @@ def test_const_generic_type() -> None:
 	assert_type(c_custom.value, CustomType)
 
 
-@pytest.mark.mypy_testing
 def test_var_generic_type() -> None:
 	v_int = Var[int, Ctx]("x")
 	assert_type(v_int, Var[int, Ctx])
@@ -179,7 +177,6 @@ def test_var_generic_type() -> None:
 	assert_type(v_custom.unwrap(ctx), CustomType)
 
 
-@pytest.mark.mypy_testing
 def test_eq_generic_type() -> None:
 	v_int = Var[int, Ctx]("x")
 	c_int = Const("Five", 5)
@@ -194,7 +191,6 @@ def test_eq_generic_type() -> None:
 	assert_type(eq_expr_str.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_add_generic_type() -> None:
 	v_int = Var[int, Ctx]("x")
 	c_int = Const("Five", 5)
@@ -1031,7 +1027,6 @@ def test_predicate() -> None:
 	)
 
 
-@pytest.mark.mypy_testing
 def test_bound_expr_type() -> None:
 	"""Test Closure type with Predicate."""
 
@@ -1554,7 +1549,6 @@ def test_min_max_chained() -> None:
 	assert clamped.unwrap(Ctx(x=150.0)) == 100.0
 
 
-@pytest.mark.mypy_testing
 def test_comparison_result_types() -> None:
 	"""Verify comparison ops have R=bool."""
 	x = Var[int, Ctx]("x")
@@ -1586,7 +1580,6 @@ def test_comparison_result_types() -> None:
 	assert_type(ne_expr.eval(ctx), Const[bool])
 
 
-@pytest.mark.mypy_testing
 def test_arithmetic_result_types() -> None:
 	"""Verify arithmetic ops preserve operand type."""
 	x = Var[int, Ctx]("x")
@@ -1609,7 +1602,6 @@ def test_arithmetic_result_types() -> None:
 	assert_type(pow_expr.eval(ctx), Const[int])
 
 
-@pytest.mark.mypy_testing
 def test_bound_expr_result_type() -> None:
 	"""Verify BoundExpr preserves R type."""
 	x = Var[int, Ctx]("x")
@@ -1627,7 +1619,6 @@ def test_bound_expr_result_type() -> None:
 	assert_type(bound_var.unwrap(), int)
 
 
-@pytest.mark.mypy_testing
 def test_logical_composition_types() -> None:
 	"""Verify logical ops result type."""
 	x = Var[int, Ctx]("x")
@@ -1645,7 +1636,6 @@ def test_logical_composition_types() -> None:
 	assert_type(not_expr.unwrap(ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_func_result_types() -> None:
 	"""Verify Func type captures args and result type."""
 	x = Var[int, Ctx]("x")
@@ -1662,7 +1652,6 @@ def test_func_result_types() -> None:
 	assert_type(const_func, Func[int, Any])
 
 
-@pytest.mark.mypy_testing
 def test_map_expr_result_types() -> None:
 	"""Verify MapExpr type preserves element and result types."""
 	n = Var[int, ElemCtx]("n")
@@ -1676,7 +1665,6 @@ def test_map_expr_result_types() -> None:
 	assert_type(result, SizedIterable[int])
 
 
-@pytest.mark.mypy_testing
 def test_contains_result_types() -> None:
 	"""Verify Contains returns bool."""
 	values = Var[SizedIterable[int], ContainsCtx]("values")
@@ -1690,7 +1678,6 @@ def test_contains_result_types() -> None:
 	assert_type(contains_expr.unwrap(contains_ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_any_all_expr_result_types() -> None:
 	"""Verify AnyExpr and AllExpr return bool."""
 	flags = Var[SizedIterable[bool], FlagsCtx]("flags")
@@ -1708,7 +1695,6 @@ def test_any_all_expr_result_types() -> None:
 	assert_type(all_expr.unwrap(flags_ctx), bool)
 
 
-@pytest.mark.mypy_testing
 def test_min_max_expr_result_types() -> None:
 	"""Verify MinExpr and MaxExpr preserve element type."""
 	values = Var[SizedIterable[int], ValuesCtx]("values")
@@ -1738,7 +1724,6 @@ def test_foldl_expr_result_types() -> None:
 	assert product_fold.unwrap(values_ctx) == 24
 
 
-@pytest.mark.mypy_testing
 def test_predicate_result_types() -> None:
 	"""Verify Predicate returns bool."""
 	x = Var[int, PredicateCtx]("x")
@@ -1767,7 +1752,6 @@ class PartialFullCtx(NamedTuple):
 	y: int
 
 
-@pytest.mark.mypy_testing
 def test_partial_preserves_result_type_int() -> None:
 	"""Verify partial application preserves int result type."""
 	x = Var[int, Any]("x")
@@ -1784,7 +1768,6 @@ def test_partial_preserves_result_type_int() -> None:
 	assert result == 15
 
 
-@pytest.mark.mypy_testing
 def test_partial_preserves_result_type_bool() -> None:
 	"""Verify partial application preserves bool result type for comparisons."""
 	x = Var[int, Any]("x")
@@ -1804,7 +1787,6 @@ def test_partial_preserves_result_type_bool() -> None:
 	assert result is True
 
 
-@pytest.mark.mypy_testing
 def test_bind_preserves_result_type_int() -> None:
 	"""Verify bind preserves int result type."""
 	x = Var[int, PartialFullCtx]("x")
@@ -1821,7 +1803,6 @@ def test_bind_preserves_result_type_int() -> None:
 	assert result == 12
 
 
-@pytest.mark.mypy_testing
 def test_bind_preserves_result_type_bool() -> None:
 	"""Verify bind preserves bool result type for comparisons."""
 	x = Var[int, PartialFullCtx]("x")
@@ -1838,7 +1819,6 @@ def test_bind_preserves_result_type_bool() -> None:
 	assert result is True
 
 
-@pytest.mark.mypy_testing
 def test_foldl_partial_preserves_type() -> None:
 	"""Verify FoldLExpr.partial preserves element type."""
 
@@ -2040,7 +2020,6 @@ def test_match_expr_extract_vars() -> None:
 	assert len(func.args) == 3
 
 
-@pytest.mark.mypy_testing
 def test_match_expr_type_preservation() -> None:
 	"""Verify match() preserves result type."""
 
@@ -2118,7 +2097,6 @@ def test_context_vars_with_approximation() -> None:
 	assert check.unwrap(ctx_fail) is False
 
 
-@pytest.mark.mypy_testing
 def test_context_vars_type_inference() -> None:
 	"""Test that context_vars preserves Var and context types for type checker."""
 	Ctx, x, y = context_vars(("x", float), ("y", int))
@@ -2364,7 +2342,6 @@ def test_abs_with_float() -> None:
 	assert abs_x.to_string(FloatCtx(x=-3.14)) == "(abs x:-3.14 -> 3.14)"
 
 
-@pytest.mark.mypy_testing
 def test_abs_types() -> None:
 	"""Verify Abs type inference."""
 	x = Var[int, Ctx]("x")
@@ -2458,7 +2435,6 @@ def test_clamp_edge_cases() -> None:
 	assert clamped.unwrap(ClampCtx(x=10)) == 10
 
 
-@pytest.mark.mypy_testing
 def test_clamp_types() -> None:
 	"""Verify ClampExpr type inference."""
 	from mahonia import ClampExpr
