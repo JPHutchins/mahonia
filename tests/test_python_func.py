@@ -34,6 +34,8 @@ y = Var[float, Ctx]("y")
 
 
 def div(a: float, b: float) -> float:
+	if b == 0:
+		raise ZeroDivisionError("division by zero")
 	return a / b
 
 
@@ -46,6 +48,8 @@ def raise_error() -> float:
 
 
 def my_sqrt(val: float) -> float:
+	if val < 0:
+		raise ValueError(f"expected a nonnegative input, got {val}")
 	return math.sqrt(val)
 
 
