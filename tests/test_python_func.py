@@ -6,7 +6,7 @@ from typing import NamedTuple, SupportsFloat, SupportsIndex, assert_type
 
 import pytest
 
-from mahonia import Const, Failure, Var
+from mahonia import Const, Failure, Result, Var
 from mahonia.python_func import (
 	PythonFunc0,
 	PythonFunc0Wrapper,
@@ -20,7 +20,6 @@ from mahonia.python_func import (
 	PythonFunc6Wrapper,
 	PythonFunc12,
 	PythonFunc12Wrapper,
-	ResultAdd,  # pyright: ignore[reportUnusedImport]
 	python_func,
 )
 
@@ -268,8 +267,8 @@ def test_python_func_generic_types() -> None:
 	assert_type(pi_expr.unwrap(Ctx(x=0, y=0)), float | Failure)
 
 	add_expr = safe_sqrt(x) + safe_sqrt(y)
-	assert_type(add_expr, ResultAdd[float, Ctx])
-	assert_type(add_expr.unwrap(Ctx(x=4.0, y=9.0)), float | Failure)
+	assert_type(add_expr, Result[float, Ctx, float | Failure])
+	assert_type(add_expr.unwrap(Ctx(x=4.0, y=9.0)), float)
 
 
 def test_math_sqrt_wrapper_types() -> None:
@@ -284,69 +283,57 @@ def test_math_sqrt_wrapper_types() -> None:
 
 def test_ffi_pollution_coerces_to_result_types() -> None:
 	from mahonia import Add
-	from mahonia.python_func import (
-		ResultAdd,  # pyright: ignore[reportUnusedImport]
-		ResultDiv,
-		ResultEq,
-		ResultGe,
-		ResultGt,
-		ResultLe,
-		ResultLt,
-		ResultMul,
-		ResultNe,
-		ResultSub,
-	)
 
 	pure_add = x + y
 	assert_type(pure_add, Add[float, Ctx])
 
 	ffi_left_add = safe_sqrt(x) + y
-	assert_type(ffi_left_add, ResultAdd[float, Ctx])
+	assert_type(ffi_left_add, Result[float, Ctx, float | Failure])
 
 	ffi_left_sub = safe_sqrt(x) - y
-	assert_type(ffi_left_sub, ResultSub[float, Ctx])
+	assert_type(ffi_left_sub, Result[float, Ctx, float | Failure])
 
 	ffi_left_mul = safe_sqrt(x) * y
-	assert_type(ffi_left_mul, ResultMul[float, Ctx])
+	assert_type(ffi_left_mul, Result[float, Ctx, float | Failure])
 
 	ffi_left_div = safe_sqrt(x) / y
-	assert_type(ffi_left_div, ResultDiv[float, Ctx])
+	assert_type(ffi_left_div, Result[float, Ctx, float | Failure])
 
 	literal_radd = 1.0 + safe_sqrt(x)
-	assert_type(literal_radd, ResultAdd[float, Ctx])
+	assert_type(literal_radd, Result[float, Ctx, float | Failure])
 
 	literal_rsub = 1.0 - safe_sqrt(x)
-	assert_type(literal_rsub, ResultSub[float, Ctx])
+	assert_type(literal_rsub, Result[float, Ctx, float | Failure])
 
 	literal_rmul = 2.0 * safe_sqrt(x)
-	assert_type(literal_rmul, ResultMul[float, Ctx])
+	assert_type(literal_rmul, Result[float, Ctx, float | Failure])
 
 	literal_rdiv = 1.0 / safe_sqrt(x)
-	assert_type(literal_rdiv, ResultDiv[float, Ctx])
+	assert_type(literal_rdiv, Result[float, Ctx, float | Failure])
 
 	ffi_plus_pure = safe_sqrt(x) + (x + y)
-	assert_type(ffi_plus_pure, ResultAdd[float, Ctx])
+	assert_type(ffi_plus_pure, Result[float, Ctx, float | Failure])
 
 	ffi_lt = safe_sqrt(x) < 5.0
-	assert_type(ffi_lt, ResultLt[float, Ctx])
+	assert_type(ffi_lt, Result[float, Ctx, bool | Failure])
 
 	ffi_le = safe_sqrt(x) <= 5.0
-	assert_type(ffi_le, ResultLe[float, Ctx])
+	assert_type(ffi_le, Result[float, Ctx, bool | Failure])
 
 	ffi_gt = safe_sqrt(x) > 1.0
-	assert_type(ffi_gt, ResultGt[float, Ctx])
+	assert_type(ffi_gt, Result[float, Ctx, bool | Failure])
 
 	ffi_ge = safe_sqrt(x) >= 1.0
-	assert_type(ffi_ge, ResultGe[float, Ctx])
+	assert_type(ffi_ge, Result[float, Ctx, bool | Failure])
 
 	ffi_eq = safe_sqrt(x) == 2.0
-	assert_type(ffi_eq, ResultEq[float, Ctx])
+	assert_type(ffi_eq, Result[float, Ctx, bool | Failure])
 
 	ffi_ne = safe_sqrt(x) != 3.0
-	assert_type(ffi_ne, ResultNe[float, Ctx])
+	assert_type(ffi_ne, Result[float, Ctx, bool | Failure])
 
 	ffi_chain = (safe_sqrt(x) + safe_sqrt(y)) * 2.0
-	assert_type(ffi_chain, ResultMul[float, Ctx])
+	assert_type(ffi_chain, Result[float, Ctx, float | Failure])
 
 	ffi_cmp_chain = (safe_sqrt(x) > 1.0) & (safe_sqrt(y) < 10.0)
 	from mahonia import And
@@ -354,28 +341,28 @@ def test_ffi_pollution_coerces_to_result_types() -> None:
 	assert_type(ffi_cmp_chain, And[bool, Ctx])
 
 	pure_plus_ffi_add = (x + y) + safe_sqrt(x)
-	assert_type(pure_plus_ffi_add, ResultAdd[float, Ctx])
+	assert_type(pure_plus_ffi_add, Result[float, Ctx, float | Failure])
 
 	pure_plus_ffi_sub = (x + y) - safe_sqrt(x)
-	assert_type(pure_plus_ffi_sub, ResultSub[float, Ctx])
+	assert_type(pure_plus_ffi_sub, Result[float, Ctx, float | Failure])
 
 	pure_plus_ffi_mul = (x + y) * safe_sqrt(x)
-	assert_type(pure_plus_ffi_mul, ResultMul[float, Ctx])
+	assert_type(pure_plus_ffi_mul, Result[float, Ctx, float | Failure])
 
 	pure_plus_ffi_div = (x + y) / safe_sqrt(x)
-	assert_type(pure_plus_ffi_div, ResultDiv[float, Ctx])
+	assert_type(pure_plus_ffi_div, Result[float, Ctx, float | Failure])
 
 	var_plus_ffi = x + safe_sqrt(y)
-	assert_type(var_plus_ffi, ResultAdd[float, Ctx])
+	assert_type(var_plus_ffi, Result[float, Ctx, float | Failure])
 
 	var_minus_ffi = x - safe_sqrt(y)
-	assert_type(var_minus_ffi, ResultSub[float, Ctx])
+	assert_type(var_minus_ffi, Result[float, Ctx, float | Failure])
 
 	var_times_ffi = x * safe_sqrt(y)
-	assert_type(var_times_ffi, ResultMul[float, Ctx])
+	assert_type(var_times_ffi, Result[float, Ctx, float | Failure])
 
 	var_div_ffi = x / safe_sqrt(y)
-	assert_type(var_div_ffi, ResultDiv[float, Ctx])
+	assert_type(var_div_ffi, Result[float, Ctx, float | Failure])
 
 
 class TestCompositionNestedFFI:
@@ -1662,7 +1649,7 @@ def test_python_func_3_generic_types() -> None:
 	assert_type(expr, PythonFunc3[float, float, float, float, Ctx3])
 	assert_type(expr.unwrap(Ctx3(a=0, b=10, t=0.5)), float | Failure)
 	add_expr = safe_lerp(a3, b3, t3) + a3
-	assert_type(add_expr, ResultAdd[float, Ctx3])
+	assert_type(add_expr, Result[float, Ctx3, float | Failure])
 
 	# Wrong literal type must be caught by type checker.
 	# Since warn_unused_ignores=true, these ignores act as type-error assertions:
@@ -1689,9 +1676,7 @@ def test_python_func_6_generic_types() -> None:
 		float | Failure,
 	)
 	mul_expr = safe_weighted_avg(v1, w1, v2, w2, v3, w3) * 2.0
-	from mahonia.python_func import ResultMul  # pyright: ignore[reportUnusedImport]
-
-	assert_type(mul_expr, ResultMul[float, Ctx6])
+	assert_type(mul_expr, Result[float, Ctx6, float | Failure])
 
 	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
 	safe_weighted_avg("wrong", w1, v2, w2, v3, w3)  # type: ignore[arg-type]
@@ -1760,9 +1745,7 @@ def test_python_func_12_generic_types() -> None:
 		float | Failure,
 	)
 	sub_expr = safe_dot(d1, d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6) - d1
-	from mahonia.python_func import ResultSub  # pyright: ignore[reportUnusedImport]
-
-	assert_type(sub_expr, ResultSub[float, Ctx12])
+	assert_type(sub_expr, Result[float, Ctx12, float | Failure])
 
 	# Wrong literal type must be caught (see test_python_func_3_generic_types for explanation)
 	safe_dot("wrong", d2, d3, d4, d5, d6, e1, e2, e3, e4, e5, e6)  # type: ignore[arg-type]

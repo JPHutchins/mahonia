@@ -205,17 +205,9 @@ from mahonia.types import U as U
 if TYPE_CHECKING:
 	from mahonia.match import Match as Match
 	from mahonia.match import MatchExpr as MatchExpr
-	from mahonia.python_func import ResultAdd as ResultAdd
-	from mahonia.python_func import ResultDiv as ResultDiv
-	from mahonia.python_func import ResultEq as ResultEq
+	from mahonia.python_func import ResultApproximately as ResultApproximately
 	from mahonia.python_func import ResultExpr as ResultExpr
-	from mahonia.python_func import ResultGe as ResultGe
-	from mahonia.python_func import ResultGt as ResultGt
-	from mahonia.python_func import ResultLe as ResultLe
-	from mahonia.python_func import ResultLt as ResultLt
-	from mahonia.python_func import ResultMul as ResultMul
-	from mahonia.python_func import ResultNe as ResultNe
-	from mahonia.python_func import ResultSub as ResultSub
+	from mahonia.python_func import ResultExprBase as ResultExprBase
 
 
 @dataclass(frozen=True)
@@ -433,8 +425,14 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	@overload
 	def __eq__(  # pyright: ignore[reportOverlappingOverload]
+		self: "ResultExpr[TSupportsEquality, S]",
+		other: TSupportsEquality | Expr[TSupportsEquality, S, Any],
+	) -> "Result[TSupportsEquality, S, bool | Failure]": ...
+
+	@overload
+	def __eq__(  # pyright: ignore[reportOverlappingOverload]
 		self, other: ResultExpr[TSupportsEquality, S]
-	) -> "ResultEq[TSupportsEquality, S]": ...
+	) -> "Result[TSupportsEquality, S, bool | Failure]": ...
 
 	@overload
 	def __eq__(
@@ -449,18 +447,26 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 		other: Expr[TSupportsEquality, S, TSupportsEquality]
 		| TSupportsEquality
 		| "ConstTolerance[TSupportsArithmetic]",
-	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S]":
+	) -> "Eq[TSupportsEquality, S] | Approximately[TSupportsArithmetic, S] | Result[TSupportsEquality, S, bool | Failure] | ResultApproximately[TSupportsArithmetic, S]":
 		if isinstance(other, ConstTolerance):
+			if getattr(self, "_is_result_type", False):
+				from mahonia.python_func import ResultApproximately
+
+				return ResultApproximately(self, other)  # pyright: ignore[reportUnknownArgumentType]
 			return Approximately(self, other)  # type: ignore[arg-type]
-		elif isinstance(other, Expr) and getattr(other, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
-			return NotImplemented
-		elif isinstance(other, Expr):
-			return Eq(self, other)  # type: ignore[arg-type]
-		else:
-			return Eq(self, Const(None, other))  # type: ignore[arg-type]
+		rhs = other if isinstance(other, Expr) else Const(None, other)  # pyright: ignore[reportUnknownVariableType]
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
+			return Result(Eq, self, rhs)  # pyright: ignore[reportUnknownArgumentType]
+		return Eq(self, rhs)  # type: ignore[arg-type]
 
 	@overload  # type: ignore[override]
-	def __ne__(self, other: ResultExpr[T, S]) -> "ResultNe[T, S]": ...  # type: ignore[overload-overlap]
+	def __ne__(
+		self: "ResultExpr[T, S]",
+		other: T | Expr[T, S, Any],
+	) -> "Result[T, S, bool | Failure]": ...
+
+	@overload
+	def __ne__(self, other: "ResultExpr[T, S]") -> "Result[T, S, bool | Failure]": ...  # type: ignore[overload-overlap]
 
 	@overload
 	def __ne__(self, other: Expr[T, S, T]) -> "Ne[T, S]": ...
@@ -470,21 +476,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __ne__(  # type: ignore[misc]  # pyright: ignore[reportIncompatibleMethodOverride]
 		self, other: Expr[T, S, T] | T
-	) -> "Ne[T, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Ne(self, other)  # pyright: ignore[reportUnknownArgumentType]
-		else:
-			return Ne(self, Const[T](None, other))
+	) -> "Ne[T, S] | Result[T, S, bool | Failure]":
+		rhs = other if isinstance(other, Expr) else Const[T](None, other)  # pyright: ignore[reportUnknownVariableType]
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):  # pyright: ignore[reportUnknownArgumentType]
+			return Result(Ne, self, rhs)  # pyright: ignore[reportUnknownArgumentType]
+		return Ne(self, rhs)  # pyright: ignore[reportUnknownArgumentType]
+
+	@overload
+	def __lt__(
+		self: "ResultExpr[TSupportsComparison, S]",
+		other: TSupportsComparison | Expr[TSupportsComparison, S, Any],
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __lt__(self, other: TSupportsComparison) -> "Lt[TSupportsComparison, S]": ...
 
 	@overload
 	def __lt__(
-		self, other: ResultExpr[TSupportsComparison, S]
-	) -> "ResultLt[TSupportsComparison, S]": ...
+		self, other: "ResultExpr[TSupportsComparison, S]"
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __lt__(
@@ -493,21 +503,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __lt__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
-	) -> "Lt[TSupportsComparison, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Lt(self, other)  # type: ignore[arg-type]
-		else:
-			return Lt(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Lt[TSupportsComparison, S] | Result[TSupportsComparison, S, bool | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Lt, self, rhs)
+		return Lt(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __le__(
+		self: "ResultExpr[TSupportsComparison, S]",
+		other: TSupportsComparison | Expr[TSupportsComparison, S, Any],
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __le__(self, other: TSupportsComparison) -> "Le[TSupportsComparison, S]": ...
 
 	@overload
 	def __le__(
-		self, other: ResultExpr[TSupportsComparison, S]
-	) -> "ResultLe[TSupportsComparison, S]": ...
+		self, other: "ResultExpr[TSupportsComparison, S]"
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __le__(
@@ -516,21 +530,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __le__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
-	) -> "Le[TSupportsComparison, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Le(self, other)  # type: ignore[arg-type]
-		else:
-			return Le(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Le[TSupportsComparison, S] | Result[TSupportsComparison, S, bool | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Le, self, rhs)
+		return Le(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __gt__(
+		self: "ResultExpr[TSupportsComparison, S]",
+		other: TSupportsComparison | Expr[TSupportsComparison, S, Any],
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __gt__(self, other: TSupportsComparison) -> "Gt[TSupportsComparison, S]": ...
 
 	@overload
 	def __gt__(
-		self, other: ResultExpr[TSupportsComparison, S]
-	) -> "ResultGt[TSupportsComparison, S]": ...
+		self, other: "ResultExpr[TSupportsComparison, S]"
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __gt__(
@@ -539,21 +557,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __gt__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
-	) -> "Gt[TSupportsComparison, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Gt(self, other)  # type: ignore[arg-type]
-		else:
-			return Gt(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Gt[TSupportsComparison, S] | Result[TSupportsComparison, S, bool | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Gt, self, rhs)
+		return Gt(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __ge__(
+		self: "ResultExpr[TSupportsComparison, S]",
+		other: TSupportsComparison | Expr[TSupportsComparison, S, Any],
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __ge__(self, other: TSupportsComparison) -> "Ge[TSupportsComparison, S]": ...
 
 	@overload
 	def __ge__(
-		self, other: ResultExpr[TSupportsComparison, S]
-	) -> "ResultGe[TSupportsComparison, S]": ...
+		self, other: "ResultExpr[TSupportsComparison, S]"
+	) -> "Result[TSupportsComparison, S, bool | Failure]": ...
 
 	@overload
 	def __ge__(
@@ -562,21 +584,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __ge__(  # type: ignore[misc]
 		self, other: Expr[TSupportsComparison, S, TSupportsComparison] | TSupportsComparison
-	) -> "Ge[TSupportsComparison, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Ge(self, other)  # type: ignore[arg-type]
-		else:
-			return Ge(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Ge[TSupportsComparison, S] | Result[TSupportsComparison, S, bool | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Ge, self, rhs)
+		return Ge(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __add__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __add__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __add__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultAdd[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __add__(
@@ -585,21 +611,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __add__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Add[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Add(self, other)  # type: ignore[arg-type]
-		else:
-			return Add(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Add[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Add, self, rhs)
+		return Add(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __radd__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __radd__(self, other: TSupportsArithmetic) -> "Add[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __radd__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultAdd[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __radd__(
@@ -608,21 +638,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __radd__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Add[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Add(other, self)  # type: ignore[arg-type]
-		else:
-			return Add(Const(None, other), self)  # type: ignore[arg-type]
+	) -> "Add[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Add, rhs, self)
+		return Add(rhs, self)  # type: ignore[arg-type]
+
+	@overload
+	def __sub__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __sub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __sub__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultSub[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __sub__(
@@ -631,21 +665,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __sub__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Sub[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Sub(self, other)  # type: ignore[arg-type]
-		else:
-			return Sub(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Sub[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Sub, self, rhs)
+		return Sub(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __rsub__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __rsub__(self, other: TSupportsArithmetic) -> "Sub[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __rsub__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultSub[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __rsub__(
@@ -654,21 +692,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __rsub__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Sub[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Sub(other, self)  # type: ignore[arg-type]
-		else:
-			return Sub(Const(None, other), self)  # type: ignore[arg-type]
+	) -> "Sub[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Sub, rhs, self)
+		return Sub(rhs, self)  # type: ignore[arg-type]
+
+	@overload
+	def __mul__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __mul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __mul__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultMul[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __mul__(
@@ -677,21 +719,25 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __mul__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Mul[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Mul(self, other)  # type: ignore[arg-type]
-		else:
-			return Mul(self, Const(None, other))  # type: ignore[arg-type]
+	) -> "Mul[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Mul, self, rhs)
+		return Mul(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __rmul__(
+		self: "ResultExpr[TSupportsArithmetic, S]",
+		other: TSupportsArithmetic | Expr[TSupportsArithmetic, S, Any],
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __rmul__(self, other: TSupportsArithmetic) -> "Mul[TSupportsArithmetic, S]": ...
 
 	@overload
 	def __rmul__(
-		self, other: ResultExpr[TSupportsArithmetic, S]
-	) -> "ResultMul[TSupportsArithmetic, S]": ...
+		self, other: "ResultExpr[TSupportsArithmetic, S]"
+	) -> "Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]": ...
 
 	@overload
 	def __rmul__(
@@ -700,51 +746,59 @@ class BinaryOperationOverloads(Expr[T, S, T]):
 
 	def __rmul__(  # type: ignore[misc]
 		self, other: Expr[TSupportsArithmetic, S, TSupportsArithmetic] | TSupportsArithmetic
-	) -> "Mul[TSupportsArithmetic, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Mul(other, self)  # type: ignore[arg-type]
-		else:
-			return Mul(Const(None, other), self)  # type: ignore[arg-type]
+	) -> "Mul[TSupportsArithmetic, S] | Result[TSupportsArithmetic, S, TSupportsArithmetic | Failure]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Mul, rhs, self)
+		return Mul(rhs, self)  # type: ignore[arg-type]
+
+	@overload
+	def __truediv__(
+		self: "ResultExpr[float, S]",
+		other: float | Expr[float, S, Any],
+	) -> "Result[float, S, float | Failure]": ...
 
 	@overload
 	def __truediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
-	def __truediv__(self, other: ResultExpr[float, S]) -> "ResultDiv[float, S]": ...
+	def __truediv__(self, other: "ResultExpr[float, S]") -> "Result[float, S, float | Failure]": ...
 
 	@overload
 	def __truediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
 	def __truediv__(  # type: ignore[misc]
 		self, other: Expr[float, S, float] | float
-	) -> "Div[float, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Div(self, other)  # type: ignore[arg-type]
-		else:
-			return Div(self, Const[float](None, other))  # type: ignore[arg-type]
+	) -> "Div[float, S] | Result[float, S, float | Failure]":
+		rhs = other if isinstance(other, Expr) else Const[float](None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Div, self, rhs)
+		return Div(self, rhs)  # type: ignore[arg-type]
+
+	@overload
+	def __rtruediv__(
+		self: "ResultExpr[float, S]",
+		other: float | Expr[float, S, Any],
+	) -> "Result[float, S, float | Failure]": ...
 
 	@overload
 	def __rtruediv__(self, other: float) -> "Div[float, S]": ...
 
 	@overload
-	def __rtruediv__(self, other: ResultExpr[float, S]) -> "ResultDiv[float, S]": ...
+	def __rtruediv__(
+		self, other: "ResultExpr[float, S]"
+	) -> "Result[float, S, float | Failure]": ...
 
 	@overload
 	def __rtruediv__(self, other: Expr[float, S, float]) -> "Div[float, S]": ...
 
 	def __rtruediv__(  # type: ignore[misc]
 		self, other: Expr[float, S, float] | float
-	) -> "Div[float, S]":
-		if isinstance(other, Expr) and getattr(other, "_is_result_type", False):
-			return NotImplemented
-		if isinstance(other, Expr):
-			return Div(other, self)  # type: ignore[arg-type]
-		else:
-			return Div(Const[float](None, other), self)  # type: ignore[arg-type]
+	) -> "Div[float, S] | Result[float, S, float | Failure]":
+		rhs = other if isinstance(other, Expr) else Const[float](None, other)
+		if getattr(self, "_is_result_type", False) or getattr(rhs, "_is_result_type", False):
+			return Result(Div, rhs, self)
+		return Div(rhs, self)  # type: ignore[arg-type]
 
 	@overload
 	def __pow__(self, power: TSupportsArithmetic) -> "Pow[TSupportsArithmetic, S]": ...
@@ -981,6 +1035,7 @@ class Eq(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " == "
+	op_func: Final[ClassVar] = operator.eq  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value == self.right.eval(ctx).value)
@@ -992,6 +1047,7 @@ class Ne(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " != "
+	op_func: Final[ClassVar] = operator.ne  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value != self.right.eval(ctx).value)
@@ -1003,6 +1059,7 @@ class Lt(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " < "
+	op_func: Final[ClassVar] = operator.lt  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value < self.right.eval(ctx).value)
@@ -1014,6 +1071,7 @@ class Le(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " <= "
+	op_func: Final[ClassVar] = operator.le  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value <= self.right.eval(ctx).value)
@@ -1025,6 +1083,7 @@ class Gt(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " > "
+	op_func: Final[ClassVar] = operator.gt  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value > self.right.eval(ctx).value)
@@ -1036,6 +1095,7 @@ class Ge(  # pyright: ignore[reportGeneralTypeIssues]
 	BooleanBinaryOperationOverloads[bool, S],
 ):
 	op: ClassVar[str] = " >= "
+	op_func: Final[ClassVar] = operator.ge  # pyright: ignore[reportInvalidTypeForm]
 
 	def eval(self, ctx: S) -> Const[bool]:  # pyright: ignore[reportIncompatibleMethodOverride]
 		return Const(None, self.left.eval(ctx).value >= self.right.eval(ctx).value)
@@ -1145,6 +1205,57 @@ class Mod(
 
 	def eval(self, ctx: S) -> Const[TSupportsArithmetic]:
 		return Const(None, self.left.eval(ctx).value % self.right.eval(ctx).value)
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class Result[T, S, R](  # pyright: ignore[reportGeneralTypeIssues]
+	BinaryOperationOverloads[T, S],
+	BooleanBinaryOperationOverloads[T, S],
+	ToString[S],
+	Expr[T, S, R | Failure],
+):
+	"""Higher-order Result functor: lifts any BinaryOp into the error-accumulating context.
+
+	MapExpr : SizedIterable :: Result : T | Failure
+
+	>>> from typing import NamedTuple
+	>>> from mahonia import Var, Result, Add, Failure
+	>>> class Ctx(NamedTuple):
+	... 	x: float
+	>>> x = Var[float, Ctx]("x")
+	>>> r = Result(Add, x, x)
+	>>> r.unwrap(Ctx(x=1.0))
+	2.0
+	"""
+
+	_is_result_type: ClassVar[bool] = True
+
+	inner: type[BinaryOp[Any, Any, Any]]
+	left: Expr[Any, S, Any]
+	right: Expr[Any, S, Any]
+
+	def eval(self, ctx: S) -> Const[R | Failure]:  # type: ignore[override]
+		lv: Final = self.left.unwrap(ctx)
+		rv: Final = self.right.unwrap(ctx)
+		match (lv, rv):
+			case (Failure() as f1, Failure() as f2):
+				return Const(None, f1 + f2)
+			case (Failure() as f, _) | (_, Failure() as f):
+				return Const(None, f)
+			case _:
+				return Const(None, self.inner.op_func(lv, rv))  # type: ignore[attr-defined]
+
+	def to_string(self, ctx: S | None = None) -> str:
+		left: Final = self.left.to_string(ctx)
+		right: Final = self.right.to_string(ctx)
+		if ctx is None:
+			return self.inner.template.format(left=left, op=self.inner.op, right=right)
+		return self.inner.template_eval.format(
+			left=left, op=self.inner.op, right=right, out=self.unwrap(ctx)
+		)
+
+	def partial(self, ctx: Any) -> "Result[T, Any, R]":
+		return Result(self.inner, self.left.partial(ctx), self.right.partial(ctx))
 
 
 from mahonia.bound import BoundExpr as BoundExpr  # noqa: E402
