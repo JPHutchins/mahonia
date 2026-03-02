@@ -689,11 +689,11 @@ def test_between() -> None:
 	assert expr.to_string() == "((Low:0 < x) & (x < High:10))"
 	assert expr.to_string(ctx) == "((Low:0 < x:5 -> True) & (x:5 < High:10 -> True) -> True)"
 
-	expr = (Const("Low", 5) < x) & (x < Const("High", 10))
+	expr2 = (Const("Low", 5) < x) & (x < Const("High", 10))
 	print()
-	print(expr.to_string())
+	print(expr2.to_string())
 	print()
-	print(expr.to_string(ctx))
+	print(expr2.to_string(ctx))
 
 
 def test_manual_within() -> None:

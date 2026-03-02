@@ -6,7 +6,7 @@ from typing import NamedTuple, SupportsFloat, SupportsIndex, assert_type
 
 import pytest
 
-from mahonia import Const, Failure, Result, Var
+from mahonia import Const, Failure, PlusMinus, Pure, Result, Var
 from mahonia.python_func import (
 	PythonFunc0,
 	PythonFunc0Wrapper,
@@ -340,9 +340,7 @@ def test_ffi_pollution_coerces_to_result_types() -> None:
 	assert_type(ffi_chain, Result[float, Ctx, float])
 
 	ffi_cmp_chain = (safe_sqrt(x) > 1.0) & (safe_sqrt(y) < 10.0)
-	from mahonia import And
-
-	assert_type(ffi_cmp_chain, And[bool, Ctx])
+	assert_type(ffi_cmp_chain, Result[bool, Ctx, bool])
 
 	pure_plus_ffi_add = (x + y) + safe_sqrt(x)
 	assert_type(pure_plus_ffi_add, Result[float, Ctx, float])
@@ -1846,3 +1844,84 @@ def test_homogeneous_wrong_expr_rejected() -> None:
 
 	safe_sqrt(x)
 	safe_div(x, safe_sqrt(x))
+
+
+class TestResultApproximately:
+	def test_type(self) -> None:
+		assert_type(safe_sqrt(x) == PlusMinus("T", 2.0, 0.1), Result[float, Ctx, bool])
+
+	def test_to_string(self) -> None:
+		expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
+		s = expr.to_string()
+		assert "≈" in s
+		assert "±" in s
+
+	def test_success_true(self) -> None:
+		expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
+		assert expr.unwrap(Ctx(x=4.0, y=0.0)) is True
+
+	def test_success_false(self) -> None:
+		expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
+		assert expr.unwrap(Ctx(x=9.0, y=0.0)) is False
+
+	def test_failure_propagates(self) -> None:
+		expr = safe_sqrt(x) == PlusMinus("T", 2.0, 0.1)
+		result = expr.unwrap(Ctx(x=-1.0, y=0.0))
+		assert isinstance(result, Failure)
+
+
+class TestResultLogical:
+	def test_and_type(self) -> None:
+		assert_type((safe_sqrt(x) > 0) & (safe_sqrt(y) > 0), Result[bool, Ctx, bool])
+
+	def test_and_both_succeed(self) -> None:
+		expr = (safe_sqrt(x) > 0) & (safe_sqrt(y) > 0)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) is True
+
+	def test_and_both_false(self) -> None:
+		expr = (safe_sqrt(x) > 10) & (safe_sqrt(y) > 10)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) is False
+
+	def test_and_one_fails(self) -> None:
+		expr = (safe_sqrt(x) > 0) & (safe_sqrt(y) > 0)
+		result = expr.unwrap(Ctx(x=-1.0, y=4.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 1
+
+	def test_and_both_fail_accumulates(self) -> None:
+		expr = (safe_sqrt(x) > 0) & (safe_sqrt(y) > 0)
+		result = expr.unwrap(Ctx(x=-1.0, y=-1.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 2
+
+	def test_or_type(self) -> None:
+		assert_type((safe_sqrt(x) > 0) | (safe_sqrt(y) > 0), Result[bool, Ctx, bool])
+
+	def test_or_both_succeed(self) -> None:
+		expr = (safe_sqrt(x) > 0) | (safe_sqrt(y) > 0)
+		assert expr.unwrap(Ctx(x=4.0, y=9.0)) is True
+
+	def test_or_one_fails(self) -> None:
+		expr = (safe_sqrt(x) > 0) | (safe_sqrt(y) > 0)
+		result = expr.unwrap(Ctx(x=-1.0, y=4.0))
+		assert isinstance(result, Failure)
+
+	def test_or_both_fail_accumulates(self) -> None:
+		expr = (safe_sqrt(x) > 0) | (safe_sqrt(y) > 0)
+		result = expr.unwrap(Ctx(x=-1.0, y=-1.0))
+		assert isinstance(result, Failure)
+		assert len(result.exceptions) == 2
+
+
+class TestUnwrapTypes:
+	def test_clean_unwrap_type(self) -> None:
+		assert_type(x.unwrap(Ctx(x=1.0, y=0.0)), float)
+
+	def test_result_unwrap_type(self) -> None:
+		assert_type(safe_sqrt(x).unwrap(Ctx(x=1.0, y=0.0)), float | Failure)
+
+	def test_pure_unwrap_type(self) -> None:
+		assert_type(Pure(x).unwrap(Ctx(x=1.0, y=0.0)), float | Failure)
+
+	def test_div_unwrap_type(self) -> None:
+		assert_type((x / y).unwrap(Ctx(x=1.0, y=1.0)), float | Failure)

@@ -8,6 +8,7 @@ from mahonia import (
 	And,
 	Const,
 	Eq,
+	Failure,
 	Ge,
 	Gt,
 	Le,
@@ -385,8 +386,8 @@ def test_fizzbuzz_composition_with_logic() -> None:
 	assert_type(is_buzz, Result[int, FizzBuzzCtx, bool])
 
 	is_fizzbuzz = is_fizz & is_buzz
-	assert_type(is_fizzbuzz, And[bool, FizzBuzzCtx])
-	assert_type(is_fizzbuzz.unwrap(FizzBuzzCtx(n=15)), bool)
+	assert_type(is_fizzbuzz, Result[bool, FizzBuzzCtx, bool])
+	assert_type(is_fizzbuzz.unwrap(FizzBuzzCtx(n=15)), bool | Failure)
 
 	assert is_fizzbuzz.unwrap(FizzBuzzCtx(n=15)) is True
 	assert is_fizzbuzz.unwrap(FizzBuzzCtx(n=9)) is False
@@ -394,8 +395,8 @@ def test_fizzbuzz_composition_with_logic() -> None:
 	assert is_fizzbuzz.unwrap(FizzBuzzCtx(n=7)) is False
 
 	is_special = is_fizz | is_buzz
-	assert_type(is_special, Or[bool, FizzBuzzCtx])
-	assert_type(is_special.unwrap(FizzBuzzCtx(n=15)), bool)
+	assert_type(is_special, Result[bool, FizzBuzzCtx, bool])
+	assert_type(is_special.unwrap(FizzBuzzCtx(n=15)), bool | Failure)
 	assert is_special.unwrap(FizzBuzzCtx(n=15)) is True
 	assert is_special.unwrap(FizzBuzzCtx(n=9)) is True
 	assert is_special.unwrap(FizzBuzzCtx(n=10)) is True
@@ -1536,7 +1537,7 @@ def test_day_of_year_calculation() -> None:
 	year = Var[int, DayCtx]("year")
 
 	is_leap = ((year % 4) == 0) & (~((year % 100) == 0) | ((year % 400) == 0))
-	assert_type(is_leap, And[bool, DayCtx])
+	assert_type(is_leap, Result[bool, DayCtx, bool])
 
 	days_before_month = Match(
 		(month == 1, 0),

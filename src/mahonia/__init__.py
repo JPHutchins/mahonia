@@ -406,14 +406,54 @@ class UnaryOperationOverloads(Expr[bool, S, bool]):
 
 
 class BooleanBinaryOperationOverloads(Generic[T, S]):
-	def __and__(self, other: "Expr[Any, S, Any]") -> "And[bool, S]":
-		return And(self, other)  # type: ignore[arg-type]
+	@overload
+	def __and__(  # type: ignore[misc]
+		self: "ResultBase[Any, S]", other: "Expr[Any, S, Any]"
+	) -> "Result[bool, S, bool]": ...
+
+	@overload
+	def __and__(  # type: ignore[overload-overlap]
+		self, other: "ResultBase[Any, S]"
+	) -> "Result[bool, S, bool]": ...
+
+	@overload
+	def __and__(self, other: "Expr[Any, S, Any]") -> "And[bool, S]": ...
+
+	def __and__(self, other: "Expr[Any, S, Any]") -> "And[bool, S] | Result[bool, S, bool]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)  # pyright: ignore[reportUnnecessaryIsInstance]
+		if isinstance(self, ResultBase) or isinstance(rhs, ResultBase):
+			return Result(
+				And,
+				self if isinstance(self, ResultBase) else Pure(self),  # type: ignore[arg-type]  # pyright: ignore[reportUnknownArgumentType]
+				rhs if isinstance(rhs, ResultBase) else Pure(rhs),  # pyright: ignore[reportUnknownArgumentType]
+			)
+		return And(self, rhs)  # type: ignore[arg-type]
 
 	def __rand__(self, other: bool) -> "And[bool, S]":
 		return And(Const(None, other), self)  # type: ignore[arg-type]
 
-	def __or__(self, other: "Expr[Any, S, Any]") -> "Or[bool, S]":
-		return Or(self, other)  # type: ignore[arg-type]
+	@overload
+	def __or__(  # type: ignore[misc]
+		self: "ResultBase[Any, S]", other: "Expr[Any, S, Any]"
+	) -> "Result[bool, S, bool]": ...
+
+	@overload
+	def __or__(  # type: ignore[overload-overlap]
+		self, other: "ResultBase[Any, S]"
+	) -> "Result[bool, S, bool]": ...
+
+	@overload
+	def __or__(self, other: "Expr[Any, S, Any]") -> "Or[bool, S]": ...
+
+	def __or__(self, other: "Expr[Any, S, Any]") -> "Or[bool, S] | Result[bool, S, bool]":
+		rhs = other if isinstance(other, Expr) else Const(None, other)  # pyright: ignore[reportUnnecessaryIsInstance]
+		if isinstance(self, ResultBase) or isinstance(rhs, ResultBase):
+			return Result(
+				Or,
+				self if isinstance(self, ResultBase) else Pure(self),  # type: ignore[arg-type]  # pyright: ignore[reportUnknownArgumentType]
+				rhs if isinstance(rhs, ResultBase) else Pure(rhs),  # pyright: ignore[reportUnknownArgumentType]
+			)
+		return Or(self, rhs)  # type: ignore[arg-type]
 
 	def __ror__(self, other: bool) -> "Or[bool, S]":
 		return Or(Const(None, other), self)  # type: ignore[arg-type]
