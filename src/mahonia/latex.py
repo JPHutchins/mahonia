@@ -167,7 +167,7 @@ def latex(expr: Expr[Any, S, Any] | Func[Any, S], ctx: LatexCtx[S] | None = None
 			return _format_with_result(
 				_latex_expr_structure(unwrapped, ctx), unwrapped.eval(ctx_data)
 			)
-		case _:
+		case _:  # pragma: no cover
 			assert_never(ctx)
 
 

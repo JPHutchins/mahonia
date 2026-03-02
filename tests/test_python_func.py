@@ -202,12 +202,32 @@ class TestFactoryFunction:
 		wrapper = python_func(identity)
 		assert isinstance(wrapper, PythonFunc1Wrapper)
 
+		class SimpleCtx(NamedTuple):
+			val: int
+
+		val_var = Var[int, SimpleCtx]("val")
+		expr = wrapper(val_var)
+		result = expr.unwrap(SimpleCtx(val=42))
+		assert not isinstance(result, Failure)
+		assert result == 42
+
 	def test_factory_returns_correct_wrapper_arity_2(self) -> None:
 		def add(a: int, b: int) -> int:
 			return a + b
 
 		wrapper = python_func(add)
 		assert isinstance(wrapper, PythonFunc2Wrapper)
+
+		class AddCtx(NamedTuple):
+			a: int
+			b: int
+
+		a_var = Var[int, AddCtx]("a")
+		b_var = Var[int, AddCtx]("b")
+		expr = wrapper(a_var, b_var)
+		result = expr.unwrap(AddCtx(a=3, b=4))
+		assert not isinstance(result, Failure)
+		assert result == 7
 
 	def test_factory_raises_for_unsupported_arity(self) -> None:
 		def thirteen_args(
@@ -225,7 +245,9 @@ class TestFactoryFunction:
 			a12: int,
 			a13: int,
 		) -> int:
-			return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13
+			return (
+				a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13
+			)  # pragma: no cover
 
 		with pytest.raises(ValueError, match="python_func supports 0-12 args, got 13"):
 			# Arity 13 has no overload — type: ignore asserts the type checker catches this
@@ -1214,6 +1236,12 @@ class TestPythonFunc3:
 		assert isinstance(result, Failure)
 		assert "t out of range" in str(result.exceptions[0])
 
+	def test_function_valid_t(self) -> None:
+		expr = safe_lerp_raises(a3, b3, t3)
+		result = expr.unwrap(Ctx3(a=0.0, b=10.0, t=0.5))
+		assert not isinstance(result, Failure)
+		assert result == 5.0
+
 	def test_to_string_without_ctx(self) -> None:
 		expr = safe_lerp(a3, b3, t3)
 		assert expr.to_string() == "lerp(a, b, t)"
@@ -1641,6 +1669,179 @@ class TestFactoryIntermediateArities:
 		assert isinstance(python_func(sum11), PythonFunc11Wrapper)
 
 
+class TestIntermediateArityEval:
+	def test_sum4_evaluates(self) -> None:
+		class Ctx4(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+
+		safe_sum4 = python_func(sum4)
+		a1 = Var[float, Ctx4]("a1")
+		a2 = Var[float, Ctx4]("a2")
+		a3 = Var[float, Ctx4]("a3")
+		a4 = Var[float, Ctx4]("a4")
+		expr = safe_sum4(a1, a2, a3, a4)
+		result = expr.unwrap(Ctx4(1.0, 2.0, 3.0, 4.0))
+		assert not isinstance(result, Failure)
+		assert result == 10.0
+
+	def test_sum5_evaluates(self) -> None:
+		class Ctx5(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+
+		safe_sum5 = python_func(sum5)
+		a1 = Var[float, Ctx5]("a1")
+		a2 = Var[float, Ctx5]("a2")
+		a3 = Var[float, Ctx5]("a3")
+		a4 = Var[float, Ctx5]("a4")
+		a5 = Var[float, Ctx5]("a5")
+		expr = safe_sum5(a1, a2, a3, a4, a5)
+		result = expr.unwrap(Ctx5(1.0, 2.0, 3.0, 4.0, 5.0))
+		assert not isinstance(result, Failure)
+		assert result == 15.0
+
+	def test_sum7_evaluates(self) -> None:
+		class Ctx7(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+			a6: float
+			a7: float
+
+		safe_sum7 = python_func(sum7)
+		a1 = Var[float, Ctx7]("a1")
+		a2 = Var[float, Ctx7]("a2")
+		a3 = Var[float, Ctx7]("a3")
+		a4 = Var[float, Ctx7]("a4")
+		a5 = Var[float, Ctx7]("a5")
+		a6 = Var[float, Ctx7]("a6")
+		a7 = Var[float, Ctx7]("a7")
+		expr = safe_sum7(a1, a2, a3, a4, a5, a6, a7)
+		result = expr.unwrap(Ctx7(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0))
+		assert not isinstance(result, Failure)
+		assert result == 28.0
+
+	def test_sum8_evaluates(self) -> None:
+		class Ctx8(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+			a6: float
+			a7: float
+			a8: float
+
+		safe_sum8 = python_func(sum8)
+		a1 = Var[float, Ctx8]("a1")
+		a2 = Var[float, Ctx8]("a2")
+		a3 = Var[float, Ctx8]("a3")
+		a4 = Var[float, Ctx8]("a4")
+		a5 = Var[float, Ctx8]("a5")
+		a6 = Var[float, Ctx8]("a6")
+		a7 = Var[float, Ctx8]("a7")
+		a8 = Var[float, Ctx8]("a8")
+		expr = safe_sum8(a1, a2, a3, a4, a5, a6, a7, a8)
+		result = expr.unwrap(Ctx8(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0))
+		assert not isinstance(result, Failure)
+		assert result == 36.0
+
+	def test_sum9_evaluates(self) -> None:
+		class Ctx9(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+			a6: float
+			a7: float
+			a8: float
+			a9: float
+
+		safe_sum9 = python_func(sum9)
+		a1 = Var[float, Ctx9]("a1")
+		a2 = Var[float, Ctx9]("a2")
+		a3 = Var[float, Ctx9]("a3")
+		a4 = Var[float, Ctx9]("a4")
+		a5 = Var[float, Ctx9]("a5")
+		a6 = Var[float, Ctx9]("a6")
+		a7 = Var[float, Ctx9]("a7")
+		a8 = Var[float, Ctx9]("a8")
+		a9 = Var[float, Ctx9]("a9")
+		expr = safe_sum9(a1, a2, a3, a4, a5, a6, a7, a8, a9)
+		result = expr.unwrap(Ctx9(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0))
+		assert not isinstance(result, Failure)
+		assert result == 45.0
+
+	def test_sum10_evaluates(self) -> None:
+		class Ctx10(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+			a6: float
+			a7: float
+			a8: float
+			a9: float
+			a10: float
+
+		safe_sum10 = python_func(sum10)
+		a1 = Var[float, Ctx10]("a1")
+		a2 = Var[float, Ctx10]("a2")
+		a3 = Var[float, Ctx10]("a3")
+		a4 = Var[float, Ctx10]("a4")
+		a5 = Var[float, Ctx10]("a5")
+		a6 = Var[float, Ctx10]("a6")
+		a7 = Var[float, Ctx10]("a7")
+		a8 = Var[float, Ctx10]("a8")
+		a9 = Var[float, Ctx10]("a9")
+		a10 = Var[float, Ctx10]("a10")
+		expr = safe_sum10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)
+		result = expr.unwrap(Ctx10(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0))
+		assert not isinstance(result, Failure)
+		assert result == 55.0
+
+	def test_sum11_evaluates(self) -> None:
+		class Ctx11(NamedTuple):
+			a1: float
+			a2: float
+			a3: float
+			a4: float
+			a5: float
+			a6: float
+			a7: float
+			a8: float
+			a9: float
+			a10: float
+			a11: float
+
+		safe_sum11 = python_func(sum11)
+		a1 = Var[float, Ctx11]("a1")
+		a2 = Var[float, Ctx11]("a2")
+		a3 = Var[float, Ctx11]("a3")
+		a4 = Var[float, Ctx11]("a4")
+		a5 = Var[float, Ctx11]("a5")
+		a6 = Var[float, Ctx11]("a6")
+		a7 = Var[float, Ctx11]("a7")
+		a8 = Var[float, Ctx11]("a8")
+		a9 = Var[float, Ctx11]("a9")
+		a10 = Var[float, Ctx11]("a10")
+		a11 = Var[float, Ctx11]("a11")
+		expr = safe_sum11(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
+		result = expr.unwrap(Ctx11(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0))
+		assert not isinstance(result, Failure)
+		assert result == 66.0
+
+
 # --- Static type safety tests ---
 
 
@@ -1805,6 +2006,16 @@ def test_mixed_type_expr_args_accepted() -> None:
 	safe_format("label", m_val, m_n)
 	safe_format(m_label, 1.5, m_n)
 	safe_format(m_label, m_val, 2)
+
+	ctx_mixed = MixedCtx(label="hi", n=3, val=3.14)
+	result2 = expr2.unwrap(ctx_mixed)
+	assert not isinstance(result2, Failure)
+	assert result2 == "hihihi"
+
+	expr3_literal = safe_format(m_label, m_val, 2)
+	result3 = expr3_literal.unwrap(ctx_mixed)
+	assert not isinstance(result3, Failure)
+	assert result3 == "hi: 3.14"
 
 
 def test_mixed_type_wrong_expr_rejected() -> None:

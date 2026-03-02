@@ -5,7 +5,7 @@
 
 from typing import Any, NamedTuple, assert_type
 
-from mahonia import Const, Expr, Func, Pure, Result, Var, extract_vars
+from mahonia import Const, Contains, Expr, FilterExpr, Func, MapExpr, Not, Var, extract_vars
 
 
 class FuncCtx(NamedTuple):
@@ -325,7 +325,7 @@ def test_func_integration_with_existing_features() -> None:
 class TestExtractVarsResult:
 	def test_pow_extracts_var(self) -> None:
 		x = Var[int, FuncCtx]("x")
-		expr = x ** 2
+		expr = x**2
 		assert extract_vars((), expr) == (x,)
 
 	def test_nested_result_extracts_all(self) -> None:
@@ -343,3 +343,105 @@ class TestExtractVarsResult:
 		expr = x % y
 		vars = extract_vars((), expr)
 		assert len(vars) == 2
+
+
+def test_extract_vars_from_not() -> None:
+	x = Var[bool, FuncCtx]("x")
+	expr: Not[FuncCtx] = ~x
+	vars = extract_vars((), expr)
+	assert len(vars) == 1
+
+
+def test_extract_vars_from_contains() -> None:
+	from mahonia import SizedIterable
+
+	class SearchCtx(NamedTuple):
+		target: int
+		values: list[int]
+
+	target_var = Var[int, SearchCtx]("target")
+	values_var = Var[SizedIterable[int], SearchCtx]("values")
+	expr = Contains(target_var, values_var)
+	vars = extract_vars((), expr)
+	assert len(vars) == 2
+
+
+def test_extract_vars_from_map_expr() -> None:
+	from mahonia import SizedIterable
+
+	class MapCtx(NamedTuple):
+		n: int
+		nums: list[int]
+
+	n = Var[int, MapCtx]("n")
+	nums = Var[SizedIterable[int], MapCtx]("nums")
+	map_expr = (n > 0).map(nums)
+	assert isinstance(map_expr, MapExpr)
+	vars = extract_vars((), map_expr)
+	assert len(vars) == 2
+
+
+def test_extract_vars_from_filter_expr() -> None:
+	from mahonia import SizedIterable
+
+	class FilterCtx(NamedTuple):
+		n: int
+		nums: list[int]
+
+	n = Var[int, FilterCtx]("n")
+	nums = Var[SizedIterable[int], FilterCtx]("nums")
+	predicate = (n > 0).to_func()
+	expr = FilterExpr(predicate, nums)
+	vars = extract_vars((), expr)
+	assert len(vars) == 2
+
+
+def test_extract_vars_from_any_all_min_max() -> None:
+	from mahonia import Add, AllExpr, AnyExpr, FoldLExpr, MaxExpr, MinExpr, SizedIterable
+
+	class Ctx(NamedTuple):
+		values: list[int]
+		flags: list[bool]
+
+	values = Var[SizedIterable[int], Ctx]("values")
+	flags = Var[SizedIterable[bool], Ctx]("flags")
+
+	assert extract_vars((), AnyExpr(flags)) == (flags,)
+	assert extract_vars((), AllExpr(flags)) == (flags,)
+	assert extract_vars((), MinExpr(values)) == (values,)
+	assert extract_vars((), MaxExpr(values)) == (values,)
+	assert extract_vars((), FoldLExpr(Add, values)) == (values,)
+
+
+def test_extract_vars_map_duplicate_var() -> None:
+	from mahonia import SizedIterable
+
+	class MapCtx(NamedTuple):
+		n: int
+		nums: list[int]
+
+	n = Var[int, MapCtx]("n")
+	nums = Var[SizedIterable[int], MapCtx]("nums")
+	map_expr = (n > 0).map(nums)
+	assert isinstance(map_expr, MapExpr)
+	vars_tuple = extract_vars((n,), map_expr)
+	assert len(vars_tuple) == 2
+	assert vars_tuple[0] is n
+	assert vars_tuple[1] is nums
+
+
+def test_extract_vars_filter_duplicate_var() -> None:
+	from mahonia import SizedIterable
+
+	class FilterCtx(NamedTuple):
+		n: int
+		nums: list[int]
+
+	n = Var[int, FilterCtx]("n")
+	nums = Var[SizedIterable[int], FilterCtx]("nums")
+	predicate = (n > 0).to_func()
+	expr = FilterExpr(predicate, nums)
+	vars_tuple = extract_vars((n,), expr)
+	assert len(vars_tuple) == 2
+	assert vars_tuple[0] is n
+	assert vars_tuple[1] is nums

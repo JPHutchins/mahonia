@@ -930,5 +930,5 @@ def test_generate_latex_examples() -> None:
 	print(f"Generated LaTeX examples at {output_path}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
 	test_generate_latex_examples()

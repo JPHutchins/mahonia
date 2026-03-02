@@ -1333,7 +1333,7 @@ def test_match_expr_latex_greek_variables() -> None:
 class TestLatexResultExpressions:
 	def test_pow_result_renders(self) -> None:
 		x = Var[int, Ctx]("x")
-		assert latex(x ** 2) == "x^2"
+		assert latex(x**2) == "x^2"
 
 	def test_division_result_renders(self) -> None:
 		x = Var[float, Ctx]("x")
@@ -1343,4 +1343,97 @@ class TestLatexResultExpressions:
 	def test_pow_result_with_context(self) -> None:
 		x = Var[int, Ctx]("x")
 		ctx_val = Ctx(x=3, y=0)
-		assert latex(x ** 2, LatexCtx(ctx_val)) == "(x:3^2 \\rightarrow 9)"
+		assert latex(x**2, LatexCtx(ctx_val)) == "(x:3^2 \\rightarrow 9)"
+
+
+def test_latex_neg() -> None:
+	x = Var[int, Ctx]("x")
+	neg_expr = -x
+	assert latex(neg_expr) == "-x"
+	assert latex(neg_expr, LatexCtx(ctx)) == "(-x:5 \\rightarrow -5)"
+
+
+def test_latex_abs() -> None:
+	from mahonia import Abs
+
+	x = Var[int, Ctx]("x")
+	abs_expr = Abs(x)
+	assert latex(abs_expr) == "\\left|x\\right|"
+	assert latex(abs_expr, LatexCtx(ctx)) == "(\\left|x:5\\right| \\rightarrow 5)"
+
+
+def test_latex_clamp() -> None:
+	from mahonia import Clamp
+
+	x = Var[int, Ctx]("x")
+	clamped = Clamp(0, 10)(x)
+	assert latex(clamped) == "\\text{clamp}_{0}^{10}(x)"
+	assert latex(clamped, LatexCtx(ctx)) == "(\\text{clamp}_{0}^{10}(x:5) \\rightarrow 5)"
+
+
+def test_latex_filter_with_work() -> None:
+	class FilterCtx(NamedTuple):
+		values: list[int]
+		x: int = 0
+
+	values = Var[SizedIterable[int], FilterCtx]("values")
+	x = Var[int, FilterCtx]("x")
+	is_positive = (x > 0).to_func()
+	filter_expr = FilterExpr(is_positive, values)
+	ctx_val = FilterCtx(values=[-1, 2, 3])
+	result = latex(filter_expr, LatexCtx(ctx_val, Show.WORK))
+	assert "elements" in result
+	assert "\\rightarrow" in result
+
+
+def test_latex_div_right_assoc() -> None:
+	x = Var[float, Ctx]("f")
+	y = Var[int, Ctx]("x")
+	z = Var[int, Ctx]("y")
+	expr = x / (y * z)
+	result = latex(expr)
+	assert "\\frac" in result
+	assert "\\cdot" in result
+
+
+def test_latex_stat_work_only() -> None:
+	class FilterCtx(NamedTuple):
+		values: SizedIterable[float]
+
+	values = Var[SizedIterable[float], FilterCtx]("values")
+	x = Var[float, FilterCtx]("x")
+	filter_expr = FilterExpr((x > 0.0).to_func(), values)
+	mean_expr = Mean(filter_expr)
+	ctx_val = FilterCtx(values=[1.0, 2.0, -1.0])
+	result = latex(mean_expr, LatexCtx(ctx_val, Show.WORK))
+	assert "\\rightarrow" in result
+
+
+def test_latex_stat_values_unnamed_const() -> None:
+	const_list: Const[SizedIterable[float]] = Const(None, [1.0, 2.0, 3.0])
+	mean_expr = Mean(const_list)
+	result = latex(mean_expr, LatexCtx(ctx, Show.VALUES))
+	assert result is not None
+
+
+def test_needs_parentheses_div_right_mul_div() -> None:
+	from typing import Any
+
+	from mahonia import Div, Mul, Var
+	from mahonia.latex import _needs_parentheses  # pyright: ignore[reportPrivateUsage]
+
+	x: Var[float, Any] = Var("x")
+	y: Var[float, Any] = Var("y")
+	z: Var[float, Any] = Var("z")
+
+	mul_expr = Mul(y, z)
+	div_with_mul_right = Div(x, mul_expr)
+	assert _needs_parentheses(mul_expr, div_with_mul_right) is True
+
+	div_expr = Div(y, z)
+	div_with_div_right = Div(x, div_expr)
+	assert _needs_parentheses(div_expr, div_with_div_right) is True
+
+	pow_expr = Pow(y, z)
+	div_with_pow_right = Div(x, pow_expr)
+	assert _needs_parentheses(pow_expr, div_with_pow_right) is False

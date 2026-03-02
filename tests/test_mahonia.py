@@ -56,6 +56,7 @@ from mahonia import (
 	TSupportsComparison,
 	Var,
 	context_vars,
+	format_iterable_var,
 	merge,
 )
 
@@ -2585,7 +2586,7 @@ class TestPartialFunctionsAlwaysResult:
 
 	def test_pow_type(self) -> None:
 		x = Var[int, Ctx]("x")
-		assert_type(x ** 2, Result[int, Ctx, int])
+		assert_type(x**2, Result[int, Ctx, int])
 
 	def test_mod_type(self) -> None:
 		x = Var[int, Ctx]("x")
@@ -2663,4 +2664,119 @@ class TestConstToleranceEval:
 
 	def test_unwrap_returns_self(self) -> None:
 		tol = PlusMinus("T", 5.0, 0.1)
-		assert tol.unwrap(None) is tol
+		assert id(tol.unwrap(None)) == id(tol)
+
+
+def test_rmod_literal_mod_var() -> None:
+	class ModCtx(NamedTuple):
+		x: int
+
+	x = Var[int, ModCtx]("x")
+	expr = 10 % x
+	result = expr.unwrap(ModCtx(x=3))
+	assert not isinstance(result, Failure)
+	assert result == 1
+
+
+def test_not_partial() -> None:
+	x = Var[bool, Ctx]("flag")
+	not_expr = ~x
+	partial_result = not_expr.partial(ctx)
+	assert isinstance(partial_result, Not)
+	assert partial_result.unwrap(ctx) is not x.unwrap(ctx)
+
+
+def test_neg_partial() -> None:
+	x = Var[int, Ctx]("x")
+	neg_expr = -x
+	partial_result = neg_expr.partial(ctx)
+	assert isinstance(partial_result, Neg)
+	assert partial_result.unwrap(ctx) == -ctx.x
+
+
+def test_predicate_call() -> None:
+	x = Var[int, PredicateCtx]("x")
+	pred = Predicate("x > 0", x > 0)
+	result = pred(PredicateCtx(x=3))
+	assert isinstance(result, Const)
+	assert result.value is True
+
+
+def test_predicate_partial() -> None:
+	x = Var[int, PredicateCtx]("x")
+	pred = Predicate("x > 0", x > 0)
+	partial_result = pred.partial(PredicateCtx(x=3))
+	assert isinstance(partial_result, Predicate)
+	assert partial_result.unwrap(PredicateCtx(x=3)) is True
+
+
+def test_predicate_to_func() -> None:
+	x = Var[int, PredicateCtx]("x")
+	pred = Predicate("x > 0", x > 0)
+	func = pred.to_func()
+	assert isinstance(func, Func)
+
+
+def test_predicate_map() -> None:
+	n = Var[int, ElemCtx]("n")
+	pred = Predicate("n > 0", n > 0)
+	nums = Var[SizedIterable[int], ContainerCtx]("nums")
+	mapped = pred.map(nums)
+	assert isinstance(mapped, MapExpr)
+
+
+def test_bound_expr_call() -> None:
+	class BoundCtx(NamedTuple):
+		x: int
+
+	x = Var[int, BoundCtx]("x")
+	bound = (x > 5).bind(BoundCtx(x=10))
+	result = bound(())
+	assert isinstance(result, Const)
+	assert result.value is True
+
+
+def test_bound_expr_to_func() -> None:
+	class BoundCtx(NamedTuple):
+		x: int
+
+	x = Var[int, BoundCtx]("x")
+	bound = (x > 5).bind(BoundCtx(x=10))
+	func = bound.to_func()
+	assert isinstance(func, Func)
+
+
+def test_bound_expr_map() -> None:
+	n = Var[int, ElemCtx]("n")
+	bound = (n * 2).bind(ElemCtx(n=3))
+	nums = Var[SizedIterable[int], ContainerCtx]("nums")
+	mapped = bound.map(nums)
+	assert isinstance(mapped, MapExpr)
+
+
+def test_const_tolerance_eq_returns_not_implemented_for_result_base() -> None:
+	tol = PlusMinus("T", 5.0, 0.1)
+	pure_val = Pure(Const(None, 5.0))
+	result = tol.__eq__(pure_val)
+	assert result is NotImplemented
+
+
+def test_approximately_partial() -> None:
+	class FloatCtx(NamedTuple):
+		value: float
+
+	value = Var[float, FloatCtx]("value")
+	approx = value == PlusMinus("T", 5.0, 0.1)
+	partial_result = approx.partial(FloatCtx(value=5.05))
+	assert isinstance(partial_result, Approximately)
+
+
+def test_format_iterable_var_with_string_value() -> None:
+	from mahonia import SizedIterable
+
+	class StrCtx(NamedTuple):
+		name: SizedIterable[str]
+
+	var = Var[SizedIterable[str], StrCtx]("name")
+	result = format_iterable_var(var, StrCtx(name="hello"))
+	assert result == "name:hello"

@@ -291,3 +291,32 @@ def test_iterable_string_representation() -> None:
 	# Test without context (should use original format)
 	assert mean_expr.to_string() == "(mean measurements)"
 	assert p95_expr.to_string() == "(percentile:95 measurements)"
+
+
+def test_stats_partial_methods() -> None:
+	class Ctx(NamedTuple):
+		measurements: list[float]
+
+	class Empty(NamedTuple):
+		pass
+
+	measurements = Var[SizedIterable[float], Ctx]("measurements")
+	ctx = Ctx(measurements=[1.0, 2.0, 3.0, 4.0, 5.0])
+
+	mean_partial = Mean(measurements).partial(ctx)
+	assert mean_partial.unwrap(Empty()) == 3.0
+
+	stddev_partial = StdDev(measurements).partial(ctx)
+	assert round(stddev_partial.unwrap(Empty()), 3) == 1.581
+
+	median_partial = Median(measurements).partial(ctx)
+	assert median_partial.unwrap(Empty()) == 3.0
+
+	percentile_partial = Percentile(95, measurements).partial(ctx)
+	assert percentile_partial.unwrap(Empty()) == 4.8
+
+	range_partial = Range(measurements).partial(ctx)
+	assert range_partial.unwrap(Empty()) == 4.0
+
+	count_partial = Count(measurements).partial(ctx)
+	assert count_partial.unwrap(Empty()) == 5

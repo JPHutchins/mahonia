@@ -540,9 +540,7 @@ class TestEdgeCases:
 
 		assert count_op.unwrap(original_ctx) == count_op.unwrap(shuffled_ctx)
 
-		# Only test StdDev if we have enough data
-		if len(measurements) >= 2:
-			stddev_op = StdDev(measurements_var)
-			stddev_original = stddev_op.unwrap(original_ctx)
-			stddev_shuffled = stddev_op.unwrap(shuffled_ctx)
-			assert abs(stddev_original - stddev_shuffled) < 1e-10 * max(1.0, abs(stddev_original))
+		stddev_op = StdDev(measurements_var)
+		stddev_original = stddev_op.unwrap(original_ctx)
+		stddev_shuffled = stddev_op.unwrap(shuffled_ctx)
+		assert abs(stddev_original - stddev_shuffled) < 1e-10 * max(1.0, abs(stddev_original))

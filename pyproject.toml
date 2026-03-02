@@ -68,3 +68,15 @@ mahonia = { workspace = true }
 [tool.coverage.run]
 source = ["mahonia", "tests"]
 branch = true
+
+[tool.coverage.report]
+fail_under = 100
+exclude_lines = [
+"@overload",
+"assert_never",
+"pragma: no cover",
+"if __name__ == .__main__.:",
+"if TYPE_CHECKING",
+':\s*\.\.\.\s*$',
+'^\s*\.\.\.\s*$',
+]

@@ -1484,3 +1484,119 @@ def test_foldl_mul_with_expr_elements() -> None:
 
 	ctx = OuterCtx(x=5, factors=[doubled, tripled])
 	assert fold_mul.unwrap(ctx) == (5 * 2) * (5 * 3)  # 10 * 15 = 150
+
+
+def test_contains_partial() -> None:
+	class Ctx(NamedTuple):
+		target: int
+		values: list[int]
+
+	class Empty(NamedTuple):
+		pass
+
+	target = Var[int, Ctx]("target")
+	values = Var[SizedIterable[int], Ctx]("values")
+	expr = Contains(target, values)
+	ctx = Ctx(target=2, values=[1, 2, 3])
+	partial_expr = expr.partial(ctx)
+	assert partial_expr.unwrap(Empty()) is True
+
+
+def test_map_expr_partial() -> None:
+	from mahonia import MapExpr
+
+	class Ctx(NamedTuple):
+		n: int
+		nums: list[int]
+
+	class Empty(NamedTuple):
+		pass
+
+	n = Var[int, Ctx]("n")
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	map_expr = (n * 2).map(nums)
+	assert isinstance(map_expr, MapExpr)
+	ctx = Ctx(n=5, nums=[1, 2, 3])
+	partial_expr = map_expr.partial(ctx)
+	assert len(list(partial_expr.unwrap(Empty()))) == 3
+
+
+def test_map_expr_eval_empty_func_args() -> None:
+	from mahonia import Func, MapExpr
+
+	class Ctx(NamedTuple):
+		nums: list[int]
+
+	nums = Var[SizedIterable[int], Ctx]("nums")
+	func = Func((), Const(None, 0))
+	map_expr = MapExpr(func, nums)
+	ctx = Ctx(nums=[1, 2, 3])
+	assert list(map_expr.unwrap(ctx)) == []
+
+
+def test_foldl_to_string_min_max() -> None:
+	class Ctx(NamedTuple):
+		values: list[int]
+
+	values = Var[SizedIterable[int], Ctx]("values")
+	ctx = Ctx(values=[3, 1, 4, 1, 5])
+	min_foldl = FoldLExpr(Min, values)
+	assert min_foldl.to_string(ctx) == "(foldl min values:5 -> 1)"
+	max_foldl = FoldLExpr(Max, values)
+	assert max_foldl.to_string(ctx) == "(foldl max values:5 -> 5)"
+
+
+def test_any_expr_partial() -> None:
+	class Ctx(NamedTuple):
+		flags: list[bool]
+
+	class Empty(NamedTuple):
+		pass
+
+	flags = Var[SizedIterable[bool], Ctx]("flags")
+	expr = AnyExpr(flags)
+	ctx = Ctx(flags=[False, True, False])
+	partial_expr = expr.partial(ctx)
+	assert partial_expr.unwrap(Empty()) is True
+
+
+def test_all_expr_partial() -> None:
+	class Ctx(NamedTuple):
+		flags: list[bool]
+
+	class Empty(NamedTuple):
+		pass
+
+	flags = Var[SizedIterable[bool], Ctx]("flags")
+	expr = AllExpr(flags)
+	ctx = Ctx(flags=[True, True, True])
+	partial_expr = expr.partial(ctx)
+	assert partial_expr.unwrap(Empty()) is True
+
+
+def test_min_expr_partial() -> None:
+	class Ctx(NamedTuple):
+		values: list[int]
+
+	class Empty(NamedTuple):
+		pass
+
+	values = Var[SizedIterable[int], Ctx]("values")
+	expr = MinExpr(values)
+	ctx = Ctx(values=[3, 1, 4, 1, 5])
+	partial_expr = expr.partial(ctx)
+	assert partial_expr.unwrap(Empty()) == 1
+
+
+def test_max_expr_partial() -> None:
+	class Ctx(NamedTuple):
+		values: list[int]
+
+	class Empty(NamedTuple):
+		pass
+
+	values = Var[SizedIterable[int], Ctx]("values")
+	expr = MaxExpr(values)
+	ctx = Ctx(values=[3, 1, 4, 1, 5])
+	partial_expr = expr.partial(ctx)
+	assert partial_expr.unwrap(Empty()) == 5

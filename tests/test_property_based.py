@@ -53,14 +53,6 @@ def int_consts(draw: DrawFn) -> Const[int]:
 	return Const(name, value)
 
 
-# Strategy for generating float constants
-@st.composite
-def float_consts(draw: DrawFn) -> Const[float]:
-	value = draw(st.floats(-100.0, 100.0, allow_nan=False, allow_infinity=False))
-	name = draw(st.one_of(st.none(), st.text(min_size=1, max_size=10)))
-	return Const(name, value)
-
-
 class TestArithmeticProperties:
 	"""Test fundamental arithmetic properties."""
 
