@@ -22,6 +22,7 @@ dev = [
 "mypy>=1.19",
 "pyright>=1.1.408",
 "pytest>=8.4.0",
+"pytest-cov>=7.0.0",
 "ruff>=0.12.0",
 "taskipy>=1",
 ]
@@ -33,6 +34,7 @@ typecheck = "task _mypy && task _pyright"
 _mypy = "mypy ."
 _pyright = "pyright src examples tests"
 test = "pytest --doctest-modules"
+coverage = "pytest --doctest-modules --cov --cov-report=xml --cov-report=term-missing"
 all = "task format && task lint && task typecheck && task test"
 matrix = "UV_PROJECT_ENVIRONMENT=.venv-3.12 uv run --all-packages --python 3.12 task all && UV_PROJECT_ENVIRONMENT=.venv-3.13 uv run --all-packages --python 3.13 task all && UV_PROJECT_ENVIRONMENT=.venv-3.14 uv run --all-packages --python 3.14 task all"
 
@@ -62,3 +64,7 @@ members = ["examples/manufacturing_tests"]
 
 [tool.uv.sources]
 mahonia = { workspace = true }
+
+[tool.coverage.run]
+source = ["mahonia"]
+branch = true

@@ -36,6 +36,21 @@ jobs:
             dist/*.tar.gz
             dist/*.whl
 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv run --all-packages task coverage
+
+      - uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+
   check-latex-examples:
     runs-on: ubuntu-latest
     steps:

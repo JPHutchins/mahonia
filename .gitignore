@@ -2,3 +2,5 @@ __pycache__
 .hypothesis
 .mypy_cache
 .venv*
+.coverage
+coverage.xml
