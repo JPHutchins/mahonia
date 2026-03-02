@@ -66,5 +66,5 @@ members = ["examples/manufacturing_tests"]
 mahonia = { workspace = true }
 
 [tool.coverage.run]
-source = ["mahonia"]
+source = ["mahonia", "tests"]
 branch = true
