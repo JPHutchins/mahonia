@@ -21,6 +21,7 @@ from mahonia import (
 	Div,
 	Eq,
 	Expr,
+	Failure,
 	FloatVar,
 	FoldLExpr,
 	Func,
@@ -48,6 +49,7 @@ from mahonia import (
 	Predicate,
 	Pure,
 	Result,
+	ResultBase,
 	SizedIterable,
 	StrVar,
 	Sub,
@@ -2575,3 +2577,90 @@ def test_clamp_factory_reuse() -> None:
 	assert repr(normalize) == "Clamp(0, 100)"
 	assert clamped_x.to_string() == "(clamp 0 100 x)"
 	assert clamped_y.to_string() == "(clamp 0 100 y)"
+
+
+class TestPartialFunctionsAlwaysResult:
+	def test_div_type(self) -> None:
+		assert_type(Const(None, 6.0) / Const(None, 2.0), Result[float, Any, float])
+
+	def test_pow_type(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert_type(x ** 2, Result[int, Ctx, int])
+
+	def test_mod_type(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert_type(x % 3, Result[int, Ctx, int])
+
+	def test_div_by_zero_produces_failure(self) -> None:
+		result = (Const(None, 1.0) / Const(None, 0.0)).unwrap(None)
+		assert isinstance(result, Failure)
+		assert isinstance(result.exceptions[0], ZeroDivisionError)
+
+	def test_mod_by_zero_produces_failure(self) -> None:
+		result = (Const(None, 1) % Const(None, 0)).unwrap(None)
+		assert isinstance(result, Failure)
+		assert isinstance(result.exceptions[0], ZeroDivisionError)
+
+	def test_div_success(self) -> None:
+		result = (Const(None, 6.0) / Const(None, 2.0)).unwrap(None)
+		assert not isinstance(result, Failure)
+		assert result == 3.0
+
+	def test_pow_success(self) -> None:
+		result = (Const(None, 3) ** 2).unwrap(None)
+		assert not isinstance(result, Failure)
+		assert result == 9
+
+
+class TestPure:
+	def test_is_result_base(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert isinstance(Pure(x), ResultBase)
+
+	def test_eval_transparent(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert Pure(x).eval(ctx).value == x.eval(ctx).value
+
+	def test_to_string_transparent(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert Pure(x).to_string() == x.to_string()
+
+	def test_unwrap_type(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert_type(Pure(x).unwrap(Ctx(x=5, y=0, name="")), int | Failure)
+
+	def test_virality_add(self) -> None:
+		x = Var[int, Ctx]("x")
+		y = Var[int, Ctx]("y")
+		assert_type(Pure(x) + y, Result[int, Ctx, int])
+
+	def test_virality_eq(self) -> None:
+		x = Var[int, Ctx]("x")
+		y = Var[int, Ctx]("y")
+		assert_type(Pure(x) == y, Result[int, Ctx, bool])
+
+
+class TestBinaryOpEvalDefault:
+	def test_add_via_op_func(self) -> None:
+		assert Add(Const(None, 3), Const(None, 4)).eval(None).value == 7
+
+	def test_eq_via_op_func(self) -> None:
+		assert Eq(Const(None, 3), Const(None, 3)).eval(None).value is True
+
+	def test_lt_via_op_func(self) -> None:
+		assert Lt(Const(None, 3), Const(None, 5)).eval(None).value is True
+
+	def test_lt_false_via_op_func(self) -> None:
+		assert Lt(Const(None, 5), Const(None, 3)).eval(None).value is False
+
+
+class TestConstToleranceEval:
+	def test_eval_returns_const_wrapping_self(self) -> None:
+		tol = PlusMinus("T", 5.0, 0.1)
+		result = tol.eval(None)
+		assert isinstance(result, Const)
+		assert result.value is tol
+
+	def test_unwrap_returns_self(self) -> None:
+		tol = PlusMinus("T", 5.0, 0.1)
+		assert tol.unwrap(None) is tol

@@ -1328,3 +1328,19 @@ def test_match_expr_latex_greek_variables() -> None:
 	result = latex(match_expr)
 	assert "\\alpha" in result
 	assert "\\beta" in result
+
+
+class TestLatexResultExpressions:
+	def test_pow_result_renders(self) -> None:
+		x = Var[int, Ctx]("x")
+		assert latex(x ** 2) == "x^2"
+
+	def test_division_result_renders(self) -> None:
+		x = Var[float, Ctx]("x")
+		y = Var[float, Ctx]("y")
+		assert latex(x / y) == "\\frac{x}{y}"
+
+	def test_pow_result_with_context(self) -> None:
+		x = Var[int, Ctx]("x")
+		ctx_val = Ctx(x=3, y=0)
+		assert latex(x ** 2, LatexCtx(ctx_val)) == "(x:3^2 \\rightarrow 9)"

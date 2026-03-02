@@ -5,7 +5,7 @@
 
 from typing import Any, NamedTuple, assert_type
 
-from mahonia import Const, Expr, Func, Var, extract_vars
+from mahonia import Const, Expr, Func, Pure, Result, Var, extract_vars
 
 
 class FuncCtx(NamedTuple):
@@ -320,3 +320,26 @@ def test_func_integration_with_existing_features() -> None:
 	# Verify predicate still works
 	assert predicate.unwrap(ctx_true) is True
 	assert predicate.unwrap(ctx_false) is False
+
+
+class TestExtractVarsResult:
+	def test_pow_extracts_var(self) -> None:
+		x = Var[int, FuncCtx]("x")
+		expr = x ** 2
+		assert extract_vars((), expr) == (x,)
+
+	def test_nested_result_extracts_all(self) -> None:
+		x = Var[int, FuncCtx]("x")
+		y = Var[int, FuncCtx]("y")
+		expr = (x + y) ** 2
+		vars = extract_vars((), expr)
+		assert len(vars) == 2
+		assert x in vars
+		assert y in vars
+
+	def test_mod_extracts_both(self) -> None:
+		x = Var[int, FuncCtx]("x")
+		y = Var[int, FuncCtx]("y")
+		expr = x % y
+		vars = extract_vars((), expr)
+		assert len(vars) == 2
