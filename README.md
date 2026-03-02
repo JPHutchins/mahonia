@@ -5,7 +5,6 @@ serializing binary expressions within a Python interpreter.
 
 [![Test](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml)
 [![codecov](https://codecov.io/github/JPHutchins/mahonia/graph/badge.svg?token=9ONBIBDD5D)](https://codecov.io/github/JPHutchins/mahonia)
-[![Publish Python 🐍 distribution 📦 to PyPI](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml)
 
 ## Motivation
 
