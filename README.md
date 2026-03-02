@@ -6,6 +6,8 @@ serializing binary expressions within a Python interpreter.
 [![Test](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/test.yaml)
 [![Publish Python 🐍 distribution 📦 to PyPI](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml/badge.svg)](https://github.com/JPHutchins/mahonia/actions/workflows/publish.yaml)
 
+[![codecov](https://codecov.io/github/JPHutchins/mahonia/graph/badge.svg?token=9ONBIBDD5D)](https://codecov.io/github/JPHutchins/mahonia)
+
 ## Motivation
 
 Say that you are writing an application that conducts some assembly line testing
