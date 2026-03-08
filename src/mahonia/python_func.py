@@ -1,6 +1,8 @@
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, Protocol, TypeIs, overload
+from typing import Any, Callable, Protocol, overload
+
+from typing_extensions import TypeIs
 
 from mahonia import (
 	BinaryOperationOverloads,
