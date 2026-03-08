@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import Any, Callable, overload
+from typing import Any, Callable, Protocol, TypeIs, overload
 
 from mahonia import (
 	BinaryOperationOverloads,
@@ -682,6 +682,8 @@ def python_func(f: Callable[..., Any]) -> Any:
 	>>> safe_sqrt(x).to_string(Ctx(x=-1.0))
 	"my_sqrt(x:-1.0) -> Failure(exceptions=(ValueError('neg: -1.0'),))"
 	"""
+	if hasattr(f, "_mahonia_python_func"):
+		return f._mahonia_python_func  # pyright: ignore[reportFunctionMemberAccess]
 	match len(inspect.signature(f).parameters):
 		case 0:
 			return PythonFunc0Wrapper(f)
@@ -711,3 +713,88 @@ def python_func(f: Callable[..., Any]) -> Any:
 			return PythonFunc12Wrapper(f)
 		case n:
 			raise ValueError(f"python_func supports 0-12 args, got {n}")
+
+
+class HasMahoniaPythonFunc(Protocol):
+	_mahonia_python_func: Any
+
+
+def is_expr_func(f: object) -> TypeIs[HasMahoniaPythonFunc]:
+	return hasattr(f, "_mahonia_python_func")
+
+
+@overload
+def expr[R](f: Callable[[], R]) -> PythonFunc0Wrapper[R]: ...
+
+
+@overload
+def expr[T1, R](f: Callable[[T1], R]) -> PythonFunc1Wrapper[T1, R]: ...
+
+
+@overload
+def expr[T1, T2, R](f: Callable[[T1, T2], R]) -> PythonFunc2Wrapper[T1, T2, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, R](
+	f: Callable[[T1, T2, T3], R],
+) -> PythonFunc3Wrapper[T1, T2, T3, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, R](
+	f: Callable[[T1, T2, T3, T4], R],
+) -> PythonFunc4Wrapper[T1, T2, T3, T4, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, R](
+	f: Callable[[T1, T2, T3, T4, T5], R],
+) -> PythonFunc5Wrapper[T1, T2, T3, T4, T5, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6], R],
+) -> PythonFunc6Wrapper[T1, T2, T3, T4, T5, T6, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7], R],
+) -> PythonFunc7Wrapper[T1, T2, T3, T4, T5, T6, T7, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, T8, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7, T8], R],
+) -> PythonFunc8Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, T8, T9, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9], R],
+) -> PythonFunc9Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], R],
+) -> PythonFunc10Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11], R],
+) -> PythonFunc11Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, R]: ...
+
+
+@overload
+def expr[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R](
+	f: Callable[[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12], R],
+) -> PythonFunc12Wrapper[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, R]: ...
+
+
+def expr(f: Callable[..., Any]) -> Any:
+	f._mahonia_python_func = python_func(f)  # type: ignore[attr-defined]
+	return f._mahonia_python_func  # type: ignore[attr-defined]

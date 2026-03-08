@@ -8,6 +8,7 @@ import pytest
 
 from mahonia import Const, Failure, PlusMinus, Pure, Result, Var
 from mahonia.python_func import (
+	HasMahoniaPythonFunc,
 	PythonFunc0,
 	PythonFunc0Wrapper,
 	PythonFunc1,
@@ -20,7 +21,11 @@ from mahonia.python_func import (
 	PythonFunc6Wrapper,
 	PythonFunc12,
 	PythonFunc12Wrapper,
+	is_expr_func,
 	python_func,
+)
+from mahonia.python_func import (
+	expr as expr_decorator,
 )
 
 
@@ -2136,3 +2141,140 @@ class TestUnwrapTypes:
 
 	def test_div_unwrap_type(self) -> None:
 		assert_type((x / y).unwrap(Ctx(x=1.0, y=1.0)), float | Failure)
+
+
+@expr_decorator
+def decorated_sqrt(val: float) -> float:
+	if val < 0:
+		raise ValueError(f"expected a nonnegative input, got {val}")
+	return math.sqrt(val)
+
+
+@expr_decorator
+def decorated_div(a: float, b: float) -> float:
+	if b == 0:
+		raise ZeroDivisionError("division by zero")
+	return a / b
+
+
+@expr_decorator
+def decorated_pi() -> float:
+	return math.pi
+
+
+class TestExprDecorator:
+	def test_sets_mahonia_python_func_on_original(self) -> None:
+		def f(v: float) -> float:
+			return v
+
+		wrapper = expr_decorator(f)
+		assert hasattr(f, "_mahonia_python_func")
+		assert f._mahonia_python_func is wrapper  # pyright: ignore[reportFunctionMemberAccess]
+		assert wrapper(x).unwrap(Ctx(x=42.0, y=0)) == 42.0
+
+	def test_wrapper_types(self) -> None:
+		assert isinstance(decorated_sqrt, PythonFunc1Wrapper)
+		assert isinstance(decorated_div, PythonFunc2Wrapper)
+		assert isinstance(decorated_pi, PythonFunc0Wrapper)
+
+	def test_creates_expressions(self) -> None:
+		assert decorated_sqrt(x).unwrap(Ctx(x=4.0, y=0)) == 2.0
+
+	def test_catches_exceptions(self) -> None:
+		result = decorated_sqrt(x).unwrap(Ctx(x=-1.0, y=0))
+		assert isinstance(result, Failure)
+
+	def test_composition(self) -> None:
+		assert (decorated_sqrt(x) + decorated_sqrt(y)).unwrap(Ctx(x=4.0, y=9.0)) == 5.0
+
+	def test_nesting(self) -> None:
+		assert decorated_sqrt(decorated_sqrt(x)).unwrap(Ctx(x=16.0, y=0)) == 2.0
+
+	def test_2arg(self) -> None:
+		assert decorated_div(x, y).unwrap(Ctx(x=10.0, y=2.0)) == 5.0
+
+	def test_2arg_failure(self) -> None:
+		result = decorated_div(x, y).unwrap(Ctx(x=10.0, y=0.0))
+		assert isinstance(result, Failure)
+
+	def test_0arg(self) -> None:
+		e: PythonFunc0[float, Ctx] = decorated_pi()
+		assert e.unwrap(Ctx(x=0, y=0)) == math.pi
+
+	def test_to_string_no_context(self) -> None:
+		assert decorated_sqrt(x).to_string() == "decorated_sqrt(x)"
+
+	def test_to_string_with_context(self) -> None:
+		assert decorated_sqrt(x).to_string(Ctx(x=4.0, y=0)) == "decorated_sqrt(x:4.0) -> 2.0"
+
+	def test_to_string_failure(self) -> None:
+		assert "Failure" in decorated_sqrt(x).to_string(Ctx(x=-1.0, y=0))
+
+	def test_partial(self) -> None:
+		partial_expr = decorated_div(x, y).partial(Ctx(x=10.0, y=2.0))
+		assert partial_expr.unwrap(Ctx(x=0, y=0)) == 5.0
+
+	def test_error_accumulation(self) -> None:
+		result = decorated_div(decorated_sqrt(x), decorated_sqrt(y)).unwrap(Ctx(x=-1.0, y=-4.0))
+		assert isinstance(result, Failure) and len(result.exceptions) == 2
+
+	def test_literal_arg(self) -> None:
+		assert decorated_sqrt(Const(None, 9.0)).unwrap(Ctx(x=0, y=0)) == 3.0
+
+
+class TestIsExprFunc:
+	def test_original_func_returns_true(self) -> None:
+		def f(v: float) -> float:
+			return v
+
+		w = expr_decorator(f)
+		assert is_expr_func(f)
+		assert w(x).unwrap(Ctx(x=1.0, y=0)) == 1.0
+
+	def test_python_func_idempotent_on_decorated(self) -> None:
+		w = expr_decorator(decorated_sqrt.func)
+		assert python_func(decorated_sqrt.func) is w
+
+	def test_plain_function_returns_false(self) -> None:
+		assert not is_expr_func(my_sqrt)
+
+	def test_python_func_wrapper_returns_false(self) -> None:
+		assert not is_expr_func(safe_sqrt)
+
+	def test_typeis_narrows(self) -> None:
+		def f(v: float) -> float:
+			return v
+
+		w = expr_decorator(f)
+		assert is_expr_func(f)
+		assert_type(f, HasMahoniaPythonFunc)
+		assert isinstance(f._mahonia_python_func, PythonFunc1Wrapper)  # pyright: ignore[reportPrivateUsage]
+		assert w(x).unwrap(Ctx(x=2.0, y=0)) == 2.0
+
+	def test_typeis_does_not_narrow_plain(self) -> None:
+		assert not is_expr_func(my_sqrt)
+
+
+class TestExprDecoratorUnwrapTypes:
+	def test_wrapper_type(self) -> None:
+		assert_type(decorated_pi, PythonFunc0Wrapper[float])
+		assert_type(decorated_sqrt, PythonFunc1Wrapper[float, float])
+		assert_type(decorated_div, PythonFunc2Wrapper[float, float, float])
+
+	def test_result_unwrap_type(self) -> None:
+		assert_type(
+			decorated_sqrt(x).unwrap(Ctx(x=1.0, y=0.0)),
+			float | Failure,
+		)
+
+	def test_pure_unwrap_type(self) -> None:
+		assert_type(
+			Pure(decorated_sqrt(x)).unwrap(Ctx(x=1.0, y=0.0)),
+			float | Failure,
+		)
+
+	def test_div_unwrap_type(self) -> None:
+		assert_type(
+			(decorated_sqrt(x) / decorated_sqrt(y)).unwrap(Ctx(x=4.0, y=1.0)),
+			float | Failure,
+		)
