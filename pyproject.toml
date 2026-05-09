@@ -17,6 +17,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+"camas>=0.1.6",
 "hatch>=1.14.1",
 "hypothesis>=6.100.0",
 "mypy>=1.19",
@@ -24,19 +25,7 @@ dev = [
 "pytest>=8.4.0",
 "pytest-cov>=7.0.0",
 "ruff>=0.12.0",
-"taskipy>=1",
 ]
-
-[tool.taskipy.tasks]
-format = "ruff format ."
-lint = "ruff check ."
-typecheck = "task _mypy && task _pyright"
-_mypy = "mypy ."
-_pyright = "pyright src examples tests"
-test = "pytest --doctest-modules"
-coverage = "pytest --doctest-modules --cov --cov-report=xml --cov-report=term-missing"
-all = "task format && task lint && task typecheck && task test"
-matrix = "UV_PROJECT_ENVIRONMENT=.venv-3.12 uv run --all-packages --python 3.12 task all && UV_PROJECT_ENVIRONMENT=.venv-3.13 uv run --all-packages --python 3.13 task all && UV_PROJECT_ENVIRONMENT=.venv-3.14 uv run --all-packages --python 3.14 task all"
 
 [tool.ruff]
 line-length = 100

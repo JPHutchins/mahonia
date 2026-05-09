@@ -11,27 +11,13 @@ Contributions and bug reports are welcome!
 >   uv sync --locked --all-extras --all-packages --dev
 >   ```
 
-### Formatting
+### Tasks
+
+Tasks are defined in [`tasks.py`](tasks.py) and run with [camas](https://github.com/JPHutchins/camas):
 ```
-uv run task format
+uv run camas --help
 ```
+
 > [!NOTE]
-> VSCode is setup to do this for you on save - feel free to add more editors.
-
-### Linting
-```
-uv run task lint
-```
-> [!NOTE]
-> VSCode is setup to to run these LSPs in the background - feel free to add more
-> editors.
-
-### Tests
-```
-uv run task test
-```
-
-### All
-```
-uv run task all
-```
+> VSCode is setup to format on save and run LSPs in the background — feel free
+> to add more editors.
