@@ -2,22 +2,19 @@
 # SPDX-License-Identifier: MIT
 
 from pathlib import Path
-from typing import Final
 
 from camas import Parallel, Sequential, Task
 
-UV: Final = "uv run --all-packages"
-
-format = Task(f"{UV} ruff format .")
-format_check = Task(f"{UV} ruff format --check .")
-lint = Task(f"{UV} ruff check .")
-lint_fix = Task(f"{UV} ruff check --fix .")
+format = Task("uv run ruff format .")
+format_check = Task("uv run ruff format --check .")
+lint = Task("uv run ruff check .")
+lint_fix = Task("uv run ruff check --fix .")
 fix = Sequential(lint_fix, format)
-mypy = Task(f"{UV} mypy .")
-pyright = Task(f"{UV} pyright src examples tests")
+mypy = Task("uv run mypy .")
+pyright = Task("uv run pyright src examples tests")
 typecheck = Parallel(mypy, pyright)
-test = Task(f"{UV} pytest --doctest-modules")
-coverage = Task(f"{UV} pytest --doctest-modules --cov --cov-report=xml --cov-report=term-missing")
+test = Task("uv run pytest --doctest-modules")
+coverage = Task("uv run pytest --doctest-modules --cov --cov-report=xml --cov-report=term-missing")
 
 all = Sequential(fix, Parallel(typecheck, test))
 check = Parallel(format_check, lint, typecheck, test)
